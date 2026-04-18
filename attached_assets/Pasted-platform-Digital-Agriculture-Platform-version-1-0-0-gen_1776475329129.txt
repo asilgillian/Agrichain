@@ -1,0 +1,1184 @@
+platform: "Digital Agriculture Platform"
+version: "1.0.0"
+generated: "2026-03-29"
+total_modules: 11
+total_stories: 98
+modules:
+  - id: "M1"
+    number: 1
+    name: "Farmer & Household Registry"
+    description: "Digital farmer registration, farm mapping, certification enrolment and full audit trail"
+    delivery:
+      mobile: true
+      web: true
+    phase: 1
+    is_new: false
+    key_features:
+      - "Offline pre-registration with auto-sync"
+      - "OCR national ID scan with auto-fill"
+      - "GPS farm plot polygon mapping (offline)"
+      - "Configurable administrative unit hierarchy"
+      - "Mandatory farmer group assignment"
+      - "Multi-stream certification enrolment with eligibility gating"
+      - "Real-time duplicate detection on name, ID and GPS"
+      - "Digital farmer card with QR code and barcode"
+      - "Manager web console for desktop registration and mapping"
+      - "Immutable audit log of all profile changes"
+    roles:
+      - "Agronomist"
+      - "Farmer"
+      - "Manager"
+      - "Supervisor"
+      - "Group Leader"
+      - "System Administrator"
+    stories:
+      - id: "M1-001"
+        priority: "P1"
+        story_points: 5
+        role: "Agronomist"
+        story: "As an agronomist, I want to capture a farmer's basic details on my Android phone while offline so that I can record new contacts in the field without waiting for connectivity."
+        acceptance_criteria:
+          - "Pre-registration form works fully offline using React Native local storage"
+          - "Record queues and syncs automatically on reconnect via background sync"
+          - "Farmer receives a unique reference number on completion"
+      - id: "M1-002"
+        priority: "P1"
+        story_points: 5
+        role: "Agronomist"
+        story: "As an agronomist, I want to scan a farmer's national ID with my phone camera so that name, date of birth and ID number are filled in automatically without manual typing errors."
+        acceptance_criteria:
+          - "React Native camera module reads national ID and auto-populates name, DOB and ID fields"
+          - "Agent can correct any OCR misread before submitting"
+          - "Original ID number stored alongside OCR-extracted value in audit log"
+      - id: "M1-003"
+        priority: "P1"
+        story_points: 8
+        role: "Agronomist"
+        story: "As an agronomist, I want to draw a GPS polygon around a farmer's farm plot on an offline map so that the farm's boundary is accurately recorded without needing internet access."
+        acceptance_criteria:
+          - "Polygon drawing uses device GPS with offline map tiles cached on first sync"
+          - "Multiple plots recordable per farmer with individual crop types and names"
+          - "Acreage auto-calculated from the drawn polygon boundary"
+      - id: "M1-004"
+        priority: "P1"
+        story_points: 5
+        role: "Agronomist"
+        story: "As an agronomist, I want to be alerted instantly if a farmer I am registering looks like a duplicate so that I avoid creating two records for the same person."
+        acceptance_criteria:
+          - "Duplicate check runs against local cache on name, national ID and GPS proximity"
+          - "Alert shown before submission with the matched record's details"
+          - "Agent can proceed or flag for supervisor review — both options logged"
+      - id: "M1-005"
+        priority: "P1"
+        story_points: 3
+        role: "Agronomist"
+        story: "As an agronomist, I want to assign a farmer to a group during registration so that the farmer is connected to the correct cooperative and I cannot complete registration without doing so."
+        acceptance_criteria:
+          - "Group selection is mandatory — submission blocked without it"
+          - "Available groups filtered by farmer's village from local offline list"
+          - "Assignment recorded in the immutable audit log with timestamp"
+      - id: "M1-006"
+        priority: "P2"
+        story_points: 5
+        role: "Agronomist"
+        story: "As an agronomist, I want to enrol a farmer into a supply chain stream at registration so that their eligibility for EUDR, Rainforest Alliance or other standards is tracked from day one."
+        acceptance_criteria:
+          - "EUDR enrolment requires a confirmed GPS polygon — blocked otherwise"
+          - "Each stream has independently configurable eligibility criteria enforced on mobile"
+          - "Enrolment date and expiry date recorded per stream; visible in farmer profile"
+      - id: "M1-007"
+        priority: "P2"
+        story_points: 3
+        role: "Farmer"
+        story: "As a farmer, I want to view my digital farmer card on my phone so that I can present it at any transaction point without carrying a paper card."
+        acceptance_criteria:
+          - "Card screen displays name, photo, registration number, group, village and QR code"
+          - "QR code and barcode scannable by agent device camera or handheld scanner"
+          - "Card reflects current certification stream enrolments and expiry status"
+      - id: "M1-008"
+        priority: "P2"
+        story_points: 5
+        role: "Manager"
+        story: "As a manager, I want to register farmers and draw farm plots from my React web app browser so that I can support registration from the office without needing a mobile device."
+        acceptance_criteria:
+          - "All registration fields available on web app with identical validation rules to mobile"
+          - "Farm plot polygons drawn on interactive web map using satellite imagery layer"
+          - "Manager-submitted records flagged in audit log as web-entered with role noted"
+      - id: "M1-009"
+        priority: "P2"
+        story_points: 5
+        role: "Supervisor"
+        story: "As a supervisor, I want to review and merge duplicate farmer records from a central web dashboard so that the database stays clean without requiring field agents to resolve conflicts themselves."
+        acceptance_criteria:
+          - "Duplicate dashboard shows all flagged pairs with evidence (name, ID, GPS match score)"
+          - "Merge action requires selecting the master record and confirming on the web app"
+          - "Merge event logged immutably with actor, timestamp and discarded record reference"
+      - id: "M1-010"
+        priority: "P1"
+        story_points: 5
+        role: "System Administrator"
+        story: "As a system administrator, I want to configure the administrative unit hierarchy for each country so that agents select locations using the correct local structure."
+        acceptance_criteria:
+          - "Hierarchy levels configurable by name, depth and order per country on web app"
+          - "Admin units importable from government shapefiles or CSV via web upload"
+          - "Mobile offline unit list updates on next background sync after configuration change"
+      - id: "M1-011"
+        priority: "P1"
+        story_points: 5
+        role: "System Administrator"
+        story: "As a system administrator, I want to configure which web data entry functions each role can access so that different team members only see the actions relevant to their responsibilities."
+        acceptance_criteria:
+          - "Each function togglable on or off independently per role on the web app"
+          - "Toggled-off functions fully hidden from that role's interface — not greyed out"
+          - "Permission changes take effect immediately on next page load for affected users"
+      - id: "M1-012"
+        priority: "P3"
+        story_points: 3
+        role: "Group Leader"
+        story: "As a group leader, I want to view the full membership list and leadership roster for my group on my phone so that I can verify who belongs to the group and who holds which position."
+        acceptance_criteria:
+          - "Group membership list shows farmer profiles and plot summaries, available offline"
+          - "Leadership roles display with term start dates and contact details"
+          - "Group KPIs — membership size, compliance score, active plots — visible in summary"
+  - id: "M2"
+    number: 2
+    name: "Field Data Collection & Agronomy"
+    description: "Offline surveys, agronomic visits, training, GAP assessments and commodity bulking"
+    delivery:
+      mobile: true
+      web: true
+    phase: 1
+    is_new: false
+    key_features:
+      - "Offline survey engine with SQLite local store"
+      - "Mandatory photo evidence fields per form"
+      - "Drag-and-drop form builder on web"
+      - "Structured GAP assessments with per-criterion scoring"
+      - "Supervisor QA dashboard for field submission review"
+      - "Agronomic visit scheduling and completion tracking"
+      - "Training session management and attendance capture"
+      - "Commodity bulking with real-time stream intersection"
+      - "Pre-processing deductions with supervisor-approved upward adjustments"
+      - "Batch delivery and formal handover to buying station"
+    roles:
+      - "Agronomist"
+      - "Farmer"
+      - "Manager"
+      - "Supervisor"
+      - "System Administrator"
+    stories:
+      - id: "M2-001"
+        priority: "P1"
+        story_points: 8
+        role: "Agronomist"
+        story: "As an agronomist, I want to complete a farm survey on my Android phone while offline so that I can gather structured data in the field and have it sync automatically when I return to connectivity."
+        acceptance_criteria:
+          - "Survey form available offline using React Native SQLite local store with all configured fields and skip logic"
+          - "Device GPS coordinates stamped automatically on form submission"
+          - "Background sync uploads completed forms without agent intervention on reconnect"
+      - id: "M2-002"
+        priority: "P1"
+        story_points: 5
+        role: "Agronomist"
+        story: "As an agronomist, I want mandatory photo fields on assessment forms so that every critical observation has visual evidence attached before the form can be submitted."
+        acceptance_criteria:
+          - "Photo capture required on configured fields using React Native camera — form blocked without it"
+          - "Photos stored locally then synced to server and linked to farmer profile"
+          - "Supervisor can view attached photos when reviewing the submitted form on web app"
+      - id: "M2-003"
+        priority: "P1"
+        story_points: 5
+        role: "Agronomist"
+        story: "As an agronomist, I want to record a scored GAP assessment for each farmer I visit so that compliance with Good Agricultural Practices is tracked over time."
+        acceptance_criteria:
+          - "Each GAP criterion scored individually with mandatory supporting photo evidence"
+          - "Previous GAP scores for the farmer visible on mobile for comparison during the assessment"
+          - "Completed assessment queued for supervisor QA review on the web dashboard"
+      - id: "M2-004"
+        priority: "P2"
+        story_points: 5
+        role: "Supervisor"
+        story: "As a supervisor, I want a QA dashboard on the web app showing all submitted field assessments so that I can review, approve or flag them without chasing agents individually."
+        acceptance_criteria:
+          - "Dashboard shows all submissions filterable by agent, group, region and date"
+          - "Supervisor can approve, reject or flag each submission with a mandatory comment"
+          - "Flagged submissions trigger a push notification to the submitting agent's Android device"
+      - id: "M2-005"
+        priority: "P2"
+        story_points: 3
+        role: "Agronomist"
+        story: "As an agronomist, I want to see my assigned visit schedule and priority routes on my phone so that I can plan my day efficiently without printing anything."
+        acceptance_criteria:
+          - "Visit schedule shows upcoming visits in date order with farmer name, location and priority"
+          - "Overdue visits highlighted in red with days elapsed"
+          - "Completing a visit marks it done and updates the supervisor's monitoring view in real time"
+      - id: "M2-006"
+        priority: "P1"
+        story_points: 8
+        role: "Manager"
+        story: "As a manager, I want to design and publish survey templates using the drag-and-drop form builder on the web app so that field teams collect exactly the data I need without requiring developer involvement."
+        acceptance_criteria:
+          - "Form builder supports text, number, date, dropdown, photo and GPS field types"
+          - "Skip logic configurable per field based on previous answers"
+          - "Published forms pushed to agents' Android apps on next background sync"
+      - id: "M2-007"
+        priority: "P2"
+        story_points: 5
+        role: "Manager"
+        story: "As a manager, I want to schedule training sessions and track farmer attendance on the web app so that I have a verifiable record of who has completed which training topics."
+        acceptance_criteria:
+          - "Sessions created with date, location, type and assigned facilitator on the web app"
+          - "Attendance recorded by farmer name with digital or photo sign-off on mobile"
+          - "Training compliance reports generated per farmer, group and certification standard"
+      - id: "M2-008"
+        priority: "P1"
+        story_points: 8
+        role: "Agronomist"
+        story: "As an agronomist, I want to create a commodity bulk batch by selecting farmers and entering their pre-processing weights on my phone so that each farmer's contribution is recorded individually before the batch leaves my hands."
+        acceptance_criteria:
+          - "Each farmer's gross weight, crop type and harvest date recorded on mobile"
+          - "Batch tag with QR code auto-generated and printable via connected Bluetooth printer"
+          - "Batch locked after all weights confirmed — no further edits permitted after closure"
+      - id: "M2-009"
+        priority: "P1"
+        story_points: 8
+        role: "Agronomist"
+        story: "As an agronomist, I want the system to show me which supply chain streams a batch qualifies for in real time as I add farmers so that I can see immediately if adding a farmer would reduce the batch's certification value."
+        acceptance_criteria:
+          - "Batch stream recalculated in real time on mobile as the intersection of all contributing farmers' active certifications"
+          - "Adding a farmer who would remove a stream triggers a conflict warning before the addition is saved"
+          - "Supervisor must approve on their device any addition that reduces the batch stream"
+      - id: "M2-010"
+        priority: "P2"
+        story_points: 3
+        role: "Farmer"
+        story: "As a farmer, I want to receive an SMS and push notification whenever my post-processing weight is adjusted so that I am never surprised by a difference between what I submitted and what I am paid on."
+        acceptance_criteria:
+          - "Push notification via React Native Firebase integration sent on any adjustment — upward or downward"
+          - "Notification includes original weight, process applied, system weight, adjusted weight and reason"
+          - "Farmer can view full weight breakdown in their app at any time"
+      - id: "M2-011"
+        priority: "P1"
+        story_points: 5
+        role: "Supervisor"
+        story: "As a supervisor, I want to approve any upward weight adjustment proposed by an agronomist before it is saved so that inflated weights cannot be committed without a second check."
+        acceptance_criteria:
+          - "Agronomist can propose an increase on mobile but cannot save without supervisor sign-off"
+          - "Supervisor receives a push notification with the proposed change and reason for review"
+          - "Approval or rejection logged with actor, role and timestamp"
+      - id: "M2-012"
+        priority: "P2"
+        story_points: 3
+        role: "System Administrator"
+        story: "As a system administrator, I want to configure pre-processing deduction percentages per process type on the web app so that post-processing weights are calculated consistently and transparently for all farmers."
+        acceptance_criteria:
+          - "Each process type has a configurable default deduction percentage and a min/max range"
+          - "Configuration changes versioned — active batches retain the rate at time of processing"
+          - "Audit log records all configuration changes with actor and effective date"
+  - id: "M3"
+    number: 3
+    name: "Commodity Procurement & Sourcing"
+    description: "Truck arrival, QC grading, multi-step approval workflow, pricing and agent cash float"
+    delivery:
+      mobile: true
+      web: true
+    phase: 2
+    is_new: false
+    key_features:
+      - "QR batch tag scan on truck arrival to create inbound delivery record"
+      - "Gross/tare weight recording with maker-checker approval"
+      - "Parallel quality approval — moisture, defect count, cup score, auto-grade"
+      - "Pricing screen locked until both weight and quality approved"
+      - "Pre-season floor price enforcement at system level"
+      - "Live net value calculator — price, deductions, incentives"
+      - "Five rejection types across all approval steps"
+      - "Agent cash float management with top-up request workflow"
+      - "Automated lot tag issuance and stream identity transfer"
+      - "Full procurement approval audit trail"
+    roles:
+      - "Buying Station Agent"
+      - "Quality Inspector"
+      - "Trade Desk Officer"
+      - "Procurement Head"
+      - "Agronomist"
+      - "Manager"
+      - "Finance Officer"
+    stories:
+      - id: "M3-001"
+        priority: "P1"
+        story_points: 5
+        role: "Buying Station Agent"
+        story: "As a buying station agent, I want to scan the agronomist's batch tag QR code on my Android phone when a truck arrives so that the delivery is linked to the correct origin batch automatically without manual data entry."
+        acceptance_criteria:
+          - "QR scan using React Native camera opens the batch record and creates the inbound delivery record"
+          - "Stream identity transfers from batch tag to lot tag at point of receipt"
+          - "A unique lot tag is issued and becomes the working reference from this point forward"
+      - id: "M3-002"
+        priority: "P1"
+        story_points: 5
+        role: "Buying Station Agent"
+        story: "As a buying station agent, I want to record the truck's gross and tare weight so that the net commodity weight is calculated automatically and submitted for approval."
+        acceptance_criteria:
+          - "Net weight = gross minus tare, calculated and displayed by the app"
+          - "Variance against agronomist's declared departure weight is flagged automatically"
+          - "Submitter cannot approve their own weight record — a separate authorised person must approve"
+      - id: "M3-003"
+        priority: "P1"
+        story_points: 5
+        role: "Quality Inspector"
+        story: "As a quality inspector, I want to enter moisture content, defect count and cup score for a sample so that the system determines the grade automatically based on configured criteria."
+        acceptance_criteria:
+          - "Grade determined by the system from entered QC parameters against configured thresholds"
+          - "Photo evidence of sample and assessment setup captured via device camera"
+          - "Quality approval runs in parallel to weight approval — neither blocks the other"
+      - id: "M3-004"
+        priority: "P1"
+        story_points: 5
+        role: "Trade Desk Officer"
+        story: "As a trade desk officer, I want my pricing screen on the web app to be locked until both weight approval and quality approval are confirmed so that I cannot price a delivery before it has been properly verified."
+        acceptance_criteria:
+          - "Pricing screen inaccessible until both approval statuses show Approved"
+          - "No manual override available to bypass this gate"
+          - "Live net value calculator on the web app updates in real time as price, deductions and incentives are entered"
+      - id: "M3-005"
+        priority: "P1"
+        story_points: 5
+        role: "Trade Desk Officer"
+        story: "As a trade desk officer, I want the system to enforce the pre-season floor price automatically so that I cannot submit a price below the contracted minimum."
+        acceptance_criteria:
+          - "System checks proposed price against active pre-season contract for the farmer group"
+          - "Any value below the floor blocked at system level before submission"
+          - "Floor price and contract reference displayed on the pricing screen"
+      - id: "M3-006"
+        priority: "P1"
+        story_points: 5
+        role: "Procurement Head"
+        story: "As a procurement head, I want to review and approve or reject the trade desk's pricing proposal on the web app before it is locked so that all pricing decisions have a second authorised sign-off."
+        acceptance_criteria:
+          - "Push notification sent to procurement head when a pricing proposal awaits their review"
+          - "Full delivery record, QC summary and contract terms visible on the review screen"
+          - "Rejection returns the record to the trade desk with mandatory comments"
+      - id: "M3-007"
+        priority: "P1"
+        story_points: 3
+        role: "Buying Station Agent"
+        story: "As a buying station agent, I want to select a rejection type and reason before I can reject a record so that every rejection has a documented cause that can be reviewed and reported on."
+        acceptance_criteria:
+          - "Predefined rejection type must be selected — free text alone is not sufficient"
+          - "Available rejection types vary by approval step as configured on the web admin panel"
+          - "Rejection event logged with type, reason, actor, role and timestamp"
+      - id: "M3-008"
+        priority: "P2"
+        story_points: 3
+        role: "Agronomist"
+        story: "As an agronomist, I want to receive an immediate push notification when my batch is rejected at any point in the buying station workflow so that I can inform the farmer group and arrange collection of the physical commodity."
+        acceptance_criteria:
+          - "Push notification and SMS sent on any Reject Commodity decision"
+          - "Notification includes rejection type, reason and step at which it was raised"
+          - "System generates a return notice with lot tag and timestamp for physical handover"
+      - id: "M3-009"
+        priority: "P2"
+        story_points: 3
+        role: "Buying Station Agent"
+        story: "As a buying station agent, I want to view and manage my cash float balance on my phone so that I can track disbursements and request a top-up when needed."
+        acceptance_criteria:
+          - "Current float balance visible on mobile dashboard offline after last sync"
+          - "Each cash disbursement logged against the corresponding transaction"
+          - "Top-up request submitted with justification and routed to supervisor for approval on web app"
+      - id: "M3-010"
+        priority: "P2"
+        story_points: 5
+        role: "Manager"
+        story: "As a manager, I want to monitor the weight variance between what agronomists declare at departure and what buying stations record at receipt so that consistent transit losses can be investigated by route or transport provider."
+        acceptance_criteria:
+          - "Weight variance dashboard on web app shows departure vs. receipt weight per batch"
+          - "Batches exceeding configured tolerance auto-flagged"
+          - "Trend reports filterable by route, buying station, transport provider and date range"
+  - id: "M4"
+    number: 4
+    name: "Lot Traceability & Warehouse"
+    description: "End-to-end chain of custody, silo management, processing, mass balance and export loading"
+    delivery:
+      mobile: true
+      web: true
+    phase: 3
+    is_new: false
+    key_features:
+      - "Role-based chain-of-custody visibility partitioning"
+      - "Three-level weight reconciliation alarm system at intake"
+      - "Stream-enforced silo and warehouse routing"
+      - "Silo batch management with multi-silo processing"
+      - "Parallel quality and warehouse signoff per process step"
+      - "Bluetooth/network scale integration with override audit trail"
+      - "Bin card management and real-time warehouse inventory"
+      - "Multi-lot blending with full lineage tracking"
+      - "Mass balance accounting — inputs vs outputs vs losses"
+      - "Export container loading with seal confirmation"
+    roles:
+      - "Production Operative"
+      - "Quality Inspector"
+      - "Warehouse Operative"
+      - "Export/Compliance Officer"
+      - "Supervisor"
+      - "System Administrator"
+    stories:
+      - id: "M4-001"
+        priority: "P1"
+        story_points: 5
+        role: "Production Operative"
+        story: "As a production operative, I want to scan a lot tag on arrival at the processing facility so that the lot is immediately linked to the intake record and weight reconciliation begins automatically."
+        acceptance_criteria:
+          - "Scan retrieves the procurement-approved net weight as the reconciliation reference"
+          - "Received weight entered from calibrated scale — auto-populated via Bluetooth if scale supports it"
+          - "Variance calculated instantly in kg and percentage and displayed to the operative"
+      - id: "M4-002"
+        priority: "P1"
+        story_points: 5
+        role: "Production Operative"
+        story: "As a production operative, I want the system to block intake if the weight variance is at severity Level 3 so that major discrepancies cannot proceed without formal resolution."
+        acceptance_criteria:
+          - "Level 3 threshold triggers a full intake block — no processing can begin"
+          - "Block is lifted only when a supervisor formally resolves or escalates the discrepancy"
+          - "All alarm events — trigger, notifications, explanation, resolution — are logged in full"
+      - id: "M4-003"
+        priority: "P1"
+        story_points: 5
+        role: "Production Operative"
+        story: "As a production operative, I want to route an incoming lot to either a silo or bagged warehouse storage so that the commodity is directed to the correct facility for its intended process."
+        acceptance_criteria:
+          - "Only silos designated for the lot's stream shown as eligible options on mobile"
+          - "Cross-stream routing blocked at the UI level — ineligible silos hidden"
+          - "Destination choice locked after confirmation — changes require supervisor override with mandatory reason"
+      - id: "M4-004"
+        priority: "P2"
+        story_points: 8
+        role: "Production Operative"
+        story: "As a production operative, I want to select multiple silos as inputs for a single processing run so that I can combine batches from different silos efficiently."
+        acceptance_criteria:
+          - "Combined input weight from all selected silos displayed and confirmed via scale"
+          - "New output batch auto-generated with a system-assigned batch number"
+          - "Output batch inherits the stream intersection of all input silo batches — conflicts flagged for supervisor review"
+      - id: "M4-005"
+        priority: "P1"
+        story_points: 5
+        role: "Quality Inspector"
+        story: "As a quality inspector, I want to sign off on a completed processing step independently of the warehouse team so that both checks are completed in parallel rather than one blocking the other."
+        acceptance_criteria:
+          - "Quality and warehouse signoff notifications sent simultaneously to both teams on process completion"
+          - "Each team submits their signoff independently on their device — neither waits for the other"
+          - "Next processing step unlocked only when both approvals are confirmed"
+      - id: "M4-006"
+        priority: "P2"
+        story_points: 5
+        role: "Warehouse Operative"
+        story: "As a warehouse operative, I want to assign incoming bagged lots to specific bins and record all stock movements so that I always know exactly where each lot is and what quantity remains."
+        acceptance_criteria:
+          - "Bin assignment recorded on mobile with lot tag, weight and arrival date"
+          - "Stock movement history maintained with full audit trail for every transfer"
+          - "Real-time inventory dashboard on web app shows stock by lot tag, bin, grade and facility"
+      - id: "M4-007"
+        priority: "P1"
+        story_points: 8
+        role: "Production Operative"
+        story: "As a production operative, I want integrated scales to automatically capture weights at every measurement point so that manual transcription errors are eliminated."
+        acceptance_criteria:
+          - "Scale reading auto-saved via Bluetooth or network connection when scale stabilises — no operator confirmation required"
+          - "Manual override permitted but flagged permanently in audit trail with mandatory reason"
+          - "Scale ID, location and last calibration date recorded alongside every weight entry"
+      - id: "M4-008"
+        priority: "P2"
+        story_points: 8
+        role: "Warehouse Operative"
+        story: "As a warehouse operative, I want to record a blended output lot by selecting the contributing lots so that the full lineage of every blend is traceable back to its farm-level origins."
+        acceptance_criteria:
+          - "Input lot tags and silo batch numbers selected and weights entered per input on mobile"
+          - "New blended output lot tag auto-generated by the system"
+          - "Mass balance accounting updated — total inputs vs. outputs vs. losses recorded"
+      - id: "M4-009"
+        priority: "P2"
+        story_points: 8
+        role: "Export/Compliance Officer"
+        story: "As an export/compliance officer, I want to see a full traceability diagram from farm plot through to export container on the web app so that I can produce evidence of origin for buyers and regulators."
+        acceptance_criteria:
+          - "Traceability diagram on web links: farm plot → batch → lot → warehouse → container"
+          - "Individual farmer names, pricing and procurement data not visible in this view"
+          - "Full traceability report exportable from web app for compliance, audit or buyer due diligence"
+      - id: "M4-010"
+        priority: "P1"
+        story_points: 5
+        role: "System Administrator"
+        story: "As a system administrator, I want to configure role-based visibility rules on the web app so that each team only sees the supply chain data relevant to their function."
+        acceptance_criteria:
+          - "Each role's visible fields configurable independently on the admin panel"
+          - "Buying station team cannot see farm origin or downstream pricing"
+          - "Warehouse team cannot see procurement pricing or individual farmer data"
+  - id: "M5"
+    number: 5
+    name: "Payments & Micro-finance"
+    description: "Mobile money disbursement, input loans, non-commodity lending and full financial audit trail"
+    delivery:
+      mobile: true
+      web: true
+    phase: 2
+    is_new: false
+    key_features:
+      - "Auto-generated per-farmer payment split after procurement approval"
+      - "Finance confirmation gate before mobile money disbursement"
+      - "MTN, Airtel and M-Pesa disbursement with per-transaction retry"
+      - "Group leader payment acknowledgement workflow"
+      - "Loan deductions-at-source applied automatically before disbursement"
+      - "Non-commodity loan types: Cash Advance, Input, Emergency, Staff Advance, Group"
+      - "Threshold-driven approval escalation up to four levels"
+      - "QR card verification required before loan disbursement"
+      - "Loan portfolio monitoring with overdue alerts"
+      - "Financial reconciliation dashboard across commodity and loan records"
+    roles:
+      - "Farmer"
+      - "Finance Officer"
+      - "Group Leader"
+      - "Loan Officer"
+      - "Manager"
+      - "System Administrator"
+    stories:
+      - id: "M5-001"
+        priority: "P1"
+        story_points: 3
+        role: "Farmer"
+        story: "As a farmer, I want to receive an SMS and push notification showing my net payment amount as soon as Finance has confirmed the batch so that I know exactly what I will receive and when."
+        acceptance_criteria:
+          - "Push notification via Firebase sent immediately on Finance confirmation"
+          - "Notification shows final weight, price per kg, gross amount, loan deductions and net amount"
+          - "Farmer can view full payment breakdown in the app at any time after notification"
+      - id: "M5-002"
+        priority: "P1"
+        story_points: 5
+        role: "Finance Officer"
+        story: "As a finance officer, I want to review and confirm a payment batch on the web app before mobile money disbursement is released so that I can validate totals against the buying station record before any money moves."
+        acceptance_criteria:
+          - "Finance confirmation dashboard shows all batches awaiting sign-off with full per-farmer breakdown"
+          - "Finance confirmation is the final gate — no disbursement possible without it"
+          - "Finance cannot void a delivery — commodity void decisions are made upstream only"
+      - id: "M5-003"
+        priority: "P2"
+        story_points: 3
+        role: "Finance Officer"
+        story: "As a finance officer, I want to retry failed individual mobile money transactions without reprocessing the whole batch so that one failed payment does not delay the rest of the group."
+        acceptance_criteria:
+          - "Failed transactions flagged individually in the web app disbursement dashboard"
+          - "Retry initiated per farmer without affecting other disbursements in the batch"
+          - "Retry attempts logged with outcome, provider response and timestamp"
+      - id: "M5-004"
+        priority: "P2"
+        story_points: 3
+        role: "Group Leader"
+        story: "As a group leader, I want to review and acknowledge the payment split for my group on my phone before it enters Finance review so that I can confirm each farmer's amount is correct."
+        acceptance_criteria:
+          - "Payment split visible to group leader on mobile immediately after procurement approval"
+          - "Group leader acknowledgement recorded before the batch proceeds to Finance"
+          - "Any discrepancy flagged by the group leader routed to the procurement head for review"
+      - id: "M5-005"
+        priority: "P1"
+        story_points: 8
+        role: "Loan Officer"
+        story: "As a loan officer, I want to originate a non-commodity loan application on the web app and have the approval chain determined automatically by the loan amount so that I do not need to manually route each application."
+        acceptance_criteria:
+          - "Loan amount entered triggers automatic calculation of required approval levels"
+          - "Application routed to the correct approvers in sequence based on threshold configuration"
+          - "If amount is edited upward after submission, additional approvers are notified automatically"
+      - id: "M5-006"
+        priority: "P1"
+        story_points: 3
+        role: "Farmer"
+        story: "As a farmer, I want to verify my identity by presenting my QR code card before any loan is disbursed to me so that my account is protected against unauthorised disbursement."
+        acceptance_criteria:
+          - "Card QR scan via React Native camera required before loan disbursement can proceed"
+          - "Expired, lost or replaced cards flagged and block disbursement"
+          - "Supervisor override available with mandatory reason, logged and timestamped"
+      - id: "M5-007"
+        priority: "P1"
+        story_points: 5
+        role: "Finance Officer"
+        story: "As a finance officer, I want loan deductions to be applied automatically from a farmer's commodity payment before disbursement so that repayments are collected reliably without manual intervention."
+        acceptance_criteria:
+          - "Outstanding loan deductions identified and applied automatically when payment batch is generated"
+          - "Farmer notified of net amount after deductions via push notification before disbursement"
+          - "Deduction history visible to farmer in the mobile app at any time"
+      - id: "M5-008"
+        priority: "P2"
+        story_points: 5
+        role: "Manager"
+        story: "As a manager, I want to monitor the full loan portfolio on the web app so that I can identify risk before it becomes a problem."
+        acceptance_criteria:
+          - "Loan portfolio dashboard shows all active loans by type, borrower and status"
+          - "Overdue loans flagged after configurable grace period with automatic notification to loan officer"
+          - "Maximum outstanding balance per farmer configurable — new applications blocked if limit breached"
+      - id: "M5-009"
+        priority: "P1"
+        story_points: 5
+        role: "System Administrator"
+        story: "As a system administrator, I want to configure approval thresholds per loan product on the web app so that the number of approval levels required scales automatically with loan size."
+        acceptance_criteria:
+          - "Up to four approval levels configurable per loan product with independent amount thresholds"
+          - "Threshold changes apply to new applications only — active loans retain original configuration"
+          - "Audit log records all threshold changes with previous value, new value and effective date"
+      - id: "M5-010"
+        priority: "P2"
+        story_points: 5
+        role: "Finance Officer"
+        story: "As a finance officer, I want a reconciliation dashboard on the web app comparing procurement-approved values against Finance-confirmed amounts and actual disbursements so that I can identify and investigate any discrepancy."
+        acceptance_criteria:
+          - "Reconciliation dashboard covers commodity payments and non-commodity loans separately"
+          - "Any variance between approved and disbursed amounts highlighted for investigation"
+          - "All financial records exportable in open formats for accounting system integration"
+  - id: "M6"
+    number: 6
+    name: "Compliance & Certification"
+    description: "EUDR validation, risk classification, multi-standard certification and stream integrity"
+    delivery:
+      mobile: true
+      web: true
+    phase: 3
+    is_new: false
+    key_features:
+      - "GPS polygon validation against EU Forest Observatory reference data"
+      - "Risk classification: Negligible / Standard / Non-Compliant per polygon"
+      - "Automatic DDS generation per export shipment"
+      - "Stream segregation enforcement — flag-and-hold at every supply chain point"
+      - "Stream downgrade permanently logged; upgrade never permitted"
+      - "Multi-standard certification management: RA, 4C, FairTrade, Organic, AAA"
+      - "Certification renewal tracking with expiry alerts"
+      - "Bulk stream enrolment for qualifying farmer groups"
+      - "Corrective action assignment and re-validation workflow"
+      - "Complete certification audit evidence packages exportable per farmer or group"
+    roles:
+      - "Export/Compliance Officer"
+      - "Supervisor"
+      - "Agronomist"
+      - "Manager"
+      - "System Administrator"
+    stories:
+      - id: "M6-001"
+        priority: "P1"
+        story_points: 13
+        role: "Export/Compliance Officer"
+        story: "As an export/compliance officer, I want farm plot GPS polygons validated automatically against EU Forest Observatory reference data on the web app so that I can identify non-compliant plots before they enter an export shipment."
+        acceptance_criteria:
+          - "Each polygon classified as Negligible, Standard or Non-Compliant risk on the web app"
+          - "Risk classification visible on interactive GIS map overlaying the EU forest reference layer"
+          - "Non-compliant polygons blocked from EUDR stream enrolment until remediated"
+      - id: "M6-002"
+        priority: "P1"
+        story_points: 8
+        role: "Export/Compliance Officer"
+        story: "As an export/compliance officer, I want a Due Diligence Statement generated automatically for each export shipment so that I do not need to compile polygon evidence manually."
+        acceptance_criteria:
+          - "DDS generated on the web app from GPS polygon data linked to allocated lots in the shipment"
+          - "DDS includes all required evidence and exportable for submission to EU authorities"
+          - "DDS stored against the contract record and included in the full compliance package"
+      - id: "M6-003"
+        priority: "P1"
+        story_points: 5
+        role: "Supervisor"
+        story: "As a supervisor, I want to receive a push notification and review request whenever a stream segregation violation is flagged so that cross-contamination of certified and non-certified commodity is resolved before it progresses."
+        acceptance_criteria:
+          - "Notification includes which lot, which stream conflict and at which supply chain step"
+          - "Supervisor approves or rejects the lot's progression with a mandatory reason on web or mobile"
+          - "Stream downgrade, if approved, is permanent for that lot and fully logged"
+      - id: "M6-004"
+        priority: "P1"
+        story_points: 5
+        role: "System Administrator"
+        story: "As a system administrator, I want to configure the eligibility criteria for each supply chain stream on the web app so that enrolment is automatically gated by the correct programme-specific requirements."
+        acceptance_criteria:
+          - "Eligibility criteria, required documentation and renewal period configurable per stream"
+          - "System blocks enrolment if a farmer does not meet all configured criteria"
+          - "Criteria changes apply to new enrolments — existing enrolments retain original terms"
+      - id: "M6-005"
+        priority: "P2"
+        story_points: 3
+        role: "Agronomist"
+        story: "As an agronomist, I want to be alerted by push notification when a farmer's stream certification is approaching expiry so that I can initiate renewal before the farmer's commodity is automatically reclassified."
+        acceptance_criteria:
+          - "Push notification triggered at a configurable number of days before expiry"
+          - "If certification lapses, commodity automatically reclassified to next eligible stream on next delivery"
+          - "Agronomist and group leader both notified via push and SMS of any automatic reclassification"
+      - id: "M6-006"
+        priority: "P2"
+        story_points: 5
+        role: "Manager"
+        story: "As a manager, I want to bulk-enrol an entire farmer group into a stream on the web app when all members meet eligibility criteria so that I do not have to enrol each farmer individually."
+        acceptance_criteria:
+          - "Bulk enrolment checks all group members against configured eligibility criteria"
+          - "Members who do not meet criteria excluded and flagged with the specific reason"
+          - "Bulk enrolment event logged with actor, timestamp and list of enrolled and excluded farmers"
+      - id: "M6-007"
+        priority: "P2"
+        story_points: 5
+        role: "Agronomist"
+        story: "As an agronomist, I want to capture certification audit evidence — photos, documents and assessment records — on my Android phone and have them stored against the farmer's profile so that I am not scrambling to compile evidence at audit time."
+        acceptance_criteria:
+          - "Evidence captured per stream on mobile and stored against the farmer's certification record"
+          - "All GAP assessments, training records and commitment sign-offs compiled automatically"
+          - "Complete certification evidence package exportable per farmer or per group from the web app"
+      - id: "M6-008"
+        priority: "P2"
+        story_points: 5
+        role: "Export/Compliance Officer"
+        story: "As an export/compliance officer, I want to assign corrective actions to agronomists for non-compliant farm polygons on the web app so that remediation is tracked and completed before export clearance."
+        acceptance_criteria:
+          - "Corrective actions assigned on web app with deadline and responsible agronomist"
+          - "Agronomist receives push notification of the action and required steps on their Android device"
+          - "Re-validation triggered automatically on action completion — clearance only granted if re-validation passes"
+  - id: "M7"
+    number: 7
+    name: "Distribution Tracking"
+    description: "Outlet registration, route optimisation, delivery confirmation and van stock reconciliation"
+    delivery:
+      mobile: true
+      web: true
+    phase: 4
+    is_new: false
+    key_features:
+      - "Optimised daily route display on Android with integrated map"
+      - "QR card scan for farmer identity verification before handover"
+      - "OTP and digital signature delivery confirmation"
+      - "Returned goods logging with photo and predefined reason"
+      - "Real-time delivery status dashboard on web"
+      - "End-of-run van stock reconciliation"
+      - "Supervisor card override with mandatory audit log entry"
+      - "Post-delivery inventory reconciliation and exception reporting"
+    roles:
+      - "Driver / Field Agent"
+      - "Manager"
+      - "Supervisor"
+      - "Warehouse Operative"
+    stories:
+      - id: "M7-001"
+        priority: "P2"
+        story_points: 5
+        role: "Driver / Field Agent"
+        story: "As a driver, I want to view my assigned delivery orders and optimised daily route on my Android phone so that I can navigate efficiently without a separate planning tool."
+        acceptance_criteria:
+          - "Route displayed on React Native map component with stops in optimised order"
+          - "Each stop shows outlet contact details and delivery instructions"
+          - "Route updates in real time if stops are added, removed or reordered by the web app dispatcher"
+      - id: "M7-002"
+        priority: "P2"
+        story_points: 3
+        role: "Driver / Field Agent"
+        story: "As a driver, I want to scan a farmer's QR card before releasing inputs or outputs to them so that I can verify their identity before handing anything over."
+        acceptance_criteria:
+          - "QR card scan via React Native camera confirms farmer identity and active registration status"
+          - "Expired, lost or replaced cards flagged and block collection"
+          - "Supervisor override available with mandatory reason, logged and timestamped"
+      - id: "M7-003"
+        priority: "P2"
+        story_points: 5
+        role: "Driver / Field Agent"
+        story: "As a driver, I want to confirm a delivery with an OTP or digital signature on my phone so that there is a verifiable record of the recipient accepting the goods."
+        acceptance_criteria:
+          - "OTP sent to recipient's registered phone number and entered by recipient on agent's device"
+          - "React Native signature capture component used as alternative to OTP"
+          - "Confirmation record includes timestamp, GPS location and card scan event"
+      - id: "M7-004"
+        priority: "P2"
+        story_points: 3
+        role: "Driver / Field Agent"
+        story: "As a driver, I want to log returned goods and rejection reasons with a photo on my phone so that stock discrepancies are explained and visible to the warehouse team."
+        acceptance_criteria:
+          - "Return recorded against the original delivery order with reason selected from a predefined list"
+          - "Photo of returned goods captured via device camera at point of return"
+          - "Return triggers push notification to warehouse operative and distribution manager"
+      - id: "M7-005"
+        priority: "P2"
+        story_points: 5
+        role: "Manager"
+        story: "As a manager, I want to monitor real-time delivery status across all active routes on the web app so that I can identify delays or exceptions without calling drivers."
+        acceptance_criteria:
+          - "Real-time web dashboard shows all active deliveries with status: pending, in transit, completed, exception"
+          - "Exception rates by route and driver visible for performance management"
+          - "Supervisor card override events highlighted separately for audit review"
+      - id: "M7-006"
+        priority: "P2"
+        story_points: 5
+        role: "Driver / Field Agent"
+        story: "As a driver, I want to reconcile my van stock at the end of a delivery run on my phone so that any shortages or undelivered items are recorded before I return to the depot."
+        acceptance_criteria:
+          - "End-of-run reconciliation on mobile compares loaded stock against confirmed deliveries and returns"
+          - "Any variance recorded with reason before run can be closed"
+          - "Reconciliation record synced to the web app distribution dashboard automatically on submit"
+  - id: "M8"
+    number: 8
+    name: "Analytics & Reporting"
+    description: "Real-time dashboards, custom report builder, EUDR evidence packages and scheduled exports"
+    delivery:
+      mobile: true
+      web: true
+    phase: 4
+    is_new: false
+    key_features:
+      - "Real-time WebSocket dashboards across all modules"
+      - "Configurable KPI widgets with alert thresholds and owners"
+      - "Role-based dashboard views"
+      - "Drag-and-drop custom report builder"
+      - "Scheduled report delivery via email"
+      - "Personal KPI summary on Android with offline access"
+      - "EUDR evidence package generation and export (PDF, GeoJSON)"
+      - "Season-on-season benchmarking reports"
+      - "Data export in Excel, CSV, PDF and GeoJSON"
+      - "Offline PDF report download for field sharing"
+    roles:
+      - "Manager"
+      - "Agronomist"
+      - "Export/Compliance Officer"
+      - "Supervisor"
+    stories:
+      - id: "M8-001"
+        priority: "P2"
+        story_points: 8
+        role: "Manager"
+        story: "As a manager, I want real-time dashboards on the React web app spanning all platform modules so that I can monitor operations across farmer registration, procurement, payments and compliance from a single view."
+        acceptance_criteria:
+          - "Dashboard data refreshes in real time via websocket connection — no manual refresh required"
+          - "KPI widgets configurable with alert thresholds and responsible owners on the web app"
+          - "Cross-module visualisations include charts, heatmaps and trend lines"
+      - id: "M8-002"
+        priority: "P2"
+        story_points: 13
+        role: "Manager"
+        story: "As a manager, I want to build custom reports on the web app by selecting fields, filters and groupings so that I can answer operational questions without depending on a developer or a fixed template."
+        acceptance_criteria:
+          - "Drag-and-drop report builder available on the React web app"
+          - "Reports filterable by date range, region, group, agent and supply chain stage"
+          - "Completed reports schedulable for automatic delivery via email"
+      - id: "M8-003"
+        priority: "P3"
+        story_points: 3
+        role: "Agronomist"
+        story: "As an agronomist, I want to view a personal KPI summary on my Android phone so that I can track my own performance — visits completed, farmers registered, batches delivered — against targets."
+        acceptance_criteria:
+          - "Personal KPI dashboard visible on mobile without internet after last sync"
+          - "Push notifications sent via Firebase when a KPI threshold is breached"
+          - "Manager can publish specific reports to individual agents or field teams from the web app"
+      - id: "M8-004"
+        priority: "P2"
+        story_points: 8
+        role: "Export/Compliance Officer"
+        story: "As an export/compliance officer, I want to generate an EUDR evidence package on the web app and export it as a single file so that I can submit it to EU authorities without manually assembling documents."
+        acceptance_criteria:
+          - "Evidence package includes polygon validation results, risk classifications and DDS"
+          - "Package exportable in PDF or GeoJSON format from the web app"
+          - "Scheduled delivery of evidence packages to buyers and auditors configurable"
+      - id: "M8-005"
+        priority: "P3"
+        story_points: 8
+        role: "Manager"
+        story: "As a manager, I want to run season-on-season benchmarking reports on the web app so that I can measure whether farmer yields, GAP scores and procurement volumes are improving year over year."
+        acceptance_criteria:
+          - "Historical trend analysis available across all platform modules"
+          - "Season-on-season comparison configurable by group, region and commodity type"
+          - "Reports exportable in Excel, CSV and PDF formats"
+      - id: "M8-006"
+        priority: "P3"
+        story_points: 3
+        role: "Agronomist"
+        story: "As an agronomist, I want to download a PDF report to my Android phone for offline access so that I can share it with a farmer or cooperative leader in the field without needing connectivity."
+        acceptance_criteria:
+          - "Reports shared by supervisors available for download to local device storage on mobile"
+          - "Downloaded PDFs accessible offline after download using React Native file system access"
+          - "Download event logged with agent and timestamp"
+  - id: "M9"
+    number: 9
+    name: "Sales & Commodity Exit"
+    description: "Buyer management, sales contracts, stock allocation, pre-shipment documentation, dispatch and invoicing"
+    delivery:
+      mobile: true
+      web: true
+    phase: 4
+    is_new: false
+    key_features:
+      - "Buyer registry with stream, grade and origin preferences"
+      - "Forward contracts with locked pricing and deferred allocation"
+      - "Local sales and intercompany transfer order contract types"
+      - "Stock allocation engine filtering by grade, certification, origin, quantity and timeline simultaneously"
+      - "Stream-matched allocation — upgrade never permitted"
+      - "Auto-generated EUDR DDS, quality certificate, packing list and certificate of origin"
+      - "Scan-to-confirm dispatch with Bluetooth scale weight capture"
+      - "Invoice auto-generated on dispatch confirmation"
+      - "Payment matching and overdue invoice alerting"
+      - "Full accounts receivable reporting"
+    roles:
+      - "Trade Desk Officer"
+      - "Export/Compliance Officer"
+      - "Driver / Dispatch Operative"
+      - "Finance Officer"
+      - "System Administrator"
+    stories:
+      - id: "M9-001"
+        priority: "P2"
+        story_points: 5
+        role: "Trade Desk Officer"
+        story: "As a trade desk officer, I want to create a forward contract on the web app locking the price at the time of signing so that the agreed price is enforced automatically when stock is allocated at a later date."
+        acceptance_criteria:
+          - "Forward contract records commodity type, quantity, locked price and delivery window"
+          - "Stock not allocated at contract creation — allocation window opens automatically when delivery window opens"
+          - "Invoice uses the locked contract price regardless of market price at time of dispatch"
+      - id: "M9-002"
+        priority: "P1"
+        story_points: 13
+        role: "Trade Desk Officer"
+        story: "As a trade desk officer, I want the stock allocation engine on the web app to filter available inventory against all contract criteria simultaneously so that I only see lots that are eligible for a given buyer's contract."
+        acceptance_criteria:
+          - "Allocation engine filters by grade, certification, origin, quantity and delivery timeline concurrently"
+          - "Stream matching applied first — only lots carrying the buyer's required stream are shown"
+          - "Conventional buyers see all streams; EUDR buyers see only EUDR-certified lots with valid DDS"
+      - id: "M9-003"
+        priority: "P1"
+        story_points: 5
+        role: "Trade Desk Officer"
+        story: "As a trade desk officer, I want ring-fenced allocated stock to be immediately unavailable to other orders so that I cannot accidentally double-allocate the same lot."
+        acceptance_criteria:
+          - "Allocated stock marked ring-fenced instantly on allocation confirmation"
+          - "Ring-fenced stock dashboard on web app shows all allocated lots by contract and buyer"
+          - "Deallocation releases stock back to available inventory and flags the contract as at risk"
+      - id: "M9-004"
+        priority: "P1"
+        story_points: 8
+        role: "Export/Compliance Officer"
+        story: "As an export/compliance officer, I want pre-shipment documents generated automatically from the allocated lot records on the web app so that I am not manually compiling certificates, packing lists and DDS documents for each shipment."
+        acceptance_criteria:
+          - "EUDR DDS generated from allocated lot GPS polygons"
+          - "Quality certificate generated from QC assessment records of allocated lots"
+          - "Packing list auto-generated from container loading records with lot tags, bag counts and weights"
+      - id: "M9-005"
+        priority: "P2"
+        story_points: 5
+        role: "Driver / Dispatch Operative"
+        story: "As a dispatch operative, I want to scan allocated lot tags on my Android device to confirm loading and have the final weight auto-captured from the integrated scale so that the dispatch record is accurate without manual entry."
+        acceptance_criteria:
+          - "Lot tag scan confirms the lot is allocated to the correct contract and container"
+          - "Final weight auto-captured from integrated Bluetooth or network scale at loading point"
+          - "Any variance between allocated weight and actual dispatch weight flagged automatically"
+      - id: "M9-006"
+        priority: "P2"
+        story_points: 5
+        role: "Finance Officer"
+        story: "As a finance officer, I want an invoice to be generated automatically on the web app when dispatch is confirmed so that billing is initiated without manual intervention from my team."
+        acceptance_criteria:
+          - "Invoice generated on dispatch confirmation using confirmed dispatch weight and contract price"
+          - "Invoice approval workflow on web app — finance reviews and approves before sending to buyer"
+          - "Payment matching records buyer payments against open invoices and flags short or overpayments"
+      - id: "M9-007"
+        priority: "P1"
+        story_points: 3
+        role: "System Administrator"
+        story: "As a system administrator, I want to configure which supply chain streams each buyer accepts on the web app so that the allocation engine enforces buyer eligibility automatically."
+        acceptance_criteria:
+          - "Each buyer assigned one or more accepted streams in their buyer profile"
+          - "Stock allocation engine filters eligible lots by buyer's accepted streams as the first constraint"
+          - "Stream upgrade in sales never permitted — Conventional lots cannot be allocated to EUDR or RA contracts"
+      - id: "M9-008"
+        priority: "P2"
+        story_points: 3
+        role: "Finance Officer"
+        story: "As a finance officer, I want overdue invoice alerts to be triggered automatically on the web app when a buyer's payment deadline is breached so that outstanding invoices are followed up promptly."
+        acceptance_criteria:
+          - "Payment terms configurable per buyer on the web admin panel"
+          - "Automatic flag and email notification when payment deadline is breached"
+          - "Accounts receivable report shows all invoices by status: sent, partially paid, fully paid, overdue"
+  - id: "M10"
+    number: 10
+    name: "Staff Management & Activity Funds"
+    description: "Staff profiles, org structure, activity fund requests, approvals, disbursement and reconciliation"
+    delivery:
+      mobile: true
+      web: true
+    phase: 1
+    is_new: true
+    key_features:
+      - "Staff profile registry with role, region and reporting line"
+      - "Staff org chart on web app"
+      - "Activity fund requests from Android with itemised cost estimates"
+      - "Manager approval triggering mobile money disbursement"
+      - "Finance threshold sign-off for large disbursements with maker-checker enforcement"
+      - "Post-activity reconciliation with per-line-item receipt photos"
+      - "Unspent balance auto-calculated and flagged for return"
+      - "Configurable activity types with maximum allowable amounts"
+      - "Fund history per staff member with outstanding reconciliation tracking"
+      - "Full audit trail of requests, approvals, disbursements and reconciliations"
+    roles:
+      - "Agronomist"
+      - "Manager"
+      - "Finance Officer"
+      - "System Administrator"
+    stories:
+      - id: "M10-001"
+        priority: "P1"
+        story_points: 3
+        role: "System Administrator"
+        story: "As a system administrator, I want to create and manage staff profiles on the web app so that all field agents, agronomists and back-office staff are registered in the system with their role, region and reporting line."
+        acceptance_criteria:
+          - "Staff profile includes name, role, contact details, assigned region, reporting manager and system user account link"
+          - "Profile changes are versioned and logged immutably with actor and timestamp"
+          - "Staff list filterable by role, region and status (active, on leave, deactivated) on the web app"
+      - id: "M10-002"
+        priority: "P1"
+        story_points: 3
+        role: "Agronomist"
+        story: "As a field agent, I want to submit an activity fund request on my Android phone for a planned field activity so that I can get pre-approved funds before going to the field."
+        acceptance_criteria:
+          - "Request form captures activity type, planned date, destination and itemised cost estimate on mobile"
+          - "Submitted request routed to line manager for approval with a push notification"
+          - "Agent notified via push notification of approval or rejection with mandatory reason"
+      - id: "M10-003"
+        priority: "P1"
+        story_points: 3
+        role: "Manager"
+        story: "As a manager, I want to approve or reject staff activity fund requests on the web app with a mandatory reason so that all disbursements are authorised before funds are released."
+        acceptance_criteria:
+          - "Manager reviews activity type, planned date, destination and itemised cost breakdown on web app"
+          - "Approval triggers disbursement via mobile money to the staff member's registered number"
+          - "Rejection returns to agent with comments; agent notified via push notification"
+      - id: "M10-004"
+        priority: "P2"
+        story_points: 5
+        role: "Finance Officer"
+        story: "As a finance officer, I want activity fund disbursements above a configured threshold to require Finance sign-off on the web app so that large activity disbursements have a second authorised approval."
+        acceptance_criteria:
+          - "Threshold configurable per activity type on the web admin panel"
+          - "Finance notified automatically via email and in-app alert when threshold is breached"
+          - "Maker-checker enforced — the manager who approved the request cannot also be the Finance confirmer"
+      - id: "M10-005"
+        priority: "P2"
+        story_points: 5
+        role: "Agronomist"
+        story: "As a field agent, I want to submit an activity fund reconciliation on my Android phone after completing an activity so that actual spend is recorded against the approved amount and any unspent balance is flagged."
+        acceptance_criteria:
+          - "Reconciliation captures actual spend per line item with photo evidence of receipts captured via device camera"
+          - "Unspent balance automatically calculated and flagged for return"
+          - "Reconciliation submitted to manager for review via the web app; manager notified by push notification"
+      - id: "M10-006"
+        priority: "P2"
+        story_points: 3
+        role: "Manager"
+        story: "As a manager, I want to view each staff member's activity fund history on the web app — requests, approvals, disbursements and reconciliations — so that I can monitor spend patterns and flag outstanding reconciliations."
+        acceptance_criteria:
+          - "Fund history filterable by staff member, activity type, status and date range"
+          - "Outstanding reconciliations highlighted with days elapsed since disbursement"
+          - "Export available in CSV or PDF for reporting and audit"
+      - id: "M10-007"
+        priority: "P2"
+        story_points: 3
+        role: "System Administrator"
+        story: "As a system administrator, I want to configure activity types and their maximum allowable amounts on the web app so that fund requests stay within programme policy without manual checking by managers."
+        acceptance_criteria:
+          - "Activity types definable with name, description and maximum amount per request"
+          - "Requests exceeding the configured maximum blocked at submission with a clear error message"
+          - "All configuration changes versioned and logged with actor and effective date"
+      - id: "M10-008"
+        priority: "P3"
+        story_points: 5
+        role: "Manager"
+        story: "As a manager, I want to view a staff org chart on the web app showing all team members with their assigned regions and reporting lines so that I can understand team structure and coverage at a glance."
+        acceptance_criteria:
+          - "Org chart renders staff hierarchy by reporting line on the React web app"
+          - "Filterable by region, role and active status"
+          - "Exportable as PDF for planning and HR records"
+  - id: "M11"
+    number: 11
+    name: "Asset Management"
+    description: "Asset registry, staff assignment, condition tracking, maintenance scheduling and depreciation"
+    delivery:
+      mobile: true
+      web: true
+    phase: 1
+    is_new: true
+    key_features:
+      - "Asset registry with unique ID, QR label printing and photo at registration"
+      - "Staff assignment with mobile acknowledgement and condition check"
+      - "Return recording with mandatory photo evidence and damage/loss routing"
+      - "Full assignment history per asset"
+      - "Maintenance and calibration scheduling with push alerts"
+      - "Overdue maintenance flagged in Module 4 scale selection"
+      - "Asset register report with depreciation and current book value"
+      - "Configurable depreciation rules per asset category (straight-line or reducing balance)"
+      - "Automatic monthly book value recalculation"
+      - "Audit trail of all assignment, return and configuration events"
+    roles:
+      - "System Administrator"
+      - "Manager"
+      - "Agronomist"
+      - "Finance Officer"
+    stories:
+      - id: "M11-001"
+        priority: "P1"
+        story_points: 3
+        role: "System Administrator"
+        story: "As a system administrator, I want to register assets in the platform on the web app — devices, vehicles, scales and equipment — so that everything issued to staff is tracked with a unique asset ID."
+        acceptance_criteria:
+          - "Asset record includes type, serial number, make/model, purchase date, purchase value and current status"
+          - "Unique asset ID auto-generated on registration; QR label printable for physical tagging"
+          - "Photo of asset captured via web upload or mobile camera at registration"
+      - id: "M11-002"
+        priority: "P1"
+        story_points: 3
+        role: "Manager"
+        story: "As a manager, I want to assign an asset to a staff member on the web app so that responsibility for each item is clearly recorded and the staff member acknowledges receipt on their phone."
+        acceptance_criteria:
+          - "Assignment records asset ID, staff member, assignment date and condition at handover"
+          - "Staff member receives push notification and confirms receipt on their Android device with a mandatory condition check"
+          - "Assignment logged immutably in the audit trail with actor and timestamp"
+      - id: "M11-003"
+        priority: "P2"
+        story_points: 2
+        role: "Agronomist"
+        story: "As a field agent, I want to view all assets currently assigned to me on my Android phone so that I know what I am responsible for and when any items are due for service or return."
+        acceptance_criteria:
+          - "Assigned assets visible on mobile with ID, type, assignment date and current status"
+          - "Maintenance or return due dates shown with colour-coded alerts as deadline approaches"
+          - "Return requests submittable directly from the mobile app"
+      - id: "M11-004"
+        priority: "P2"
+        story_points: 3
+        role: "Manager"
+        story: "As a manager, I want to record the return of an asset from a staff member on the web app so that inventory is updated and any damage or loss is formally noted."
+        acceptance_criteria:
+          - "Return records condition at return with mandatory photo evidence uploaded via web or mobile"
+          - "Damage or loss flagged and routed to finance officer for assessment and write-off decision"
+          - "Asset status updated automatically to available, under repair or written off"
+      - id: "M11-005"
+        priority: "P2"
+        story_points: 3
+        role: "Manager"
+        story: "As a manager, I want to view the full assignment history of any asset on the web app so that I can see every person who has held it, when, and in what condition."
+        acceptance_criteria:
+          - "Assignment history shows all past holders with dates, condition at handover and return"
+          - "Current holder, location and status always visible at the top of the asset record"
+          - "Asset history exportable in PDF or CSV for audit or insurance purposes"
+      - id: "M11-006"
+        priority: "P2"
+        story_points: 5
+        role: "Manager"
+        story: "As a manager, I want to schedule and track asset maintenance and calibration on the web app so that equipment — especially weighing scales — is always within its service window before use."
+        acceptance_criteria:
+          - "Maintenance schedule configurable per asset type with recurrence interval (days or months)"
+          - "Push notifications and email alerts sent to asset holder and manager before maintenance is due"
+          - "Overdue maintenance flags the asset as requiring attention — production intake module surfaces this warning when the scale is selected"
+      - id: "M11-007"
+        priority: "P3"
+        story_points: 5
+        role: "Finance Officer"
+        story: "As a finance officer, I want to run an asset register report on the web app showing current value, depreciation and status of all assets so that I can maintain accurate asset records for financial reporting."
+        acceptance_criteria:
+          - "Report shows acquisition cost, depreciation method, current book value and status per asset"
+          - "Filterable by asset type, location, assigned staff member and status"
+          - "Exportable in Excel or PDF for accounting and audit"
+      - id: "M11-008"
+        priority: "P3"
+        story_points: 5
+        role: "System Administrator"
+        story: "As a system administrator, I want to configure depreciation rules per asset category on the web app so that book values are updated automatically without manual calculation."
+        acceptance_criteria:
+          - "Depreciation method configurable per category: straight-line or reducing balance"
+          - "Book value updated automatically on a scheduled monthly basis"
+          - "Configuration changes logged with previous value, new value, effective date and actor"

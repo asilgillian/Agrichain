@@ -1,0 +1,31 @@
+kind = "web"
+previewPath = "/"
+title = "AgriChain Web"
+version = "1.0.0"
+id = "artifacts/agri-web"
+router = "path"
+
+[[integratedSkills]]
+name = "react-vite"
+version = "1.0.0"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 24454
+
+[services.development]
+run = "pnpm --filter @workspace/agri-web run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/agri-web", "run", "build" ]
+publicDir = "artifacts/agri-web/dist/public"
+serve = "static"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "24454"
+BASE_PATH = "/"

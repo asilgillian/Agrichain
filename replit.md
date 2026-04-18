@@ -1,27 +1,135 @@
-# Workspace
+# AgriChain — Digital Agriculture Platform
 
 ## Overview
 
+Full-stack digital agriculture platform for managing agricultural supply chains. Field agents register farmers, map plots by GPS, and collect data offline on Android (auto-sync). Back-office teams manage procurement, payments, warehouse traceability, certification compliance (EUDR, Rainforest Alliance), and export documentation.
+
+## Architecture
+
 pnpm workspace monorepo using TypeScript. Each package manages its own dependencies.
+
+### Artifacts
+- **Web App** (`artifacts/agri-web`) — React + Vite SPA at path `/`, port from `$PORT`. Back-office management interface.
+- **API Server** (`artifacts/api-server`) — Express 5 API server at port 8080. Serves `/api/*` routes.
+
+### Libraries
+- **`lib/db`** — Drizzle ORM schema + PostgreSQL client (`@workspace/db`)
+- **`lib/api-spec`** — OpenAPI spec + Orval codegen config (`@workspace/api-spec`)
+- **`lib/api-zod`** — Orval-generated Zod schemas (`@workspace/api-zod`)
+- **`lib/api-client-react`** — Orval-generated React Query hooks (`@workspace/api-client-react`)
 
 ## Stack
 
-- **Monorepo tool**: pnpm workspaces
-- **Node.js version**: 24
+- **Monorepo**: pnpm workspaces
+- **Node.js**: 24
 - **Package manager**: pnpm
-- **TypeScript version**: 5.9
+- **TypeScript**: 5.9
 - **API framework**: Express 5
 - **Database**: PostgreSQL + Drizzle ORM
 - **Validation**: Zod (`zod/v4`), `drizzle-zod`
 - **API codegen**: Orval (from OpenAPI spec)
-- **Build**: esbuild (CJS bundle)
+- **Frontend**: React + Vite + shadcn/ui + Tailwind CSS + TanStack Query + wouter
+- **Build**: esbuild (for API server)
+
+## Database Schema
+
+17 tables in `lib/db/src/schema/`:
+- `regions` — Geographic regions (Kenya counties)
+- `users` — System users (agents, managers, etc.)
+- `groups` — Farmer cooperative groups
+- `farmers` — Farmer registry
+- `plots` — Agricultural plots with GPS/GeoJSON
+- `certification_streams` — Certification types (EUDR, Rainforest Alliance)
+- `certification_enrolments` — Farmer-to-stream enrolment records
+- `survey_templates` — Survey form definitions
+- `survey_submissions` — Field survey responses
+- `visits` — Scheduled field visits
+- `batches` — Farmer batch aggregations (for procurement)
+- `deliveries` — Inbound deliveries with multi-step approval workflow
+- `lots` — Warehouse lot inventory
+- `payments` — Farmer payments
+- `gap_assessments` — Good Agricultural Practice scores
+- `training_sessions` — Training event records
+- `export_contracts` — Export contract records
+- `shipments` — Shipment containers
+- `export_documents` — Export document tracker
+- `assets` — Physical asset registry
+- `activity_funds` — Field agent activity fund requests
+- `audit_logs` — Immutable system audit trail
+
+## API Routes (all under `/api`)
+
+All 11 modules implemented:
+- `GET/POST /dashboard/*` — KPIs, activity feed, compliance overview, procurement stats
+- `GET/POST /farmers`, `GET/PATCH /farmers/:id`, `GET /farmers/duplicates`, `POST /farmers/duplicates/:pairId/merge`
+- `GET/POST /groups`, `GET /groups/:id`
+- `GET/POST /plots`, `GET /plots/:id`
+- `GET /certifications/streams`, `GET/POST /certifications/enrolments`
+- `GET/POST /surveys/templates`, `GET/POST /surveys/submissions`, `POST /surveys/submissions/:id/review`
+- `GET/POST /visits`, `POST /visits/:id/complete`
+- `GET/POST /batches`, `GET /batches/:id`, `POST /batches/:id/lock`
+- `GET/POST /procurement/deliveries`, `GET /procurement/deliveries/:id`, weight/QC/pricing/approve endpoints
+- `GET /warehouse/lots`, `GET /warehouse/lots/:id`, `GET /warehouse/mass-balance`
+- `GET/POST /payments`, `GET /payments/summary`
+- `GET /compliance/eudr`, `GET/POST /compliance/gap-assessments`, `GET/POST /compliance/training-sessions`
+- `GET/POST /exports/contracts`, `GET /exports/shipments`, `GET /exports/shipments/:id`, `GET /exports/shipments/:id/documents`
+- `GET/POST /users`, `GET/PATCH /users/:id`
+- `GET/POST /assets`, `GET /assets/:id`, assign/return endpoints
+- `GET/POST /activity-funds`, `POST /activity-funds/:id/approve`
+- `GET /audit`
+- `GET/POST /admin/regions`, `GET /admin/roles`, `PATCH /admin/roles/:id/permissions`, `GET /admin/sync-queue`
+
+## Frontend Pages (19 routes)
+
+- `/` — Dashboard with KPIs, activity feed, compliance overview
+- `/farmers` — Farmer registry with search and pagination
+- `/farmers/:id` — Farmer detail with plots, certifications, surveys
+- `/farmers/duplicates` — Duplicate detection and merge workflow
+- `/groups` — Farmer groups list
+- `/groups/:id` — Group detail with member roster
+- `/procurement` — Delivery list with multi-step status indicators
+- `/procurement/:id` — Delivery detail: weight → QC → pricing (gated) → approval
+- `/warehouse` — Lot inventory + mass balance report
+- `/warehouse/:id` — Lot detail with chain of custody
+- `/payments` — Payment list with KES summary cards
+- `/compliance` — EUDR status, GAP assessments, training sessions
+- `/surveys` — Survey templates and submission QA
+- `/exports` — Export contracts and shipments
+- `/staff` — User management
+- `/assets` — Asset registry
+- `/activity-funds` — Fund request tracker
+- `/audit` — Immutable audit log
+- `/admin` — Regions, roles, sync queue
 
 ## Key Commands
 
-- `pnpm run typecheck` — full typecheck across all packages
-- `pnpm run build` — typecheck + build all packages
-- `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from OpenAPI spec
-- `pnpm --filter @workspace/db run push` — push DB schema changes (dev only)
-- `pnpm --filter @workspace/api-server run dev` — run API server locally
+```bash
+pnpm --filter @workspace/api-spec run codegen      # Regenerate hooks/schemas from OpenAPI spec
+pnpm --filter @workspace/db run push               # Push DB schema (dev only)
+pnpm --filter @workspace/db run push-force         # Force push schema
+pnpm --filter @workspace/db run seed               # Seed database with sample data
+pnpm --filter @workspace/api-server run dev        # Run API server locally
+pnpm --filter @workspace/agri-web run dev          # Run web app locally
+pnpm run typecheck                                 # Full typecheck
+```
 
-See the `pnpm-workspace` skill for workspace structure, TypeScript setup, and package details.
+## Seed Data (Kenya)
+
+- 2 regions (Nyeri County, Kirinyaga County)
+- 3 users (2 field agents, 1 manager)
+- 2 farmer groups
+- 3 farmers with plots, certifications (EUDR + Rainforest Alliance)
+- 2 batches, 2 deliveries (1 approved, 1 pending QC)
+- 1 warehouse lot
+- 2 payments, GAP assessments, training sessions
+- 1 export contract + shipment
+- 3 assets, 2 activity fund requests, 3 audit log entries
+- Default currency: KES (Kenyan Shilling)
+
+## Notes
+
+- Procurement delivery pricing screen is gated: requires `weightApproved AND qcApproved` before pricing can be set
+- Frontend uses `@workspace/api-client-react` for all API calls — never relative paths
+- API uses structured pino logging — never `console.log`
+- Orval config uses `indexFiles: false` for zod target to avoid barrel file conflicts
+- `lib/api-zod/src/index.ts` must only export from `./generated/api` (not types)

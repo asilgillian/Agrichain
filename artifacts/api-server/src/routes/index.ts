@@ -1,8 +1,44 @@
 import { Router, type IRouter } from "express";
 import healthRouter from "./health";
+import dashboardRouter from "./dashboard";
+import farmersRouter from "./farmers";
+import groupsRouter from "./groups";
+import plotsRouter from "./plots";
+import certificationsRouter from "./certifications";
+import surveysRouter from "./surveys";
+import visitsRouter from "./visits";
+import batchesRouter from "./batches";
+import procurementRouter from "./procurement";
+import warehouseRouter from "./warehouse";
+import paymentsRouter from "./payments";
+import complianceRouter from "./compliance";
+import exportsRouter from "./exports";
+import usersRouter from "./users";
+import assetsRouter from "./assets";
+import activityFundsRouter from "./activity-funds";
+import auditRouter from "./audit";
+import adminRouter from "./admin";
 
 const router: IRouter = Router();
 
 router.use(healthRouter);
+router.use(dashboardRouter);
+router.use(farmersRouter);
+router.use(groupsRouter);
+router.use(plotsRouter);
+router.use(certificationsRouter);
+router.use(surveysRouter);
+router.use(visitsRouter);
+router.use(batchesRouter);
+router.use(procurementRouter);
+router.use(warehouseRouter);
+router.use(paymentsRouter);
+router.use(complianceRouter);
+router.use(exportsRouter);
+router.use(usersRouter);
+router.use(assetsRouter);
+router.use(activityFundsRouter);
+router.use(auditRouter);
+router.use(adminRouter);
 
 export default router;

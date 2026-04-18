@@ -3,20 +3,56 @@ info:
   # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: AgriChain Digital Agriculture Platform API
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: farmers
+    description: Farmer & Household Registry
+  - name: groups
+    description: Farmer groups and cooperatives
+  - name: plots
+    description: Farm plot mapping
+  - name: certifications
+    description: Certification streams and enrolments
+  - name: surveys
+    description: Field data collection and surveys
+  - name: visits
+    description: Agronomic visits
+  - name: batches
+    description: Commodity batches and bulking
+  - name: procurement
+    description: Commodity procurement and buying station
+  - name: warehouse
+    description: Warehouse and lot traceability
+  - name: payments
+    description: Farmer payments
+  - name: compliance
+    description: Certification compliance
+  - name: exports
+    description: Export documentation
+  - name: users
+    description: Staff and users
+  - name: assets
+    description: Asset management
+  - name: activity-funds
+    description: Activity fund management
+  - name: dashboard
+    description: Dashboard summaries and analytics
+  - name: audit
+    description: Audit log
+  - name: admin
+    description: System administration
+
 paths:
   /healthz:
     get:
       operationId: healthCheck
       tags: [health]
       summary: Health check
-      description: Returns server health status
       responses:
         "200":
           description: Healthy
@@ -24,6 +60,1585 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  # ============================================================
+  # DASHBOARD
+  # ============================================================
+  /dashboard/summary:
+    get:
+      operationId: getDashboardSummary
+      tags: [dashboard]
+      summary: Platform-wide summary stats
+      responses:
+        "200":
+          description: Summary stats
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardSummary"
+
+  /dashboard/activity:
+    get:
+      operationId: getDashboardActivity
+      tags: [dashboard]
+      summary: Recent platform activity feed
+      parameters:
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            default: 20
+      responses:
+        "200":
+          description: Activity feed
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ActivityItem"
+
+  /dashboard/compliance-overview:
+    get:
+      operationId: getComplianceOverview
+      tags: [dashboard]
+      summary: Certification compliance overview by stream
+      responses:
+        "200":
+          description: Compliance overview
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ComplianceOverview"
+
+  /dashboard/procurement-stats:
+    get:
+      operationId: getProcurementStats
+      tags: [dashboard]
+      summary: Procurement volume and value stats
+      responses:
+        "200":
+          description: Procurement stats
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProcurementStats"
+
+  # ============================================================
+  # FARMERS
+  # ============================================================
+  /farmers:
+    get:
+      operationId: listFarmers
+      tags: [farmers]
+      summary: List all farmers
+      parameters:
+        - in: query
+          name: search
+          schema:
+            type: string
+        - in: query
+          name: groupId
+          schema:
+            type: string
+        - in: query
+          name: regionId
+          schema:
+            type: string
+        - in: query
+          name: certificationStream
+          schema:
+            type: string
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum: [active, inactive, pending]
+        - in: query
+          name: page
+          schema:
+            type: integer
+            default: 1
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            default: 50
+      responses:
+        "200":
+          description: Farmer list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaginatedFarmers"
+
+    post:
+      operationId: createFarmer
+      tags: [farmers]
+      summary: Register a new farmer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateFarmerBody"
+      responses:
+        "201":
+          description: Farmer created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Farmer"
+
+  /farmers/{farmerId}:
+    get:
+      operationId: getFarmer
+      tags: [farmers]
+      summary: Get farmer by ID
+      parameters:
+        - in: path
+          name: farmerId
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Farmer details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FarmerDetail"
+        "404":
+          description: Not found
+
+    patch:
+      operationId: updateFarmer
+      tags: [farmers]
+      summary: Update farmer details
+      parameters:
+        - in: path
+          name: farmerId
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateFarmerBody"
+      responses:
+        "200":
+          description: Updated farmer
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Farmer"
+
+  /farmers/{farmerId}/card:
+    get:
+      operationId: getFarmerCard
+      tags: [farmers]
+      summary: Get farmer digital card data (QR, certifications)
+      parameters:
+        - in: path
+          name: farmerId
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Farmer card
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FarmerCard"
+
+  /farmers/duplicates:
+    get:
+      operationId: listDuplicateFarmers
+      tags: [farmers]
+      summary: List flagged duplicate farmer pairs
+      responses:
+        "200":
+          description: Duplicate pairs
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/DuplicatePair"
+
+  /farmers/duplicates/{pairId}/merge:
+    post:
+      operationId: mergeDuplicateFarmers
+      tags: [farmers]
+      summary: Merge a duplicate farmer pair
+      parameters:
+        - in: path
+          name: pairId
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MergeDuplicatesBody"
+      responses:
+        "200":
+          description: Merge result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Farmer"
+
+  # ============================================================
+  # GROUPS
+  # ============================================================
+  /groups:
+    get:
+      operationId: listGroups
+      tags: [groups]
+      summary: List farmer groups
+      parameters:
+        - in: query
+          name: regionId
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Group list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/FarmerGroup"
+
+    post:
+      operationId: createGroup
+      tags: [groups]
+      summary: Create a new farmer group
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateGroupBody"
+      responses:
+        "201":
+          description: Group created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FarmerGroup"
+
+  /groups/{groupId}:
+    get:
+      operationId: getGroup
+      tags: [groups]
+      summary: Get group details including membership
+      parameters:
+        - in: path
+          name: groupId
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Group detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FarmerGroupDetail"
+
+  # ============================================================
+  # PLOTS
+  # ============================================================
+  /plots:
+    get:
+      operationId: listPlots
+      tags: [plots]
+      summary: List farm plots
+      parameters:
+        - in: query
+          name: farmerId
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Plot list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Plot"
+
+    post:
+      operationId: createPlot
+      tags: [plots]
+      summary: Create a farm plot
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreatePlotBody"
+      responses:
+        "201":
+          description: Plot created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Plot"
+
+  /plots/{plotId}:
+    get:
+      operationId: getPlot
+      tags: [plots]
+      summary: Get plot by ID
+      parameters:
+        - in: path
+          name: plotId
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Plot details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Plot"
+
+  # ============================================================
+  # CERTIFICATIONS
+  # ============================================================
+  /certifications/streams:
+    get:
+      operationId: listCertificationStreams
+      tags: [certifications]
+      summary: List available certification streams
+      responses:
+        "200":
+          description: Certification streams
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CertificationStream"
+
+  /certifications/enrolments:
+    get:
+      operationId: listEnrolments
+      tags: [certifications]
+      summary: List certification enrolments
+      parameters:
+        - in: query
+          name: farmerId
+          schema:
+            type: string
+        - in: query
+          name: streamId
+          schema:
+            type: string
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum: [active, expired, pending]
+      responses:
+        "200":
+          description: Enrolments
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CertificationEnrolment"
+
+    post:
+      operationId: createEnrolment
+      tags: [certifications]
+      summary: Enrol farmer in certification stream
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateEnrolmentBody"
+      responses:
+        "201":
+          description: Enrolment created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CertificationEnrolment"
+
+  # ============================================================
+  # SURVEYS
+  # ============================================================
+  /surveys/templates:
+    get:
+      operationId: listSurveyTemplates
+      tags: [surveys]
+      summary: List survey templates
+      responses:
+        "200":
+          description: Survey templates
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/SurveyTemplate"
+
+    post:
+      operationId: createSurveyTemplate
+      tags: [surveys]
+      summary: Create a survey template
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateSurveyTemplateBody"
+      responses:
+        "201":
+          description: Template created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SurveyTemplate"
+
+  /surveys/submissions:
+    get:
+      operationId: listSurveySubmissions
+      tags: [surveys]
+      summary: List submitted surveys (QA dashboard)
+      parameters:
+        - in: query
+          name: agentId
+          schema:
+            type: string
+        - in: query
+          name: groupId
+          schema:
+            type: string
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum: [pending, approved, rejected, flagged]
+        - in: query
+          name: dateFrom
+          schema:
+            type: string
+            format: date
+        - in: query
+          name: dateTo
+          schema:
+            type: string
+            format: date
+      responses:
+        "200":
+          description: Survey submissions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/SurveySubmission"
+
+    post:
+      operationId: submitSurvey
+      tags: [surveys]
+      summary: Submit a completed survey
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SubmitSurveyBody"
+      responses:
+        "201":
+          description: Submission created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SurveySubmission"
+
+  /surveys/submissions/{submissionId}/review:
+    post:
+      operationId: reviewSurveySubmission
+      tags: [surveys]
+      summary: Approve, reject or flag a survey submission
+      parameters:
+        - in: path
+          name: submissionId
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReviewSubmissionBody"
+      responses:
+        "200":
+          description: Updated submission
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SurveySubmission"
+
+  # ============================================================
+  # VISITS
+  # ============================================================
+  /visits:
+    get:
+      operationId: listVisits
+      tags: [visits]
+      summary: List agronomic visits
+      parameters:
+        - in: query
+          name: agentId
+          schema:
+            type: string
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum: [scheduled, completed, overdue]
+      responses:
+        "200":
+          description: Visits
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Visit"
+
+    post:
+      operationId: scheduleVisit
+      tags: [visits]
+      summary: Schedule an agronomic visit
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ScheduleVisitBody"
+      responses:
+        "201":
+          description: Visit scheduled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Visit"
+
+  /visits/{visitId}/complete:
+    post:
+      operationId: completeVisit
+      tags: [visits]
+      summary: Mark a visit as completed
+      parameters:
+        - in: path
+          name: visitId
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Visit completed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Visit"
+
+  # ============================================================
+  # BATCHES
+  # ============================================================
+  /batches:
+    get:
+      operationId: listBatches
+      tags: [batches]
+      summary: List commodity batches
+      parameters:
+        - in: query
+          name: agentId
+          schema:
+            type: string
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum: [open, locked, delivered]
+      responses:
+        "200":
+          description: Batches
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Batch"
+
+    post:
+      operationId: createBatch
+      tags: [batches]
+      summary: Create a new commodity batch
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateBatchBody"
+      responses:
+        "201":
+          description: Batch created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Batch"
+
+  /batches/{batchId}:
+    get:
+      operationId: getBatch
+      tags: [batches]
+      summary: Get batch details
+      parameters:
+        - in: path
+          name: batchId
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Batch detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BatchDetail"
+
+  /batches/{batchId}/lock:
+    post:
+      operationId: lockBatch
+      tags: [batches]
+      summary: Lock a batch after all weights confirmed
+      parameters:
+        - in: path
+          name: batchId
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Batch locked
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Batch"
+
+  # ============================================================
+  # PROCUREMENT
+  # ============================================================
+  /procurement/deliveries:
+    get:
+      operationId: listDeliveries
+      tags: [procurement]
+      summary: List inbound deliveries
+      parameters:
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum: [pending_weight, pending_qc, pending_pricing, pending_approval, approved, rejected]
+        - in: query
+          name: stationId
+          schema:
+            type: string
+        - in: query
+          name: dateFrom
+          schema:
+            type: string
+            format: date
+      responses:
+        "200":
+          description: Deliveries
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Delivery"
+
+    post:
+      operationId: createDelivery
+      tags: [procurement]
+      summary: Create inbound delivery from batch scan
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateDeliveryBody"
+      responses:
+        "201":
+          description: Delivery created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Delivery"
+
+  /procurement/deliveries/{deliveryId}:
+    get:
+      operationId: getDelivery
+      tags: [procurement]
+      summary: Get delivery by ID
+      parameters:
+        - in: path
+          name: deliveryId
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Delivery detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeliveryDetail"
+
+  /procurement/deliveries/{deliveryId}/weight:
+    post:
+      operationId: recordDeliveryWeight
+      tags: [procurement]
+      summary: Record gross/tare weight for delivery
+      parameters:
+        - in: path
+          name: deliveryId
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RecordWeightBody"
+      responses:
+        "200":
+          description: Weight recorded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Delivery"
+
+  /procurement/deliveries/{deliveryId}/qc:
+    post:
+      operationId: recordDeliveryQC
+      tags: [procurement]
+      summary: Record quality control assessment
+      parameters:
+        - in: path
+          name: deliveryId
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RecordQCBody"
+      responses:
+        "200":
+          description: QC recorded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Delivery"
+
+  /procurement/deliveries/{deliveryId}/pricing:
+    post:
+      operationId: submitDeliveryPricing
+      tags: [procurement]
+      summary: Submit pricing for delivery
+      parameters:
+        - in: path
+          name: deliveryId
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SubmitPricingBody"
+      responses:
+        "200":
+          description: Pricing submitted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Delivery"
+
+  /procurement/deliveries/{deliveryId}/approve:
+    post:
+      operationId: approveDelivery
+      tags: [procurement]
+      summary: Approve or reject delivery pricing
+      parameters:
+        - in: path
+          name: deliveryId
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ApprovalBody"
+      responses:
+        "200":
+          description: Approval decision recorded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Delivery"
+
+  # ============================================================
+  # WAREHOUSE
+  # ============================================================
+  /warehouse/lots:
+    get:
+      operationId: listLots
+      tags: [warehouse]
+      summary: List warehouse lots
+      parameters:
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum: [received, in_processing, processed, allocated, exported]
+        - in: query
+          name: certificationStream
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Lots
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Lot"
+
+  /warehouse/lots/{lotId}:
+    get:
+      operationId: getLot
+      tags: [warehouse]
+      summary: Get lot details and chain of custody
+      parameters:
+        - in: path
+          name: lotId
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Lot detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LotDetail"
+
+  /warehouse/mass-balance:
+    get:
+      operationId: getWarehouseMassBalance
+      tags: [warehouse]
+      summary: Mass balance report
+      responses:
+        "200":
+          description: Mass balance
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MassBalance"
+
+  # ============================================================
+  # PAYMENTS
+  # ============================================================
+  /payments:
+    get:
+      operationId: listPayments
+      tags: [payments]
+      summary: List farmer payments
+      parameters:
+        - in: query
+          name: farmerId
+          schema:
+            type: string
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum: [pending, processing, paid, failed]
+        - in: query
+          name: dateFrom
+          schema:
+            type: string
+            format: date
+      responses:
+        "200":
+          description: Payments
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Payment"
+
+    post:
+      operationId: initiatePayment
+      tags: [payments]
+      summary: Initiate a farmer payment
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InitiatePaymentBody"
+      responses:
+        "201":
+          description: Payment initiated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Payment"
+
+  /payments/summary:
+    get:
+      operationId: getPaymentSummary
+      tags: [payments]
+      summary: Payment summary stats and pending totals
+      responses:
+        "200":
+          description: Payment summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaymentSummary"
+
+  # ============================================================
+  # COMPLIANCE
+  # ============================================================
+  /compliance/eudr:
+    get:
+      operationId: getEudrCompliance
+      tags: [compliance]
+      summary: EUDR compliance status overview
+      responses:
+        "200":
+          description: EUDR compliance
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EudrCompliance"
+
+  /compliance/gap-assessments:
+    get:
+      operationId: listGapAssessments
+      tags: [compliance]
+      summary: List GAP assessments
+      parameters:
+        - in: query
+          name: farmerId
+          schema:
+            type: string
+        - in: query
+          name: groupId
+          schema:
+            type: string
+      responses:
+        "200":
+          description: GAP assessments
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/GapAssessment"
+
+    post:
+      operationId: submitGapAssessment
+      tags: [compliance]
+      summary: Submit a GAP assessment
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SubmitGapAssessmentBody"
+      responses:
+        "201":
+          description: GAP assessment submitted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GapAssessment"
+
+  /compliance/training-sessions:
+    get:
+      operationId: listTrainingSessions
+      tags: [compliance]
+      summary: List training sessions
+      responses:
+        "200":
+          description: Training sessions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/TrainingSession"
+
+    post:
+      operationId: createTrainingSession
+      tags: [compliance]
+      summary: Create a training session
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateTrainingSessionBody"
+      responses:
+        "201":
+          description: Training session created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TrainingSession"
+
+  # ============================================================
+  # EXPORTS
+  # ============================================================
+  /exports/contracts:
+    get:
+      operationId: listExportContracts
+      tags: [exports]
+      summary: List export contracts
+      responses:
+        "200":
+          description: Export contracts
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ExportContract"
+
+    post:
+      operationId: createExportContract
+      tags: [exports]
+      summary: Create an export contract
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateExportContractBody"
+      responses:
+        "201":
+          description: Contract created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExportContract"
+
+  /exports/shipments:
+    get:
+      operationId: listShipments
+      tags: [exports]
+      summary: List export shipments
+      responses:
+        "200":
+          description: Shipments
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Shipment"
+
+  /exports/shipments/{shipmentId}:
+    get:
+      operationId: getShipment
+      tags: [exports]
+      summary: Get shipment details
+      parameters:
+        - in: path
+          name: shipmentId
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Shipment detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ShipmentDetail"
+
+  /exports/shipments/{shipmentId}/documents:
+    get:
+      operationId: listShipmentDocuments
+      tags: [exports]
+      summary: List export documents for shipment
+      parameters:
+        - in: path
+          name: shipmentId
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Documents
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ExportDocument"
+
+  # ============================================================
+  # USERS / STAFF
+  # ============================================================
+  /users:
+    get:
+      operationId: listUsers
+      tags: [users]
+      summary: List staff members
+      parameters:
+        - in: query
+          name: role
+          schema:
+            type: string
+        - in: query
+          name: regionId
+          schema:
+            type: string
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum: [active, on_leave, deactivated]
+      responses:
+        "200":
+          description: Users
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/User"
+
+    post:
+      operationId: createUser
+      tags: [users]
+      summary: Create a staff member
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateUserBody"
+      responses:
+        "201":
+          description: User created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+
+  /users/{userId}:
+    get:
+      operationId: getUser
+      tags: [users]
+      summary: Get user by ID
+      parameters:
+        - in: path
+          name: userId
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: User
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+
+    patch:
+      operationId: updateUser
+      tags: [users]
+      summary: Update user profile
+      parameters:
+        - in: path
+          name: userId
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateUserBody"
+      responses:
+        "200":
+          description: Updated user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+
+  # ============================================================
+  # ASSETS
+  # ============================================================
+  /assets:
+    get:
+      operationId: listAssets
+      tags: [assets]
+      summary: List assets
+      parameters:
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum: [available, assigned, under_repair, written_off]
+        - in: query
+          name: assignedTo
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Assets
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Asset"
+
+    post:
+      operationId: createAsset
+      tags: [assets]
+      summary: Register a new asset
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateAssetBody"
+      responses:
+        "201":
+          description: Asset created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Asset"
+
+  /assets/{assetId}:
+    get:
+      operationId: getAsset
+      tags: [assets]
+      summary: Get asset details and assignment history
+      parameters:
+        - in: path
+          name: assetId
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Asset detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AssetDetail"
+
+  /assets/{assetId}/assign:
+    post:
+      operationId: assignAsset
+      tags: [assets]
+      summary: Assign asset to staff member
+      parameters:
+        - in: path
+          name: assetId
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AssignAssetBody"
+      responses:
+        "200":
+          description: Asset assigned
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Asset"
+
+  /assets/{assetId}/return:
+    post:
+      operationId: returnAsset
+      tags: [assets]
+      summary: Record asset return
+      parameters:
+        - in: path
+          name: assetId
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReturnAssetBody"
+      responses:
+        "200":
+          description: Return recorded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Asset"
+
+  # ============================================================
+  # ACTIVITY FUNDS
+  # ============================================================
+  /activity-funds:
+    get:
+      operationId: listActivityFunds
+      tags: [activity-funds]
+      summary: List activity fund requests
+      parameters:
+        - in: query
+          name: agentId
+          schema:
+            type: string
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum: [pending, approved, rejected, disbursed, reconciled]
+      responses:
+        "200":
+          description: Fund requests
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ActivityFundRequest"
+
+    post:
+      operationId: createActivityFundRequest
+      tags: [activity-funds]
+      summary: Submit activity fund request
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateActivityFundRequestBody"
+      responses:
+        "201":
+          description: Request created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ActivityFundRequest"
+
+  /activity-funds/{requestId}/approve:
+    post:
+      operationId: approveActivityFundRequest
+      tags: [activity-funds]
+      summary: Approve or reject activity fund request
+      parameters:
+        - in: path
+          name: requestId
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ApprovalBody"
+      responses:
+        "200":
+          description: Decision recorded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ActivityFundRequest"
+
+  # ============================================================
+  # AUDIT LOG
+  # ============================================================
+  /audit:
+    get:
+      operationId: listAuditLogs
+      tags: [audit]
+      summary: Query audit log entries
+      parameters:
+        - in: query
+          name: entityType
+          schema:
+            type: string
+        - in: query
+          name: entityId
+          schema:
+            type: string
+        - in: query
+          name: actorId
+          schema:
+            type: string
+        - in: query
+          name: dateFrom
+          schema:
+            type: string
+            format: date
+        - in: query
+          name: dateTo
+          schema:
+            type: string
+            format: date
+        - in: query
+          name: page
+          schema:
+            type: integer
+            default: 1
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            default: 50
+      responses:
+        "200":
+          description: Audit log entries
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaginatedAuditLogs"
+
+  # ============================================================
+  # ADMIN
+  # ============================================================
+  /admin/regions:
+    get:
+      operationId: listRegions
+      tags: [admin]
+      summary: List administrative regions
+      responses:
+        "200":
+          description: Regions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Region"
+
+    post:
+      operationId: createRegion
+      tags: [admin]
+      summary: Create an administrative region
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateRegionBody"
+      responses:
+        "201":
+          description: Region created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Region"
+
+  /admin/roles:
+    get:
+      operationId: listRoles
+      tags: [admin]
+      summary: List system roles and permissions
+      responses:
+        "200":
+          description: Roles
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Role"
+
+  /admin/roles/{roleId}/permissions:
+    patch:
+      operationId: updateRolePermissions
+      tags: [admin]
+      summary: Update permissions for a role
+      parameters:
+        - in: path
+          name: roleId
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateRolePermissionsBody"
+      responses:
+        "200":
+          description: Permissions updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Role"
+
+  /admin/sync-queue:
+    get:
+      operationId: listSyncQueue
+      tags: [admin]
+      summary: View offline sync queue status
+      responses:
+        "200":
+          description: Sync queue
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SyncQueueStatus"
+
 components:
   schemas:
     HealthStatus:
@@ -31,6 +1646,1588 @@ components:
       properties:
         status:
           type: string
-      required:
-        - status
+      required: [status]
 
+    # ============================================================
+    # DASHBOARD
+    # ============================================================
+    DashboardSummary:
+      type: object
+      properties:
+        totalFarmers:
+          type: integer
+        activePlots:
+          type: integer
+        totalGroups:
+          type: integer
+        totalAreaHectares:
+          type: number
+        pendingDeliveries:
+          type: integer
+        totalProcuredKg:
+          type: number
+        totalPaymentsPending:
+          type: number
+        complianceRate:
+          type: number
+        syncPendingCount:
+          type: integer
+      required: [totalFarmers, activePlots, totalGroups, totalAreaHectares, pendingDeliveries, totalProcuredKg, totalPaymentsPending, complianceRate, syncPendingCount]
+
+    ActivityItem:
+      type: object
+      properties:
+        id:
+          type: string
+        type:
+          type: string
+          enum: [farmer_registered, batch_created, delivery_approved, payment_processed, compliance_flag, certification_enrolled]
+        description:
+          type: string
+        actorName:
+          type: string
+        entityId:
+          type: string
+        entityType:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+      required: [id, type, description, actorName, entityId, entityType, timestamp]
+
+    ComplianceOverview:
+      type: object
+      properties:
+        streams:
+          type: array
+          items:
+            type: object
+            properties:
+              streamName:
+                type: string
+              enrolledFarmers:
+                type: integer
+              compliantFarmers:
+                type: integer
+              expiringIn30Days:
+                type: integer
+              complianceRate:
+                type: number
+            required: [streamName, enrolledFarmers, compliantFarmers, expiringIn30Days, complianceRate]
+      required: [streams]
+
+    ProcurementStats:
+      type: object
+      properties:
+        weeklyVolumeKg:
+          type: number
+        monthlyVolumeKg:
+          type: number
+        pendingApprovals:
+          type: integer
+        rejectedDeliveries:
+          type: integer
+        averageGradeScore:
+          type: number
+        totalValueThisMonth:
+          type: number
+      required: [weeklyVolumeKg, monthlyVolumeKg, pendingApprovals, rejectedDeliveries, averageGradeScore, totalValueThisMonth]
+
+    # ============================================================
+    # FARMER
+    # ============================================================
+    Farmer:
+      type: object
+      properties:
+        id:
+          type: string
+        referenceNumber:
+          type: string
+        firstName:
+          type: string
+        lastName:
+          type: string
+        nationalId:
+          type: string
+        dateOfBirth:
+          type: string
+          format: date
+        phoneNumber:
+          type: string
+        sex:
+          type: string
+          enum: [male, female, other]
+        groupId:
+          type: string
+        groupName:
+          type: string
+        regionId:
+          type: string
+        village:
+          type: string
+        status:
+          type: string
+          enum: [active, inactive, pending]
+        photoUrl:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required: [id, referenceNumber, firstName, lastName, groupId, regionId, status, createdAt, updatedAt]
+
+    FarmerDetail:
+      allOf:
+        - $ref: "#/components/schemas/Farmer"
+        - type: object
+          properties:
+            plots:
+              type: array
+              items:
+                $ref: "#/components/schemas/Plot"
+            certifications:
+              type: array
+              items:
+                $ref: "#/components/schemas/CertificationEnrolment"
+            recentSurveys:
+              type: array
+              items:
+                $ref: "#/components/schemas/SurveySubmission"
+            gapScore:
+              type: number
+          required: [plots, certifications, recentSurveys]
+
+    FarmerCard:
+      type: object
+      properties:
+        farmerId:
+          type: string
+        referenceNumber:
+          type: string
+        fullName:
+          type: string
+        photoUrl:
+          type: string
+        groupName:
+          type: string
+        village:
+          type: string
+        qrCodeData:
+          type: string
+        certifications:
+          type: array
+          items:
+            type: object
+            properties:
+              streamName:
+                type: string
+              status:
+                type: string
+              expiryDate:
+                type: string
+                format: date
+            required: [streamName, status]
+      required: [farmerId, referenceNumber, fullName, groupName, qrCodeData, certifications]
+
+    PaginatedFarmers:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/Farmer"
+        total:
+          type: integer
+        page:
+          type: integer
+        limit:
+          type: integer
+      required: [data, total, page, limit]
+
+    CreateFarmerBody:
+      type: object
+      properties:
+        firstName:
+          type: string
+        lastName:
+          type: string
+        nationalId:
+          type: string
+        dateOfBirth:
+          type: string
+          format: date
+        phoneNumber:
+          type: string
+        sex:
+          type: string
+          enum: [male, female, other]
+        groupId:
+          type: string
+        regionId:
+          type: string
+        village:
+          type: string
+        photoUrl:
+          type: string
+      required: [firstName, lastName, nationalId, groupId, regionId]
+
+    UpdateFarmerBody:
+      type: object
+      properties:
+        firstName:
+          type: string
+        lastName:
+          type: string
+        phoneNumber:
+          type: string
+        groupId:
+          type: string
+        status:
+          type: string
+          enum: [active, inactive]
+
+    DuplicatePair:
+      type: object
+      properties:
+        id:
+          type: string
+        farmer1:
+          $ref: "#/components/schemas/Farmer"
+        farmer2:
+          $ref: "#/components/schemas/Farmer"
+        matchScore:
+          type: number
+        matchReasons:
+          type: array
+          items:
+            type: string
+        status:
+          type: string
+          enum: [pending, merged, dismissed]
+      required: [id, farmer1, farmer2, matchScore, matchReasons, status]
+
+    MergeDuplicatesBody:
+      type: object
+      properties:
+        masterFarmerId:
+          type: string
+      required: [masterFarmerId]
+
+    # ============================================================
+    # GROUPS
+    # ============================================================
+    FarmerGroup:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        regionId:
+          type: string
+        village:
+          type: string
+        memberCount:
+          type: integer
+        complianceScore:
+          type: number
+        activePlots:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+      required: [id, name, regionId, memberCount, createdAt]
+
+    FarmerGroupDetail:
+      allOf:
+        - $ref: "#/components/schemas/FarmerGroup"
+        - type: object
+          properties:
+            members:
+              type: array
+              items:
+                $ref: "#/components/schemas/Farmer"
+            leaders:
+              type: array
+              items:
+                type: object
+                properties:
+                  farmerId:
+                    type: string
+                  name:
+                    type: string
+                  role:
+                    type: string
+                  startDate:
+                    type: string
+                    format: date
+                required: [farmerId, name, role, startDate]
+          required: [members, leaders]
+
+    CreateGroupBody:
+      type: object
+      properties:
+        name:
+          type: string
+        regionId:
+          type: string
+        village:
+          type: string
+      required: [name, regionId]
+
+    # ============================================================
+    # PLOTS
+    # ============================================================
+    Plot:
+      type: object
+      properties:
+        id:
+          type: string
+        farmerId:
+          type: string
+        name:
+          type: string
+        cropType:
+          type: string
+        areaHectares:
+          type: number
+        polygon:
+          type: object
+          description: GeoJSON polygon
+        harvestDate:
+          type: string
+          format: date
+        status:
+          type: string
+          enum: [active, inactive]
+        createdAt:
+          type: string
+          format: date-time
+      required: [id, farmerId, cropType, areaHectares, status, createdAt]
+
+    CreatePlotBody:
+      type: object
+      properties:
+        farmerId:
+          type: string
+        name:
+          type: string
+        cropType:
+          type: string
+        polygon:
+          type: object
+        harvestDate:
+          type: string
+          format: date
+      required: [farmerId, cropType]
+
+    # ============================================================
+    # CERTIFICATIONS
+    # ============================================================
+    CertificationStream:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+          enum: [EUDR, RainforestAlliance, FairTrade, Organic, Custom]
+        description:
+          type: string
+        requiresGpsPolygon:
+          type: boolean
+        eligibilityCriteria:
+          type: array
+          items:
+            type: string
+        active:
+          type: boolean
+      required: [id, name, requiresGpsPolygon, active]
+
+    CertificationEnrolment:
+      type: object
+      properties:
+        id:
+          type: string
+        farmerId:
+          type: string
+        streamId:
+          type: string
+        streamName:
+          type: string
+        enrolmentDate:
+          type: string
+          format: date
+        expiryDate:
+          type: string
+          format: date
+        status:
+          type: string
+          enum: [active, expired, suspended, pending]
+      required: [id, farmerId, streamId, streamName, enrolmentDate, status]
+
+    CreateEnrolmentBody:
+      type: object
+      properties:
+        farmerId:
+          type: string
+        streamId:
+          type: string
+        enrolmentDate:
+          type: string
+          format: date
+        expiryDate:
+          type: string
+          format: date
+      required: [farmerId, streamId, enrolmentDate]
+
+    # ============================================================
+    # SURVEYS
+    # ============================================================
+    SurveyTemplate:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        type:
+          type: string
+          enum: [farm_visit, gap_assessment, training_attendance, commodity_inspection, custom]
+        fields:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+              label:
+                type: string
+              type:
+                type: string
+                enum: [text, number, date, dropdown, photo, gps, boolean]
+              required:
+                type: boolean
+              options:
+                type: array
+                items:
+                  type: string
+            required: [id, label, type, required]
+        published:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+      required: [id, name, type, fields, published, createdAt]
+
+    CreateSurveyTemplateBody:
+      type: object
+      properties:
+        name:
+          type: string
+        type:
+          type: string
+          enum: [farm_visit, gap_assessment, training_attendance, commodity_inspection, custom]
+        fields:
+          type: array
+          items:
+            type: object
+            properties:
+              label:
+                type: string
+              type:
+                type: string
+              required:
+                type: boolean
+              options:
+                type: array
+                items:
+                  type: string
+            required: [label, type, required]
+      required: [name, type, fields]
+
+    SurveySubmission:
+      type: object
+      properties:
+        id:
+          type: string
+        templateId:
+          type: string
+        templateName:
+          type: string
+        farmerId:
+          type: string
+        farmerName:
+          type: string
+        agentId:
+          type: string
+        agentName:
+          type: string
+        responses:
+          type: object
+          additionalProperties: true
+        gpsLat:
+          type: number
+        gpsLng:
+          type: number
+        status:
+          type: string
+          enum: [pending, approved, rejected, flagged]
+        reviewComment:
+          type: string
+        submittedAt:
+          type: string
+          format: date-time
+        reviewedAt:
+          type: string
+          format: date-time
+      required: [id, templateId, farmerId, agentId, status, submittedAt]
+
+    SubmitSurveyBody:
+      type: object
+      properties:
+        templateId:
+          type: string
+        farmerId:
+          type: string
+        responses:
+          type: object
+          additionalProperties: true
+        gpsLat:
+          type: number
+        gpsLng:
+          type: number
+      required: [templateId, farmerId, responses]
+
+    ReviewSubmissionBody:
+      type: object
+      properties:
+        decision:
+          type: string
+          enum: [approved, rejected, flagged]
+        comment:
+          type: string
+      required: [decision, comment]
+
+    # ============================================================
+    # VISITS
+    # ============================================================
+    Visit:
+      type: object
+      properties:
+        id:
+          type: string
+        farmerId:
+          type: string
+        farmerName:
+          type: string
+        agentId:
+          type: string
+        agentName:
+          type: string
+        scheduledDate:
+          type: string
+          format: date
+        completedAt:
+          type: string
+          format: date-time
+        priority:
+          type: string
+          enum: [low, medium, high, critical]
+        status:
+          type: string
+          enum: [scheduled, completed, overdue, cancelled]
+        notes:
+          type: string
+      required: [id, farmerId, agentId, scheduledDate, priority, status]
+
+    ScheduleVisitBody:
+      type: object
+      properties:
+        farmerId:
+          type: string
+        agentId:
+          type: string
+        scheduledDate:
+          type: string
+          format: date
+        priority:
+          type: string
+          enum: [low, medium, high, critical]
+        notes:
+          type: string
+      required: [farmerId, agentId, scheduledDate, priority]
+
+    # ============================================================
+    # BATCHES
+    # ============================================================
+    Batch:
+      type: object
+      properties:
+        id:
+          type: string
+        batchTag:
+          type: string
+        agentId:
+          type: string
+        agentName:
+          type: string
+        cropType:
+          type: string
+        totalWeightKg:
+          type: number
+        farmerCount:
+          type: integer
+        qualifyingStreams:
+          type: array
+          items:
+            type: string
+        status:
+          type: string
+          enum: [open, locked, delivered, received_at_station]
+        harvestDate:
+          type: string
+          format: date
+        createdAt:
+          type: string
+          format: date-time
+      required: [id, batchTag, agentId, cropType, totalWeightKg, farmerCount, qualifyingStreams, status, createdAt]
+
+    BatchDetail:
+      allOf:
+        - $ref: "#/components/schemas/Batch"
+        - type: object
+          properties:
+            farmerContributions:
+              type: array
+              items:
+                type: object
+                properties:
+                  farmerId:
+                    type: string
+                  farmerName:
+                    type: string
+                  grossWeightKg:
+                    type: number
+                  harvestDate:
+                    type: string
+                    format: date
+                  activeStreams:
+                    type: array
+                    items:
+                      type: string
+                required: [farmerId, farmerName, grossWeightKg, harvestDate, activeStreams]
+          required: [farmerContributions]
+
+    CreateBatchBody:
+      type: object
+      properties:
+        cropType:
+          type: string
+        harvestDate:
+          type: string
+          format: date
+      required: [cropType, harvestDate]
+
+    # ============================================================
+    # PROCUREMENT
+    # ============================================================
+    Delivery:
+      type: object
+      properties:
+        id:
+          type: string
+        lotTag:
+          type: string
+        batchId:
+          type: string
+        batchTag:
+          type: string
+        stationId:
+          type: string
+        grossWeightKg:
+          type: number
+        tareWeightKg:
+          type: number
+        netWeightKg:
+          type: number
+        weightVarianceKg:
+          type: number
+        moistureContent:
+          type: number
+        defectCount:
+          type: number
+        cupScore:
+          type: number
+        grade:
+          type: string
+        pricePerKg:
+          type: number
+        totalValue:
+          type: number
+        qualifyingStreams:
+          type: array
+          items:
+            type: string
+        weightApproved:
+          type: boolean
+        qcApproved:
+          type: boolean
+        status:
+          type: string
+          enum: [pending_weight, pending_qc, pending_pricing, pending_approval, approved, rejected]
+        rejectionType:
+          type: string
+        rejectionReason:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+      required: [id, lotTag, batchId, status, createdAt]
+
+    DeliveryDetail:
+      allOf:
+        - $ref: "#/components/schemas/Delivery"
+        - type: object
+          properties:
+            batch:
+              $ref: "#/components/schemas/Batch"
+            auditTrail:
+              type: array
+              items:
+                $ref: "#/components/schemas/AuditLogEntry"
+
+    CreateDeliveryBody:
+      type: object
+      properties:
+        batchTag:
+          type: string
+        stationId:
+          type: string
+      required: [batchTag, stationId]
+
+    RecordWeightBody:
+      type: object
+      properties:
+        grossWeightKg:
+          type: number
+        tareWeightKg:
+          type: number
+      required: [grossWeightKg, tareWeightKg]
+
+    RecordQCBody:
+      type: object
+      properties:
+        moistureContent:
+          type: number
+        defectCount:
+          type: number
+        cupScore:
+          type: number
+        photoUrl:
+          type: string
+      required: [moistureContent, defectCount]
+
+    SubmitPricingBody:
+      type: object
+      properties:
+        pricePerKg:
+          type: number
+        deductions:
+          type: array
+          items:
+            type: object
+            properties:
+              type:
+                type: string
+              percentage:
+                type: number
+            required: [type, percentage]
+        incentives:
+          type: array
+          items:
+            type: object
+            properties:
+              type:
+                type: string
+              amount:
+                type: number
+            required: [type, amount]
+      required: [pricePerKg]
+
+    ApprovalBody:
+      type: object
+      properties:
+        decision:
+          type: string
+          enum: [approved, rejected]
+        comment:
+          type: string
+      required: [decision, comment]
+
+    # ============================================================
+    # WAREHOUSE
+    # ============================================================
+    Lot:
+      type: object
+      properties:
+        id:
+          type: string
+        lotTag:
+          type: string
+        deliveryId:
+          type: string
+        weightKg:
+          type: number
+        certificationStreams:
+          type: array
+          items:
+            type: string
+        siloId:
+          type: string
+        status:
+          type: string
+          enum: [received, in_processing, processed, allocated, exported]
+        receivedAt:
+          type: string
+          format: date-time
+      required: [id, lotTag, deliveryId, weightKg, certificationStreams, status, receivedAt]
+
+    LotDetail:
+      allOf:
+        - $ref: "#/components/schemas/Lot"
+        - type: object
+          properties:
+            chainOfCustody:
+              type: array
+              items:
+                type: object
+                properties:
+                  step:
+                    type: string
+                  actor:
+                    type: string
+                  timestamp:
+                    type: string
+                    format: date-time
+                  notes:
+                    type: string
+                required: [step, actor, timestamp]
+          required: [chainOfCustody]
+
+    MassBalance:
+      type: object
+      properties:
+        totalReceivedKg:
+          type: number
+        totalProcessedKg:
+          type: number
+        totalAllocatedKg:
+          type: number
+        totalExportedKg:
+          type: number
+        warehouseStockKg:
+          type: number
+        byStream:
+          type: array
+          items:
+            type: object
+            properties:
+              streamName:
+                type: string
+              stockKg:
+                type: number
+            required: [streamName, stockKg]
+      required: [totalReceivedKg, totalProcessedKg, totalAllocatedKg, totalExportedKg, warehouseStockKg, byStream]
+
+    # ============================================================
+    # PAYMENTS
+    # ============================================================
+    Payment:
+      type: object
+      properties:
+        id:
+          type: string
+        farmerId:
+          type: string
+        farmerName:
+          type: string
+        deliveryId:
+          type: string
+        lotTag:
+          type: string
+        amountDue:
+          type: number
+        amountPaid:
+          type: number
+        currency:
+          type: string
+        paymentMethod:
+          type: string
+          enum: [mobile_money, bank_transfer, cash]
+        status:
+          type: string
+          enum: [pending, processing, paid, failed]
+        paymentReference:
+          type: string
+        paidAt:
+          type: string
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+      required: [id, farmerId, deliveryId, amountDue, currency, paymentMethod, status, createdAt]
+
+    InitiatePaymentBody:
+      type: object
+      properties:
+        deliveryId:
+          type: string
+        farmerId:
+          type: string
+        amountDue:
+          type: number
+        paymentMethod:
+          type: string
+          enum: [mobile_money, bank_transfer, cash]
+        currency:
+          type: string
+      required: [deliveryId, farmerId, amountDue, paymentMethod, currency]
+
+    PaymentSummary:
+      type: object
+      properties:
+        totalPending:
+          type: number
+        totalPaid:
+          type: number
+        pendingCount:
+          type: integer
+        paidCount:
+          type: integer
+        currency:
+          type: string
+      required: [totalPending, totalPaid, pendingCount, paidCount, currency]
+
+    # ============================================================
+    # COMPLIANCE
+    # ============================================================
+    EudrCompliance:
+      type: object
+      properties:
+        compliantFarmers:
+          type: integer
+        totalEnrolled:
+          type: integer
+        farmersWithPolygon:
+          type: integer
+        farmersWithoutPolygon:
+          type: integer
+        expiringSoon:
+          type: integer
+        complianceRate:
+          type: number
+        lastUpdated:
+          type: string
+          format: date-time
+      required: [compliantFarmers, totalEnrolled, farmersWithPolygon, farmersWithoutPolygon, expiringSoon, complianceRate, lastUpdated]
+
+    GapAssessment:
+      type: object
+      properties:
+        id:
+          type: string
+        farmerId:
+          type: string
+        farmerName:
+          type: string
+        agentId:
+          type: string
+        agentName:
+          type: string
+        overallScore:
+          type: number
+        maxScore:
+          type: number
+        criteria:
+          type: array
+          items:
+            type: object
+            properties:
+              criterion:
+                type: string
+              score:
+                type: number
+              maxScore:
+                type: number
+              photoUrl:
+                type: string
+            required: [criterion, score, maxScore]
+        status:
+          type: string
+          enum: [pending_review, approved, flagged]
+        assessedAt:
+          type: string
+          format: date-time
+      required: [id, farmerId, agentId, overallScore, maxScore, criteria, status, assessedAt]
+
+    SubmitGapAssessmentBody:
+      type: object
+      properties:
+        farmerId:
+          type: string
+        criteria:
+          type: array
+          items:
+            type: object
+            properties:
+              criterion:
+                type: string
+              score:
+                type: number
+              maxScore:
+                type: number
+              photoUrl:
+                type: string
+            required: [criterion, score, maxScore]
+      required: [farmerId, criteria]
+
+    TrainingSession:
+      type: object
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+        type:
+          type: string
+        scheduledDate:
+          type: string
+          format: date
+        location:
+          type: string
+        facilitatorId:
+          type: string
+        facilitatorName:
+          type: string
+        attendeeCount:
+          type: integer
+        status:
+          type: string
+          enum: [scheduled, completed, cancelled]
+        createdAt:
+          type: string
+          format: date-time
+      required: [id, title, type, scheduledDate, facilitatorId, status, createdAt]
+
+    CreateTrainingSessionBody:
+      type: object
+      properties:
+        title:
+          type: string
+        type:
+          type: string
+        scheduledDate:
+          type: string
+          format: date
+        location:
+          type: string
+        facilitatorId:
+          type: string
+      required: [title, type, scheduledDate, facilitatorId]
+
+    # ============================================================
+    # EXPORTS
+    # ============================================================
+    ExportContract:
+      type: object
+      properties:
+        id:
+          type: string
+        contractNumber:
+          type: string
+        buyer:
+          type: string
+        destination:
+          type: string
+        cropType:
+          type: string
+        quantityKg:
+          type: number
+        pricePerKg:
+          type: number
+        certificationRequired:
+          type: string
+        deliveryDate:
+          type: string
+          format: date
+        status:
+          type: string
+          enum: [draft, confirmed, in_execution, completed, cancelled]
+        createdAt:
+          type: string
+          format: date-time
+      required: [id, contractNumber, buyer, destination, cropType, quantityKg, pricePerKg, status, createdAt]
+
+    CreateExportContractBody:
+      type: object
+      properties:
+        contractNumber:
+          type: string
+        buyer:
+          type: string
+        destination:
+          type: string
+        cropType:
+          type: string
+        quantityKg:
+          type: number
+        pricePerKg:
+          type: number
+        certificationRequired:
+          type: string
+        deliveryDate:
+          type: string
+          format: date
+      required: [contractNumber, buyer, destination, cropType, quantityKg, pricePerKg]
+
+    Shipment:
+      type: object
+      properties:
+        id:
+          type: string
+        contractId:
+          type: string
+        containerNumber:
+          type: string
+        vesselName:
+          type: string
+        portOfLoading:
+          type: string
+        portOfDestination:
+          type: string
+        shipmentDate:
+          type: string
+          format: date
+        totalWeightKg:
+          type: number
+        status:
+          type: string
+          enum: [preparing, loaded, in_transit, delivered]
+        createdAt:
+          type: string
+          format: date-time
+      required: [id, contractId, status, createdAt]
+
+    ShipmentDetail:
+      allOf:
+        - $ref: "#/components/schemas/Shipment"
+        - type: object
+          properties:
+            lots:
+              type: array
+              items:
+                $ref: "#/components/schemas/Lot"
+            documents:
+              type: array
+              items:
+                $ref: "#/components/schemas/ExportDocument"
+          required: [lots, documents]
+
+    ExportDocument:
+      type: object
+      properties:
+        id:
+          type: string
+        shipmentId:
+          type: string
+        type:
+          type: string
+          enum: [bill_of_lading, phytosanitary, certificate_of_origin, eudr_statement, packing_list, invoice]
+        title:
+          type: string
+        fileUrl:
+          type: string
+        status:
+          type: string
+          enum: [draft, issued, approved, rejected]
+        issuedAt:
+          type: string
+          format: date-time
+      required: [id, shipmentId, type, title, status]
+
+    # ============================================================
+    # USERS
+    # ============================================================
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+        firstName:
+          type: string
+        lastName:
+          type: string
+        email:
+          type: string
+        phoneNumber:
+          type: string
+        role:
+          type: string
+          enum: [Agronomist, Farmer, Manager, Supervisor, GroupLeader, BuyingStationAgent, QualityInspector, TradeDesk, ProcurementHead, FinanceOfficer, SystemAdministrator, WarehouseManager, LogisticsOfficer, ComplianceOfficer]
+        regionId:
+          type: string
+        managerId:
+          type: string
+        status:
+          type: string
+          enum: [active, on_leave, deactivated]
+        createdAt:
+          type: string
+          format: date-time
+      required: [id, firstName, lastName, email, role, status, createdAt]
+
+    CreateUserBody:
+      type: object
+      properties:
+        firstName:
+          type: string
+        lastName:
+          type: string
+        email:
+          type: string
+        phoneNumber:
+          type: string
+        role:
+          type: string
+        regionId:
+          type: string
+        managerId:
+          type: string
+      required: [firstName, lastName, email, role]
+
+    UpdateUserBody:
+      type: object
+      properties:
+        firstName:
+          type: string
+        lastName:
+          type: string
+        phoneNumber:
+          type: string
+        role:
+          type: string
+        regionId:
+          type: string
+        managerId:
+          type: string
+        status:
+          type: string
+          enum: [active, on_leave, deactivated]
+
+    # ============================================================
+    # ASSETS
+    # ============================================================
+    Asset:
+      type: object
+      properties:
+        id:
+          type: string
+        assetCode:
+          type: string
+        type:
+          type: string
+          enum: [device, vehicle, scale, equipment, other]
+        serialNumber:
+          type: string
+        make:
+          type: string
+        model:
+          type: string
+        purchaseDate:
+          type: string
+          format: date
+        purchaseValue:
+          type: number
+        currentBookValue:
+          type: number
+        status:
+          type: string
+          enum: [available, assigned, under_repair, written_off]
+        assignedToUserId:
+          type: string
+        assignedToName:
+          type: string
+        photoUrl:
+          type: string
+        maintenanceDueDate:
+          type: string
+          format: date
+        createdAt:
+          type: string
+          format: date-time
+      required: [id, assetCode, type, status, createdAt]
+
+    AssetDetail:
+      allOf:
+        - $ref: "#/components/schemas/Asset"
+        - type: object
+          properties:
+            assignmentHistory:
+              type: array
+              items:
+                type: object
+                properties:
+                  userId:
+                    type: string
+                  userName:
+                    type: string
+                  assignedAt:
+                    type: string
+                    format: date-time
+                  returnedAt:
+                    type: string
+                    format: date-time
+                  conditionAtHandover:
+                    type: string
+                  conditionAtReturn:
+                    type: string
+                required: [userId, userName, assignedAt]
+          required: [assignmentHistory]
+
+    CreateAssetBody:
+      type: object
+      properties:
+        type:
+          type: string
+          enum: [device, vehicle, scale, equipment, other]
+        serialNumber:
+          type: string
+        make:
+          type: string
+        model:
+          type: string
+        purchaseDate:
+          type: string
+          format: date
+        purchaseValue:
+          type: number
+        photoUrl:
+          type: string
+      required: [type, purchaseDate, purchaseValue]
+
+    AssignAssetBody:
+      type: object
+      properties:
+        userId:
+          type: string
+        conditionAtHandover:
+          type: string
+      required: [userId, conditionAtHandover]
+
+    ReturnAssetBody:
+      type: object
+      properties:
+        conditionAtReturn:
+          type: string
+        photoUrl:
+          type: string
+        notes:
+          type: string
+      required: [conditionAtReturn]
+
+    # ============================================================
+    # ACTIVITY FUNDS
+    # ============================================================
+    ActivityFundRequest:
+      type: object
+      properties:
+        id:
+          type: string
+        agentId:
+          type: string
+        agentName:
+          type: string
+        activityType:
+          type: string
+        plannedDate:
+          type: string
+          format: date
+        destination:
+          type: string
+        estimatedAmount:
+          type: number
+        approvedAmount:
+          type: number
+        actualAmount:
+          type: number
+        currency:
+          type: string
+        status:
+          type: string
+          enum: [pending, approved, rejected, disbursed, reconciled]
+        approverComment:
+          type: string
+        disbursedAt:
+          type: string
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+      required: [id, agentId, activityType, plannedDate, estimatedAmount, currency, status, createdAt]
+
+    CreateActivityFundRequestBody:
+      type: object
+      properties:
+        activityType:
+          type: string
+        plannedDate:
+          type: string
+          format: date
+        destination:
+          type: string
+        estimatedAmount:
+          type: number
+        currency:
+          type: string
+        lineItems:
+          type: array
+          items:
+            type: object
+            properties:
+              description:
+                type: string
+              amount:
+                type: number
+            required: [description, amount]
+      required: [activityType, plannedDate, estimatedAmount, currency]
+
+    # ============================================================
+    # AUDIT LOG
+    # ============================================================
+    AuditLogEntry:
+      type: object
+      properties:
+        id:
+          type: string
+        entityType:
+          type: string
+        entityId:
+          type: string
+        action:
+          type: string
+        actorId:
+          type: string
+        actorName:
+          type: string
+        actorRole:
+          type: string
+        before:
+          type: object
+          additionalProperties: true
+        after:
+          type: object
+          additionalProperties: true
+        ipAddress:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+      required: [id, entityType, entityId, action, actorId, actorName, actorRole, timestamp]
+
+    PaginatedAuditLogs:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/AuditLogEntry"
+        total:
+          type: integer
+        page:
+          type: integer
+        limit:
+          type: integer
+      required: [data, total, page, limit]
+
+    # ============================================================
+    # ADMIN
+    # ============================================================
+    Region:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        parentId:
+          type: string
+        level:
+          type: integer
+        countryCode:
+          type: string
+      required: [id, name, level]
+
+    CreateRegionBody:
+      type: object
+      properties:
+        name:
+          type: string
+        parentId:
+          type: string
+        level:
+          type: integer
+        countryCode:
+          type: string
+      required: [name, level]
+
+    Role:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        permissions:
+          type: array
+          items:
+            type: string
+      required: [id, name, permissions]
+
+    UpdateRolePermissionsBody:
+      type: object
+      properties:
+        permissions:
+          type: array
+          items:
+            type: string
+      required: [permissions]
+
+    SyncQueueStatus:
+      type: object
+      properties:
+        pendingRecords:
+          type: integer
+        failedRecords:
+          type: integer
+        lastSyncAt:
+          type: string
+          format: date-time
+        agentBreakdown:
+          type: array
+          items:
+            type: object
+            properties:
+              agentId:
+                type: string
+              agentName:
+                type: string
+              pendingCount:
+                type: integer
+              lastSeenAt:
+                type: string
+                format: date-time
+            required: [agentId, agentName, pendingCount]
+      required: [pendingRecords, failedRecords, agentBreakdown]
