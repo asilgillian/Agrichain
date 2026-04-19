@@ -1,0 +1,1338 @@
+// =============================================================================
+// Digital Agriculture Platform — Prisma Schema
+// All 11 modules | PostgreSQL
+// =============================================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// =============================================================================
+// ENUMS
+// =============================================================================
+
+enum UserRole {
+  FARMER
+  AGRONOMIST
+  FIELD_OPERATIVE
+  GROUP_LEADER
+  BUYING_STATION_AGENT
+  QUALITY_INSPECTOR
+  TRADE_DESK_OFFICER
+  PROCUREMENT_HEAD
+  FINANCE_OFFICER
+  LOAN_OFFICER
+  PRODUCTION_OPERATIVE
+  WAREHOUSE_OPERATIVE
+  EXPORT_COMPLIANCE_OFFICER
+  SUPERVISOR
+  MANAGER
+  SYSTEM_ADMINISTRATOR
+}
+
+enum SupplyChainStream {
+  EUDR
+  RAINFOREST_ALLIANCE
+  FOURCC
+  FAIRTRADE
+  ORGANIC
+  AAA
+  CONVENTIONAL
+}
+
+enum StreamEnrolmentStatus {
+  ACTIVE
+  PENDING
+  LAPSED
+  SUSPENDED
+}
+
+enum RiskClassification {
+  NEGLIGIBLE
+  STANDARD
+  NON_COMPLIANT
+}
+
+enum LotStatus {
+  INTAKE
+  IN_STORAGE
+  IN_PROCESSING
+  ALLOCATED
+  DISPATCHED
+  REJECTED
+  VOIDED
+}
+
+enum ApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum RejectionType {
+  REJECT_FOR_CORRECTION
+  REJECT_COMMODITY
+  REJECT_AND_ESCALATE
+  PARTIAL_REJECTION
+  SUSPEND
+}
+
+enum PaymentStatus {
+  AWAITING_FINANCE
+  RELEASED
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+enum LoanStatus {
+  PENDING
+  APPROVED
+  DISBURSED
+  REPAYING
+  CLOSED
+  DEFAULTED
+  WRITTEN_OFF
+}
+
+enum LoanType {
+  CASH_ADVANCE
+  INPUT_LOAN
+  EMERGENCY_WELFARE
+  STAFF_ADVANCE
+  GROUP_LOAN
+}
+
+enum AssetStatus {
+  AVAILABLE
+  ASSIGNED
+  UNDER_REPAIR
+  WRITTEN_OFF
+  RETIRED
+}
+
+enum DepreciationMethod {
+  STRAIGHT_LINE
+  REDUCING_BALANCE
+}
+
+enum ContractType {
+  FORWARD
+  LOCAL_SALE
+  INTERCOMPANY_TRANSFER
+  PRE_SEASON
+  PER_DELIVERY
+}
+
+enum ContractStatus {
+  DRAFT
+  APPROVED
+  STOCK_ALLOCATED
+  PARTIALLY_FULFILLED
+  FULLY_FULFILLED
+  CLOSED
+  CANCELLED
+}
+
+enum StaffStatus {
+  ACTIVE
+  ON_LEAVE
+  DEACTIVATED
+}
+
+enum ActivityFundStatus {
+  DRAFT
+  PENDING_MANAGER
+  PENDING_FINANCE
+  APPROVED
+  DISBURSED
+  RECONCILED
+  REJECTED
+}
+
+enum DeliveryStatus {
+  PENDING
+  IN_TRANSIT
+  COMPLETED
+  EXCEPTION
+}
+
+// =============================================================================
+// MODULE 1 — FARMER & HOUSEHOLD REGISTRY
+// =============================================================================
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  passwordHash  String
+  role          UserRole
+  staffProfile  Staff?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  // Audit relations
+  auditLogs     AuditLog[]
+}
+
+model AdminUnit {
+  id          String      @id @default(cuid())
+  name        String
+  level       Int         // 1=District, 2=Sub-county, 3=Parish, 4=Village
+  levelName   String      // e.g. "District", "Village" — configurable per country
+  country     String      @default("UG")
+  parentId    String?
+  parent      AdminUnit?  @relation("AdminUnitHierarchy", fields: [parentId], references: [id])
+  children    AdminUnit[] @relation("AdminUnitHierarchy")
+  farmers     Farmer[]
+  groups      FarmerGroup[]
+  createdAt   DateTime    @default(now())
+
+  @@index([country, level])
+  @@index([parentId])
+}
+
+model FarmerGroup {
+  id            String      @id @default(cuid())
+  name          String
+  adminUnitId   String
+  adminUnit     AdminUnit   @relation(fields: [adminUnitId], references: [id])
+  members       Farmer[]
+  leadership    GroupLeadership[]
+  batches       Batch[]
+  streamEnrolments GroupStreamEnrolment[]
+  loans         Loan[]
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  @@index([adminUnitId])
+}
+
+model GroupLeadership {
+  id          String      @id @default(cuid())
+  groupId     String
+  group       FarmerGroup @relation(fields: [groupId], references: [id])
+  farmerId    String
+  farmer      Farmer      @relation(fields: [farmerId], references: [id])
+  role        String      // Chairperson, Secretary, Treasurer
+  startDate   DateTime
+  endDate     DateTime?
+  phone       String?
+
+  @@index([groupId])
+  @@index([farmerId])
+}
+
+model Farmer {
+  id                String    @id @default(cuid())
+  registrationNumber String?  @unique
+  preRegRef         String?   @unique
+  firstName         String
+  lastName          String
+  dateOfBirth       DateTime?
+  nationalId        String?   @unique
+  phone             String?
+  sex               String?
+  portraitPhotoUrl  String?
+  biometricPhotoUrl String?
+  householdSize     Int?
+  dependants        Int?
+  headOfHousehold   String?
+  landTenure        String?
+
+  // Location
+  adminUnitId       String?
+  adminUnit         AdminUnit? @relation(fields: [adminUnitId], references: [id])
+  village           String?
+
+  // Group
+  groupId           String?
+  group             FarmerGroup? @relation(fields: [groupId], references: [id])
+
+  // Status
+  isActive          Boolean   @default(true)
+  registrationDate  DateTime?
+  approvedAt        DateTime?
+  approvedById      String?
+
+  // Relations
+  farmPlots         FarmPlot[]
+  streamEnrolments  StreamEnrolment[]
+  groupLeadership   GroupLeadership[]
+  farmerCard        FarmerCard?
+  payments          FarmerPayment[]
+  loans             Loan[]
+  batchContributions BatchContribution[]
+  formSubmissions   FormSubmission[]
+  visitLogs         VisitLog[]
+  trainingAttendance TrainingAttendance[]
+  gapAssessments    GapAssessment[]
+
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  @@index([groupId])
+  @@index([adminUnitId])
+  @@index([nationalId])
+}
+
+model FarmPlot {
+  id              String              @id @default(cuid())
+  farmerId        String
+  farmer          Farmer              @relation(fields: [farmerId], references: [id])
+  plotName        String?
+  cropType        String?
+  acreage         Float?
+  soilType        String?
+  irrigationSource String?
+  geoJson         Json?               // GeoJSON polygon
+  centroidLat     Float?
+  centroidLng     Float?
+  eudrStatus      RiskClassification?
+  lastValidatedAt DateTime?
+
+  batchContributions BatchContribution[]
+
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([farmerId])
+}
+
+model StreamEnrolment {
+  id            String                @id @default(cuid())
+  farmerId      String
+  farmer        Farmer                @relation(fields: [farmerId], references: [id])
+  stream        SupplyChainStream
+  status        StreamEnrolmentStatus @default(ACTIVE)
+  enrolmentDate DateTime
+  expiryDate    DateTime?
+  renewalDate   DateTime?
+  notes         String?
+  createdAt     DateTime              @default(now())
+  updatedAt     DateTime              @updatedAt
+
+  @@unique([farmerId, stream])
+  @@index([farmerId])
+  @@index([stream, status])
+}
+
+model GroupStreamEnrolment {
+  id        String            @id @default(cuid())
+  groupId   String
+  group     FarmerGroup       @relation(fields: [groupId], references: [id])
+  stream    SupplyChainStream
+  enrolledAt DateTime         @default(now())
+  enrolledById String?
+
+  @@unique([groupId, stream])
+}
+
+model FarmerCard {
+  id               String    @id @default(cuid())
+  farmerId         String    @unique
+  farmer           Farmer    @relation(fields: [farmerId], references: [id])
+  registrationNumber String  @unique
+  qrCode           String    @unique
+  barcode          String    @unique
+  issuedAt         DateTime?
+  expiresAt        DateTime?
+  status           String    @default("ACTIVE") // ACTIVE, LOST, REPLACED, EXPIRED
+  createdAt        DateTime  @default(now())
+}
+
+// =============================================================================
+// MODULE 2 — FIELD DATA COLLECTION & AGRONOMY
+// =============================================================================
+
+model FormTemplate {
+  id            String    @id @default(cuid())
+  name          String
+  description   String?
+  fields        Json      // Array of field definitions with type, required, skip logic
+  isPublished   Boolean   @default(false)
+  version       Int       @default(1)
+  createdById   String?
+  submissions   FormSubmission[]
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+model FormSubmission {
+  id              String        @id @default(cuid())
+  templateId      String
+  template        FormTemplate  @relation(fields: [templateId], references: [id])
+  farmerId        String?
+  farmer          Farmer?       @relation(fields: [farmerId], references: [id])
+  submittedById   String
+  data            Json          // Field values keyed by field ID
+  photoUrls       String[]
+  gpsLat          Float?
+  gpsLng          Float?
+  status          ApprovalStatus @default(PENDING)
+  reviewedById    String?
+  reviewNote      String?
+  submittedAt     DateTime
+  syncedAt        DateTime?
+  createdAt       DateTime      @default(now())
+
+  @@index([templateId])
+  @@index([farmerId])
+  @@index([status])
+}
+
+model VisitSchedule {
+  id            String    @id @default(cuid())
+  farmerId      String
+  agronomistId  String
+  scheduledDate DateTime
+  visitType     String
+  priority      Int       @default(0)
+  notes         String?
+  completedAt   DateTime?
+  log           VisitLog?
+  createdAt     DateTime  @default(now())
+
+  @@index([agronomistId, scheduledDate])
+  @@index([farmerId])
+}
+
+model VisitLog {
+  id              String        @id @default(cuid())
+  scheduleId      String?       @unique
+  schedule        VisitSchedule? @relation(fields: [scheduleId], references: [id])
+  farmerId        String
+  farmer          Farmer        @relation(fields: [farmerId], references: [id])
+  agronomistId    String
+  visitDate       DateTime
+  notes           String?
+  pestObservations String?
+  diseaseObservations String?
+  recommendations String?
+  photoUrls       String[]
+  gpsLat          Float?
+  gpsLng          Float?
+  createdAt       DateTime      @default(now())
+
+  @@index([farmerId])
+  @@index([agronomistId])
+}
+
+model TrainingSession {
+  id            String    @id @default(cuid())
+  title         String
+  sessionType   String
+  facilitatorId String?
+  location      String?
+  scheduledDate DateTime
+  notes         String?
+  attendance    TrainingAttendance[]
+  createdAt     DateTime  @default(now())
+}
+
+model TrainingAttendance {
+  id          String          @id @default(cuid())
+  sessionId   String
+  session     TrainingSession @relation(fields: [sessionId], references: [id])
+  farmerId    String
+  farmer      Farmer          @relation(fields: [farmerId], references: [id])
+  signOffUrl  String?         // Photo or digital signature
+  attendedAt  DateTime
+  createdAt   DateTime        @default(now())
+
+  @@unique([sessionId, farmerId])
+  @@index([farmerId])
+}
+
+model GapAssessment {
+  id              String    @id @default(cuid())
+  farmerId        String
+  farmer          Farmer    @relation(fields: [farmerId], references: [id])
+  agronomistId    String
+  assessmentDate  DateTime
+  scores          Json      // { criterionId: score, ... }
+  photoUrls       String[]
+  totalScore      Float?
+  passed          Boolean?
+  status          ApprovalStatus @default(PENDING)
+  reviewedById    String?
+  reviewNote      String?
+  createdAt       DateTime  @default(now())
+
+  @@index([farmerId])
+  @@index([agronomistId])
+}
+
+model PreProcessingStep {
+  id                String    @id @default(cuid())
+  name              String    // Pulping, Drying, Hulling
+  description       String?
+  cropType          String?
+  defaultDeductionPct Float
+  minDeductionPct   Float
+  maxDeductionPct   Float
+  isFixed           Boolean   @default(false)
+  isMandatory       Boolean   @default(false)
+  isActive          Boolean   @default(true)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+}
+
+model Batch {
+  id            String    @id @default(cuid())
+  batchTag      String    @unique
+  groupId       String
+  group         FarmerGroup @relation(fields: [groupId], references: [id])
+  agronomistId  String
+  streams       SupplyChainStream[]
+  status        String    @default("OPEN") // OPEN, CLOSED, DELIVERED
+  contributions BatchContribution[]
+  delivery      BatchDelivery?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  closedAt      DateTime?
+
+  @@index([groupId])
+  @@index([agronomistId])
+}
+
+model BatchContribution {
+  id                    String    @id @default(cuid())
+  batchId               String
+  batch                 Batch     @relation(fields: [batchId], references: [id])
+  farmerId              String
+  farmer                Farmer    @relation(fields: [farmerId], references: [id])
+  farmPlotId            String?
+  farmPlot              FarmPlot? @relation(fields: [farmPlotId], references: [id])
+  cropType              String
+  harvestDate           DateTime?
+  grossWeightKg         Float
+  processesApplied      Json      // Array of { stepId, deductionPct }
+  postProcessWeightKg   Float
+  adjustedWeightKg      Float?
+  adjustmentReason      String?
+  adjustmentApprovedById String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  @@index([batchId])
+  @@index([farmerId])
+}
+
+model BatchDelivery {
+  id                String    @id @default(cuid())
+  batchId           String    @unique
+  batch             Batch     @relation(fields: [batchId], references: [id])
+  buyingStationId   String?
+  departureWeightKg Float?
+  handoverAt        DateTime?
+  handoverById      String?
+  acknowledgedById  String?
+  acknowledgedAt    DateTime?
+  createdAt         DateTime  @default(now())
+}
+
+// =============================================================================
+// MODULE 3 — COMMODITY PROCUREMENT & SOURCING
+// =============================================================================
+
+model BuyingStation {
+  id            String    @id @default(cuid())
+  name          String
+  location      String?
+  gpsLat        Float?
+  gpsLng        Float?
+  isActive      Boolean   @default(true)
+  lots          Lot[]
+  createdAt     DateTime  @default(now())
+}
+
+model Lot {
+  id                      String        @id @default(cuid())
+  lotTag                  String        @unique
+  batchTagRef             String?       // Original batch tag (internal reference only)
+  buyingStationId         String
+  buyingStation           BuyingStation @relation(fields: [buyingStationId], references: [id])
+  streams                 SupplyChainStream[]
+  originGroupId           String?
+  originVillage           String?
+  commodityType           String?
+  status                  LotStatus     @default(INTAKE)
+
+  // Truck arrival
+  truckLicensePlate       String?
+  driverName              String?
+  driverId                String?
+  arrivedAt               DateTime?
+
+  // Weight
+  grossWeightKg           Float?
+  tareWeightKg            Float?
+  netWeightKg             Float?
+  weightApprovalStatus    ApprovalStatus @default(PENDING)
+  weightApprovedById      String?
+  weightApprovedAt        DateTime?
+
+  // Quality
+  moistureContent         Float?
+  defectCount             Float?
+  cupScore                Float?
+  grade                   String?
+  qualityApprovalStatus   ApprovalStatus @default(PENDING)
+  qualityApprovedById     String?
+  qualityApprovedAt       DateTime?
+
+  // Pricing
+  basePricePerKg          Float?
+  deductions              Json?         // Array of { type, reason, amount, isPct }
+  incentives              Json?         // Array of { type, reason, amount, isPct }
+  netValue                Float?
+  pricingApprovalStatus   ApprovalStatus @default(PENDING)
+  pricingApprovedById     String?
+  pricingApprovedAt       DateTime?
+
+  // Finance
+  financeApprovalStatus   ApprovalStatus @default(PENDING)
+  financeApprovedById     String?
+  financeApprovedAt       DateTime?
+
+  // Rejection
+  rejectionType           RejectionType?
+  rejectionReason         String?
+  rejectedById            String?
+  rejectedAt              DateTime?
+  isVoided                Boolean       @default(false)
+
+  // Relations
+  photoUrls               String[]
+  warehouseAssignment     WarehouseAssignment?
+  siloAssignment          SiloAssignment?
+  farmerPayments          FarmerPayment[]
+  contractAllocations     ContractAllocation[]
+  rejectionLogs           RejectionLog[]
+
+  createdAt               DateTime      @default(now())
+  updatedAt               DateTime      @updatedAt
+
+  @@index([buyingStationId])
+  @@index([status])
+  @@index([weightApprovalStatus, qualityApprovalStatus])
+}
+
+model RejectionLog {
+  id              String        @id @default(cuid())
+  lotId           String
+  lot             Lot           @relation(fields: [lotId], references: [id])
+  step            String        // WEIGHT_APPROVAL, QUALITY_APPROVAL, TRADE_DESK, PROCUREMENT_HEAD, FINANCE
+  rejectionType   RejectionType
+  reason          String
+  rejectedById    String
+  createdAt       DateTime      @default(now())
+
+  @@index([lotId])
+}
+
+model AgentCashFloat {
+  id            String    @id @default(cuid())
+  agentId       String    @unique
+  currentBalance Float    @default(0)
+  transactions  CashFloatTransaction[]
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+model CashFloatTransaction {
+  id          String          @id @default(cuid())
+  floatId     String
+  float       AgentCashFloat  @relation(fields: [floatId], references: [id])
+  type        String          // DISBURSE, TOP_UP, RECONCILE
+  amount      Float
+  reference   String?
+  note        String?
+  createdAt   DateTime        @default(now())
+
+  @@index([floatId])
+}
+
+// =============================================================================
+// MODULE 4 — LOT TRACEABILITY & WAREHOUSE
+// =============================================================================
+
+model Silo {
+  id              String              @id @default(cuid())
+  name            String
+  facilityId      String?
+  stream          SupplyChainStream
+  commodityType   String?
+  capacityKg      Float?
+  status          String              @default("ACTIVE") // ACTIVE, IDLE, CLEANING, MAINTENANCE
+  currentBatchId  String?
+  assignments     SiloAssignment[]
+  batches         SiloBatch[]
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+}
+
+model SiloAssignment {
+  id              String    @id @default(cuid())
+  lotId           String    @unique
+  lot             Lot       @relation(fields: [lotId], references: [id])
+  siloId          String
+  silo            Silo      @relation(fields: [siloId], references: [id])
+  receivedWeightKg Float?
+  assignedById    String?
+  assignedAt      DateTime  @default(now())
+  overrideReason  String?
+
+  @@index([siloId])
+}
+
+model SiloBatch {
+  id              String    @id @default(cuid())
+  batchNumber     String    @unique
+  siloId          String
+  silo            Silo      @relation(fields: [siloId], references: [id])
+  streams         SupplyChainStream[]
+  status          String    @default("OPEN") // OPEN, PROCESSING, CLOSED
+  inputWeightKg   Float     @default(0)
+  outputWeightKg  Float?
+  processSteps    SiloBatchProcess[]
+  createdAt       DateTime  @default(now())
+  closedAt        DateTime?
+
+  @@index([siloId])
+}
+
+model SiloBatchProcess {
+  id                  String    @id @default(cuid())
+  siloBatchId         String
+  siloBatch           SiloBatch @relation(fields: [siloBatchId], references: [id])
+  processName         String
+  inputWeightKg       Float
+  outputWeightKg      Float?
+  expectedOuturnPct   Float?
+  actualOuturnPct     Float?
+  startedAt           DateTime?
+  completedAt         DateTime?
+  parameters          Json?
+  qualitySignoff      ApprovalStatus @default(PENDING)
+  qualitySignedById   String?
+  qualitySignedAt     DateTime?
+  warehouseSignoff    ApprovalStatus @default(PENDING)
+  warehouseSignedById String?
+  warehouseSignedAt   DateTime?
+  photoUrls           String[]
+  createdAt           DateTime  @default(now())
+
+  @@index([siloBatchId])
+}
+
+model StorageBin {
+  id              String    @id @default(cuid())
+  name            String
+  facilityId      String?
+  stream          SupplyChainStream
+  commodityType   String?
+  capacityKg      Float?
+  isActive        Boolean   @default(true)
+  assignments     WarehouseAssignment[]
+  createdAt       DateTime  @default(now())
+}
+
+model WarehouseAssignment {
+  id              String      @id @default(cuid())
+  lotId           String      @unique
+  lot             Lot         @relation(fields: [lotId], references: [id])
+  binId           String
+  bin             StorageBin  @relation(fields: [binId], references: [id])
+  bagCount        Int?
+  receivedWeightKg Float?
+  currentWeightKg  Float?
+  condition       String?
+  photoUrls       String[]
+  assignedAt      DateTime    @default(now())
+  assignedById    String?
+  movements       StockMovement[]
+
+  @@index([binId])
+}
+
+model StockMovement {
+  id                    String              @id @default(cuid())
+  warehouseAssignmentId String
+  assignment            WarehouseAssignment @relation(fields: [warehouseAssignmentId], references: [id])
+  fromBinId             String?
+  toBinId               String?
+  weightKg              Float
+  reason                String?
+  movedById             String
+  createdAt             DateTime            @default(now())
+
+  @@index([warehouseAssignmentId])
+}
+
+model Scale {
+  id                  String    @id @default(cuid())
+  scaleId             String    @unique
+  name                String
+  location            String?
+  commodityType       String?
+  capacityKg          Float?
+  lastCalibrationDate DateTime?
+  nextCalibrationDate DateTime?
+  isOnline            Boolean   @default(true)
+  lastSyncAt          DateTime?
+  weightReadings      WeightReading[]
+  createdAt           DateTime  @default(now())
+}
+
+model WeightReading {
+  id              String    @id @default(cuid())
+  scaleId         String
+  scale           Scale     @relation(fields: [scaleId], references: [id])
+  weightKg        Float
+  isManualOverride Boolean  @default(false)
+  overrideReason  String?
+  operatorId      String?
+  capturedAt      DateTime  @default(now())
+  referenceId     String?   // ID of the lot/batch this reading belongs to
+  referenceType   String?   // LOT, SILO_BATCH, DISPATCH etc.
+
+  @@index([scaleId])
+  @@index([referenceId])
+}
+
+// =============================================================================
+// MODULE 5 — PAYMENTS & MICRO-FINANCE
+// =============================================================================
+
+model PaymentBatch {
+  id                    String    @id @default(cuid())
+  lotId                 String?
+  totalGrossAmount      Float
+  totalDeductions       Float     @default(0)
+  totalNetAmount        Float
+  status                PaymentStatus @default(AWAITING_FINANCE)
+  groupLeaderAcknowledgedAt DateTime?
+  groupLeaderAcknowledgedById String?
+  financeApprovedAt     DateTime?
+  financeApprovedById   String?
+  farmerPayments        FarmerPayment[]
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+}
+
+model FarmerPayment {
+  id              String        @id @default(cuid())
+  batchId         String
+  batch           PaymentBatch  @relation(fields: [batchId], references: [id])
+  farmerId        String
+  farmer          Farmer        @relation(fields: [farmerId], references: [id])
+  lotId           String?
+  lot             Lot?          @relation(fields: [lotId], references: [id])
+  finalWeightKg   Float
+  pricePerKg      Float
+  grossAmount     Float
+  loanDeductions  Float         @default(0)
+  otherDeductions Float         @default(0)
+  netAmount       Float
+  mobileMoneyRef  String?
+  provider        String?       // MTN, AIRTEL, MPESA
+  status          PaymentStatus @default(AWAITING_FINANCE)
+  disbursedAt     DateTime?
+  failureReason   String?
+  retryCount      Int           @default(0)
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  @@index([batchId])
+  @@index([farmerId])
+  @@index([status])
+}
+
+model LoanProduct {
+  id                    String    @id @default(cuid())
+  name                  String
+  loanType              LoanType
+  maxAmount             Float?
+  interestRate          Float     @default(0)
+  tenureDays            Int?
+  repaymentMethod       String?
+  eligibilityCriteria   Json?
+  requiredDocuments     String[]
+  level1Ceiling         Float?
+  level2Trigger         Float?
+  level3Trigger         Float?
+  level4Trigger         Float?
+  isActive              Boolean   @default(true)
+  loans                 Loan[]
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+}
+
+model Loan {
+  id                String      @id @default(cuid())
+  productId         String
+  product           LoanProduct @relation(fields: [productId], references: [id])
+  farmerId          String?
+  farmer            Farmer?     @relation(fields: [farmerId], references: [id])
+  groupId           String?
+  group             FarmerGroup? @relation(fields: [groupId], references: [id])
+  borrowerType      String      // FARMER, STAFF, GROUP
+  borrowerRef       String?
+  loanType          LoanType
+  requestedAmount   Float
+  approvedAmount    Float?
+  disbursedAmount   Float?
+  outstandingBalance Float?
+  status            LoanStatus  @default(PENDING)
+  purpose           String?
+  disbursedAt       DateTime?
+  expectedCloseDate DateTime?
+  closedAt          DateTime?
+  repayments        LoanRepayment[]
+  approvalSteps     LoanApprovalStep[]
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+
+  @@index([farmerId])
+  @@index([status])
+}
+
+model LoanApprovalStep {
+  id            String          @id @default(cuid())
+  loanId        String
+  loan          Loan            @relation(fields: [loanId], references: [id])
+  level         Int
+  roleName      String
+  status        ApprovalStatus  @default(PENDING)
+  approvedById  String?
+  note          String?
+  decidedAt     DateTime?
+  createdAt     DateTime        @default(now())
+
+  @@index([loanId])
+}
+
+model LoanRepayment {
+  id          String    @id @default(cuid())
+  loanId      String
+  loan        Loan      @relation(fields: [loanId], references: [id])
+  amount      Float
+  method      String    // DEDUCTION_AT_SOURCE, MANUAL, PAYROLL
+  reference   String?
+  recordedById String?
+  paidAt      DateTime
+  createdAt   DateTime  @default(now())
+
+  @@index([loanId])
+}
+
+// =============================================================================
+// MODULE 6 — COMPLIANCE & CERTIFICATION
+// =============================================================================
+
+model EudrValidation {
+  id              String              @id @default(cuid())
+  farmPlotId      String
+  riskClass       RiskClassification
+  validatedAt     DateTime
+  referenceDataVersion String?
+  notes           String?
+  createdAt       DateTime            @default(now())
+
+  @@index([farmPlotId])
+}
+
+model DueDiligenceStatement {
+  id              String    @id @default(cuid())
+  shipmentRef     String?
+  contractId      String?
+  exportedAt      DateTime?
+  polygonData     Json?
+  riskSummary     Json?
+  fileUrl         String?
+  createdById     String?
+  createdAt       DateTime  @default(now())
+}
+
+model CorrectionAction {
+  id              String    @id @default(cuid())
+  farmPlotId      String
+  assignedToId    String
+  description     String
+  deadline        DateTime
+  completedAt     DateTime?
+  revalidatedAt   DateTime?
+  passed          Boolean?
+  createdById     String
+  createdAt       DateTime  @default(now())
+
+  @@index([assignedToId])
+}
+
+// =============================================================================
+// MODULE 7 — DISTRIBUTION TRACKING
+// =============================================================================
+
+model DistributionOutlet {
+  id          String    @id @default(cuid())
+  name        String
+  address     String?
+  gpsLat      Float?
+  gpsLng      Float?
+  contactName String?
+  contactPhone String?
+  isActive    Boolean   @default(true)
+  orders      DeliveryOrder[]
+  createdAt   DateTime  @default(now())
+}
+
+model DeliveryOrder {
+  id            String              @id @default(cuid())
+  outletId      String
+  outlet        DistributionOutlet  @relation(fields: [outletId], references: [id])
+  driverId      String?
+  scheduledDate DateTime
+  status        DeliveryStatus      @default(PENDING)
+  items         Json?               // Array of { itemId, quantity }
+  otpCode       String?
+  otpVerifiedAt DateTime?
+  signatureUrl  String?
+  photoUrl      String?
+  gpsLat        Float?
+  gpsLng        Float?
+  confirmedAt   DateTime?
+  returns       DeliveryReturn[]
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
+
+  @@index([driverId, scheduledDate])
+  @@index([status])
+}
+
+model DeliveryReturn {
+  id          String        @id @default(cuid())
+  orderId     String
+  order       DeliveryOrder @relation(fields: [orderId], references: [id])
+  reason      String
+  quantity    Float?
+  photoUrl    String?
+  returnedAt  DateTime      @default(now())
+  recordedById String?
+}
+
+// =============================================================================
+// MODULE 8 — ANALYTICS & REPORTING
+// =============================================================================
+
+model ReportTemplate {
+  id            String    @id @default(cuid())
+  name          String
+  description   String?
+  fields        Json      // Drag-and-drop field config
+  filters       Json?
+  groupings     Json?
+  isScheduled   Boolean   @default(false)
+  scheduleConfig Json?    // { cron, recipients, format }
+  createdById   String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+// =============================================================================
+// MODULE 9 — SALES & COMMODITY EXIT
+// =============================================================================
+
+model Buyer {
+  id                String    @id @default(cuid())
+  name              String
+  country           String?
+  contactName       String?
+  contactEmail      String?
+  contactPhone      String?
+  acceptedStreams    SupplyChainStream[]
+  gradeRequirements String?
+  originRequirements String?
+  creditTermsDays   Int?
+  paymentMethod     String?
+  isActive          Boolean   @default(true)
+  contracts         SalesContract[]
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+}
+
+model SalesContract {
+  id                  String          @id @default(cuid())
+  contractNumber      String          @unique
+  buyerId             String
+  buyer               Buyer           @relation(fields: [buyerId], references: [id])
+  contractType        ContractType
+  commodityType       String?
+  grade               String?
+  targetQuantityKg    Float?
+  agreedPricePerKg    Float?
+  deliveryWindowStart DateTime?
+  deliveryWindowEnd   DateTime?
+  incoterms           String?
+  certificationRequired SupplyChainStream?
+  status              ContractStatus  @default(DRAFT)
+  approvedById        String?
+  approvedAt          DateTime?
+  allocations         ContractAllocation[]
+  invoices            Invoice[]
+  createdAt           DateTime        @default(now())
+  updatedAt           DateTime        @updatedAt
+
+  @@index([buyerId])
+  @@index([status])
+}
+
+model ContractAllocation {
+  id              String        @id @default(cuid())
+  contractId      String
+  contract        SalesContract @relation(fields: [contractId], references: [id])
+  lotId           String
+  lot             Lot           @relation(fields: [lotId], references: [id])
+  allocatedWeightKg Float
+  allocatedById   String?
+  allocatedAt     DateTime      @default(now())
+  deallocatedAt   DateTime?
+  deallocatedById String?
+  deallocateReason String?
+
+  @@unique([contractId, lotId])
+  @@index([contractId])
+  @@index([lotId])
+}
+
+model Dispatch {
+  id                  String    @id @default(cuid())
+  contractId          String?
+  containerNumber     String?
+  sealNumber          String?
+  truckReg            String?
+  driverName          String?
+  dispatchWeightKg    Float?
+  scaleId             String?
+  isManualWeight      Boolean   @default(false)
+  weightOverrideReason String?
+  status              String    @default("PENDING")
+  loadedAt            DateTime?
+  loadedById          String?
+  createdAt           DateTime  @default(now())
+}
+
+model Invoice {
+  id              String        @id @default(cuid())
+  invoiceNumber   String        @unique
+  contractId      String
+  contract        SalesContract @relation(fields: [contractId], references: [id])
+  dispatchWeightKg Float?
+  pricePerKg      Float?
+  totalAmount     Float?
+  currency        String        @default("USD")
+  taxAmount       Float?
+  status          String        @default("DRAFT") // DRAFT, SENT, PARTIALLY_PAID, PAID, OVERDUE
+  sentAt          DateTime?
+  dueDate         DateTime?
+  paidAmount      Float?
+  paidAt          DateTime?
+  approvedById    String?
+  approvedAt      DateTime?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  @@index([contractId])
+  @@index([status])
+}
+
+// =============================================================================
+// MODULE 10 — STAFF MANAGEMENT & ACTIVITY FUNDS
+// =============================================================================
+
+model Staff {
+  id                String      @id @default(cuid())
+  userId            String      @unique
+  user              User        @relation(fields: [userId], references: [id])
+  firstName         String
+  lastName          String
+  phone             String?
+  role              UserRole
+  region            String?
+  reportingManagerId String?
+  reportingManager  Staff?      @relation("StaffHierarchy", fields: [reportingManagerId], references: [id])
+  directReports     Staff[]     @relation("StaffHierarchy")
+  status            StaffStatus @default(ACTIVE)
+  assignedAssets    AssetAssignment[]
+  activityFunds     ActivityFund[]
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+
+  @@index([reportingManagerId])
+  @@index([role, region])
+}
+
+model ActivityType {
+  id          String    @id @default(cuid())
+  name        String
+  description String?
+  maxAmount   Float?
+  isActive    Boolean   @default(true)
+  funds       ActivityFund[]
+  createdAt   DateTime  @default(now())
+}
+
+model ActivityFund {
+  id                  String              @id @default(cuid())
+  staffId             String
+  staff               Staff               @relation(fields: [staffId], references: [id])
+  activityTypeId      String
+  activityType        ActivityType        @relation(fields: [activityTypeId], references: [id])
+  plannedDate         DateTime
+  destination         String?
+  costEstimate        Json                // Array of { lineItem, estimatedAmount }
+  totalEstimate       Float
+  status              ActivityFundStatus  @default(DRAFT)
+  managerApprovedById String?
+  managerApprovedAt   DateTime?
+  financeApprovedById String?
+  financeApprovedAt   DateTime?
+  rejectionReason     String?
+  disbursedAmount     Float?
+  disbursedAt         DateTime?
+  mobileMoneyRef      String?
+  reconciliation      ActivityReconciliation?
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
+
+  @@index([staffId])
+  @@index([status])
+}
+
+model ActivityReconciliation {
+  id              String        @id @default(cuid())
+  fundId          String        @unique
+  fund            ActivityFund  @relation(fields: [fundId], references: [id])
+  actualSpend     Json          // Array of { lineItem, actualAmount, receiptPhotoUrl }
+  totalActual     Float
+  unspentBalance  Float
+  submittedById   String
+  reviewedById    String?
+  reviewedAt      DateTime?
+  createdAt       DateTime      @default(now())
+}
+
+// =============================================================================
+// MODULE 11 — ASSET MANAGEMENT
+// =============================================================================
+
+model AssetCategory {
+  id                  String              @id @default(cuid())
+  name                String              // Device, Vehicle, Scale, Equipment
+  depreciationMethod  DepreciationMethod  @default(STRAIGHT_LINE)
+  usefulLifeYears     Float?
+  residualValuePct    Float?
+  assets              Asset[]
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
+}
+
+model Asset {
+  id              String          @id @default(cuid())
+  assetId         String          @unique
+  categoryId      String
+  category        AssetCategory   @relation(fields: [categoryId], references: [id])
+  serialNumber    String?
+  make            String?
+  model           String?
+  purchaseDate    DateTime?
+  purchaseValue   Float?
+  currentBookValue Float?
+  status          AssetStatus     @default(AVAILABLE)
+  photoUrl        String?
+  qrCode          String?         @unique
+  notes           String?
+  assignments     AssetAssignment[]
+  maintenanceLogs MaintenanceLog[]
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  @@index([categoryId])
+  @@index([status])
+}
+
+model AssetAssignment {
+  id                String    @id @default(cuid())
+  assetId           String
+  asset             Asset     @relation(fields: [assetId], references: [id])
+  staffId           String
+  staff             Staff     @relation(fields: [staffId], references: [id])
+  conditionAtHandover String?
+  conditionAtReturn String?
+  photoAtHandoverUrl String?
+  photoAtReturnUrl  String?
+  assignedById      String
+  assignedAt        DateTime  @default(now())
+  returnedAt        DateTime?
+  returnedById      String?
+  damageNote        String?
+
+  @@index([assetId])
+  @@index([staffId])
+}
+
+model MaintenanceSchedule {
+  id                String    @id @default(cuid())
+  assetId           String
+  asset             Asset     @relation(fields: [assetId], references: [id])
+  intervalDays      Int
+  lastServiceDate   DateTime?
+  nextServiceDate   DateTime?
+  notes             String?
+  isActive          Boolean   @default(true)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+}
+
+model MaintenanceLog {
+  id              String    @id @default(cuid())
+  assetId         String
+  asset           Asset     @relation(fields: [assetId], references: [id])
+  serviceDate     DateTime
+  description     String?
+  technicianName  String?
+  cost            Float?
+  nextServiceDate DateTime?
+  createdById     String?
+  createdAt       DateTime  @default(now())
+
+  @@index([assetId])
+}
+
+// =============================================================================
+// CROSS-CUTTING — AUDIT LOG
+// =============================================================================
+
+model AuditLog {
+  id          String    @id @default(cuid())
+  userId      String?
+  user        User?     @relation(fields: [userId], references: [id])
+  action      String    // CREATE, UPDATE, DELETE, APPROVE, REJECT, LOGIN etc.
+  entity      String    // Model name
+  entityId    String
+  before      Json?
+  after       Json?
+  ipAddress   String?
+  userAgent   String?
+  createdAt   DateTime  @default(now())
+
+  @@index([userId])
+  @@index([entity, entityId])
+  @@index([createdAt])
+}
