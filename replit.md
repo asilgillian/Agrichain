@@ -79,7 +79,7 @@ All 11 modules implemented:
 - `GET /audit`
 - `GET/POST /admin/regions`, `GET /admin/roles`, `PATCH /admin/roles/:id/permissions`, `GET /admin/sync-queue`
 
-## Frontend Pages (19 routes)
+## Frontend Pages (24 routes)
 
 - `/` — Dashboard with KPIs, activity feed, compliance overview
 - `/farmers` — Farmer registry with search and pagination
@@ -99,7 +99,26 @@ All 11 modules implemented:
 - `/assets` — Asset registry
 - `/activity-funds` — Fund request tracker
 - `/audit` — Immutable audit log
+- `/loans` — Loan management with status/type filters and portfolio KPIs
+- `/loans/:id` — Loan detail with repayment history and approve/disburse workflow
+- `/buyers` — Buyer registry card view with search
+- `/sales` — Sales & Commodity Exit: Contracts / Dispatches / Invoices tabs
+- `/sales/:id` — Contract detail with lot allocations and invoices
 - `/admin` — Regions, roles, sync queue
+
+## New Schema Tables (Prisma schema expansion)
+
+Added in expansion:
+- `loans`, `loan_repayments`, `loan_guarantors` — Full loan lifecycle
+- `buyers`, `sales_contracts`, `contract_allocations`, `dispatches`, `invoices` — Sales/exit module
+- `buying_stations`, `agent_cash_floats`, `cash_float_transactions` — Buying station + cash float
+- `silos`, `silo_assignments`, `silo_batches`, `silo_batch_processes` — Silo processing
+- `storage_bins`, `warehouse_assignments`, `stock_movements` — Storage management
+- `preprocessing_steps` — Configurable processing deductions
+- `farmer_cards`, `group_leadership`, `rejection_logs` — Registry enhancements
+- `asset_categories`, `asset_assignments`, `maintenance_schedules`, `maintenance_logs` — Enhanced assets
+- `activity_types`, `activity_reconciliations` — Activity fund reconciliation
+- Farmers table: added `household_size`, `dependants`, `head_of_household`, `land_tenure`, `biometric_photo_url`, `registration_date`, `approved_at`
 
 ## Key Commands
 

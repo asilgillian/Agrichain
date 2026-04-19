@@ -1,10 +1,11 @@
-import { pgTable, text, uuid, timestamp, date } from "drizzle-orm/pg-core";
+import { pgTable, text, uuid, timestamp, date, integer, boolean } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
 export const farmersTable = pgTable("farmers", {
   id: uuid("id").primaryKey().defaultRandom(),
   referenceNumber: text("reference_number").notNull().unique(),
+  preRegRef: text("pre_reg_ref"),
   firstName: text("first_name").notNull(),
   lastName: text("last_name").notNull(),
   nationalId: text("national_id"),
@@ -16,6 +17,14 @@ export const farmersTable = pgTable("farmers", {
   village: text("village"),
   status: text("status").notNull().default("active"),
   photoUrl: text("photo_url"),
+  biometricPhotoUrl: text("biometric_photo_url"),
+  householdSize: integer("household_size"),
+  dependants: integer("dependants"),
+  headOfHousehold: text("head_of_household"),
+  landTenure: text("land_tenure"),
+  registrationDate: date("registration_date"),
+  approvedAt: timestamp("approved_at", { withTimezone: true }),
+  approvedById: uuid("approved_by_id"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });

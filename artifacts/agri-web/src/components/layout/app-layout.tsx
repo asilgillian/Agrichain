@@ -13,7 +13,11 @@ import {
   UsersRound,
   Package,
   Wallet,
-  Shield
+  Shield,
+  Landmark,
+  Globe,
+  FileBarChart2,
+  Building2,
 } from "lucide-react";
 import { 
   Sidebar, 
@@ -31,7 +35,7 @@ import {
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 
-const navItems = [
+const operationsItems = [
   { title: "Dashboard", icon: LayoutDashboard, href: "/" },
   { title: "Farmers", icon: Users, href: "/farmers" },
   { title: "Groups", icon: UsersRound, href: "/groups" },
@@ -43,13 +47,46 @@ const navItems = [
   { title: "Exports", icon: Ship, href: "/exports" },
 ];
 
-const adminItems = [
+const financeItems = [
+  { title: "Loans", icon: Landmark, href: "/loans" },
+  { title: "Buyers", icon: Globe, href: "/buyers" },
+  { title: "Sales & Exit", icon: FileBarChart2, href: "/sales" },
+];
+
+const systemItems = [
   { title: "Staff", icon: Users, href: "/staff" },
   { title: "Assets", icon: Package, href: "/assets" },
   { title: "Activity Funds", icon: Wallet, href: "/activity-funds" },
   { title: "Audit Log", icon: Shield, href: "/audit" },
   { title: "Admin", icon: Settings, href: "/admin" },
 ];
+
+function NavGroup({ label, items, location }: { label: string; items: typeof operationsItems; location: string }) {
+  return (
+    <SidebarGroup>
+      <SidebarGroupLabel>{label}</SidebarGroupLabel>
+      <SidebarGroupContent>
+        <SidebarMenu>
+          {items.map((item) => {
+            const isActive = item.href === "/"
+              ? location === "/"
+              : location === item.href || location.startsWith(item.href + "/");
+            return (
+              <SidebarMenuItem key={item.title}>
+                <SidebarMenuButton asChild isActive={isActive} tooltip={item.title}>
+                  <Link href={item.href} className="flex items-center gap-2">
+                    <item.icon className="h-4 w-4" />
+                    <span>{item.title}</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            );
+          })}
+        </SidebarMenu>
+      </SidebarGroupContent>
+    </SidebarGroup>
+  );
+}
 
 function AppSidebar() {
   const [location] = useLocation();
@@ -66,49 +103,9 @@ function AppSidebar() {
         </div>
       </SidebarHeader>
       <SidebarContent>
-        <SidebarGroup>
-          <SidebarGroupLabel>Operations</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {navItems.map((item) => (
-                <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton 
-                    asChild 
-                    isActive={location === item.href || (location.startsWith(item.href) && item.href !== "/")}
-                    tooltip={item.title}
-                  >
-                    <Link href={item.href} className="flex items-center gap-2">
-                      <item.icon className="h-4 w-4" />
-                      <span>{item.title}</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
-
-        <SidebarGroup>
-          <SidebarGroupLabel>System</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {adminItems.map((item) => (
-                <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton 
-                    asChild 
-                    isActive={location.startsWith(item.href)}
-                    tooltip={item.title}
-                  >
-                    <Link href={item.href} className="flex items-center gap-2">
-                      <item.icon className="h-4 w-4" />
-                      <span>{item.title}</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
+        <NavGroup label="Operations" items={operationsItems} location={location} />
+        <NavGroup label="Finance & Sales" items={financeItems} location={location} />
+        <NavGroup label="System" items={systemItems} location={location} />
       </SidebarContent>
     </Sidebar>
   );
@@ -117,24 +114,17 @@ function AppSidebar() {
 export function AppLayout({ children }: { children: ReactNode }) {
   return (
     <SidebarProvider>
-      <div className="flex h-screen w-full overflow-hidden bg-background">
+      <div className="flex min-h-screen w-full">
         <AppSidebar />
-        
-        <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-          <header className="h-14 flex items-center justify-between px-4 border-b bg-card">
-            <div className="flex items-center gap-4">
-              <SidebarTrigger />
-              {/* Could add breadcrumbs here */}
-            </div>
-            
-            <div className="flex items-center gap-4">
-              <Avatar className="h-8 w-8 bg-primary">
-                <AvatarFallback className="text-primary-foreground text-xs">AC</AvatarFallback>
-              </Avatar>
-            </div>
+        <div className="flex flex-col flex-1 min-w-0">
+          <header className="h-12 flex items-center px-4 border-b gap-4 sticky top-0 bg-background z-10">
+            <SidebarTrigger />
+            <div className="flex-1" />
+            <Avatar className="h-8 w-8">
+              <AvatarFallback className="text-xs bg-primary text-primary-foreground">MC</AvatarFallback>
+            </Avatar>
           </header>
-          
-          <main className="flex-1 overflow-auto p-4 md:p-6 lg:p-8">
+          <main className="flex-1 p-6 overflow-auto">
             {children}
           </main>
         </div>

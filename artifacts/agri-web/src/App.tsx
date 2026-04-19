@@ -19,6 +19,11 @@ import PaymentsPage from "@/pages/payments/index";
 import CompliancePage from "@/pages/compliance/index";
 import SurveysPage from "@/pages/surveys/index";
 import ExportsPage from "@/pages/exports/index";
+import LoansPage from "@/pages/loans/index";
+import LoanDetail from "@/pages/loans/detail";
+import BuyersPage from "@/pages/buyers/index";
+import SalesPage from "@/pages/sales/index";
+import SalesContractDetail from "@/pages/sales/detail";
 import StaffPage from "@/pages/staff/index";
 import AssetsPage from "@/pages/assets/index";
 import ActivityFundsPage from "@/pages/activity-funds/index";
@@ -52,6 +57,11 @@ function Router() {
         <Route path="/compliance" component={CompliancePage} />
         <Route path="/surveys" component={SurveysPage} />
         <Route path="/exports" component={ExportsPage} />
+        <Route path="/loans/:id" component={LoanDetail} />
+        <Route path="/loans" component={LoansPage} />
+        <Route path="/buyers" component={BuyersPage} />
+        <Route path="/sales/:id" component={SalesContractDetail} />
+        <Route path="/sales" component={SalesPage} />
         <Route path="/staff" component={StaffPage} />
         <Route path="/assets" component={AssetsPage} />
         <Route path="/activity-funds" component={ActivityFundsPage} />
