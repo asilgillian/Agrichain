@@ -57,9 +57,12 @@ function AppSidebar() {
   return (
     <Sidebar>
       <SidebarHeader className="p-4 flex items-center justify-between border-b border-sidebar-border">
-        <div className="flex items-center gap-2 font-bold text-lg text-sidebar-primary">
-          <Tractor className="h-6 w-6" />
-          <span>AgriChain</span>
+        <div className="flex items-center gap-2 text-sidebar-primary">
+          <Tractor className="h-6 w-6 shrink-0" />
+          <div className="flex flex-col leading-tight">
+            <span className="font-bold text-sm">MTANDEO</span>
+            <span className="text-xs font-medium opacity-75">COMMODITIES LTD</span>
+          </div>
         </div>
       </SidebarHeader>
       <SidebarContent>

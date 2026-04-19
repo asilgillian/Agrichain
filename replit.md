@@ -1,4 +1,4 @@
-# AgriChain — Digital Agriculture Platform
+# Mtandeo Commodities Ltd — Digital Agriculture Platform
 
 ## Overview
 
