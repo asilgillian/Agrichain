@@ -847,6 +847,10 @@ router.patch("/sampling-configs/:configId", requirePermission("commodities.write
   }
   if (notes !== undefined) patch.notes = notes ?? null;
 
+  // Bump version on every meaningful PATCH so samples can snapshot a stable identifier
+  // alongside the row reference. Status-only toggles (active <-> inactive) also bump for
+  // simplicity — keeps the audit chain monotonic.
+  patch.version = (existing.version ?? 1) + 1;
   const [updated] = await db.update(samplingConfigsTable).set(patch).where(eq(samplingConfigsTable.id, configId)).returning();
   await audit("sampling_config", updated.id, "sampling_config.update", req.authedUser, existing, updated);
   res.json(updated);

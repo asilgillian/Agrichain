@@ -26,6 +26,7 @@ import auditRouter from "./audit";
 import adminRouter from "./admin";
 import regionsRouter from "./regions";
 import commoditiesRouter from "./commodities";
+import samplesRouter from "./samples";
 
 const router: IRouter = Router();
 
@@ -58,5 +59,6 @@ router.use(auditRouter);
 router.use(adminRouter);
 router.use(regionsRouter);
 router.use(commoditiesRouter);
+router.use(samplesRouter);
 
 export default router;

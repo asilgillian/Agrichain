@@ -197,6 +197,9 @@ export const samplingConfigsTable = pgTable("sampling_configs", {
   allowOverride: boolean("allow_override").notNull().default(false),
   // 'active' | 'inactive' — inactive rows are kept for audit but not enforced.
   status: text("status").notNull().default("active"),
+  // Monotonic version, bumped on every PATCH. Samples snapshot this value at capture time so
+  // historical traceability survives subsequent edits.
+  version: integer("version").notNull().default(1),
   notes: text("notes"),
   createdById: uuid("created_by_id"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),

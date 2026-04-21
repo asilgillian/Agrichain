@@ -21,6 +21,7 @@ import {
   FileBarChart2,
   Building2,
   Map as MapIcon,
+  TestTube,
 } from "lucide-react";
 import { 
   Sidebar, 
@@ -54,6 +55,7 @@ const operationsItems = [
   { title: "Groups", icon: UsersRound, href: "/groups" },
   { title: "Commodities", icon: Leaf, href: "/commodities" },
   { title: "Processes", icon: Cog, href: "/processes" },
+  { title: "Samples", icon: TestTube, href: "/samples" },
   { title: "Procurement", icon: Tractor, href: "/procurement" },
   { title: "Procurement Contracts", icon: Tractor, href: "/procurement/contracts" },
   { title: "Warehouse", icon: Warehouse, href: "/warehouse" },
