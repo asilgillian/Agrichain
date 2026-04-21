@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useListDeliveries } from "@workspace/api-client-react";
+import { useListDeliveries, customFetch } from "@workspace/api-client-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -50,14 +50,14 @@ export default function ProcurementHub() {
   const { toast } = useToast();
   const qc = useQueryClient();
 
-  const { data: stations } = useQuery<any[]>({
+  const { data: stationsRaw } = useQuery<unknown>({
     queryKey: ["/api/buying-stations"],
-    queryFn: () => fetch(`${API_BASE}/api/buying-stations`).then(r => r.json()),
+    queryFn: () => customFetch<unknown>("/api/buying-stations"),
   });
+  const stations: Array<{ id: string; name: string }> = Array.isArray(stationsRaw) ? stationsRaw as any : [];
 
   const createMut = useMutation({
-    mutationFn: (body: any) => fetch(`${API_BASE}/api/procurement/deliveries`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) })
-      .then(async r => { if (!r.ok) throw new Error((await r.json()).error ?? "Failed"); return r.json(); }),
+    mutationFn: (body: any) => customFetch<any>("/api/procurement/deliveries", { method: "POST", body: JSON.stringify(body) }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["/api/procurement/deliveries"] });
       toast({ title: "Delivery logged" });
@@ -92,7 +92,7 @@ export default function ProcurementHub() {
                   <Select value={form.stationId} onValueChange={v => setForm({ ...form, stationId: v })}>
                     <SelectTrigger data-testid="input-station"><SelectValue placeholder="Select station" /></SelectTrigger>
                     <SelectContent>
-                      {stations?.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
+                      {stations.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
                     </SelectContent>
                   </Select>
                 </div>
