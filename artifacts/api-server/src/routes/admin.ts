@@ -34,6 +34,7 @@ const PERMISSION_CATALOG: Array<{ key: string; module: string; description: stri
   { key: "procurement.pricing.propose", module: "Procurement", description: "Trade desk: propose price, deductions, incentives" },
   { key: "procurement.pricing.approve", module: "Procurement", description: "Procurement head: approve final price (must differ from proposer)" },
   { key: "procurement.reject", module: "Procurement", description: "Reject a delivery at any gate (5 rejection types)" },
+  { key: "procurement.resume", module: "Procurement", description: "Resume a delivery rejected as PARTIAL or ESCALATE (manager unblock)" },
   { key: "procurement.contracts.read", module: "Procurement", description: "View pre-season and per-delivery contracts" },
   { key: "procurement.contracts.write", module: "Procurement", description: "Create and manage procurement contracts" },
   { key: "procurement.approve", module: "Procurement", description: "Legacy: combined approval (deprecated)" },

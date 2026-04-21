@@ -12,7 +12,9 @@ const router: IRouter = Router();
 
 function generateContractNumber(type: string): string {
   const prefix = type === "PRE_SEASON" ? "PSC" : "PDC";
-  return `${prefix}-${Date.now().toString(36).toUpperCase()}`;
+  // Time + 4-char random suffix — collision-safe across multiple writes within the same millisecond.
+  const rand = Math.floor(Math.random() * 36 ** 4).toString(36).toUpperCase().padStart(4, "0");
+  return `${prefix}-${Date.now().toString(36).toUpperCase()}-${rand}`;
 }
 
 function num(v: string | null | undefined): number | null {
@@ -51,20 +53,31 @@ router.post("/procurement/contracts", requirePermission("procurement.contracts.w
   if (data.contractType === "PRE_SEASON" && effectiveStatus === "ACTIVE" && (data.floorPricePerKg == null)) {
     res.status(400).json({ error: "Active pre-season contracts must define floorPricePerKg" }); return;
   }
-  const contractNumber = generateContractNumber(data.contractType);
-  const [contract] = await db.insert(procurementContractsTable).values({
-    contractNumber,
-    contractType: data.contractType,
-    groupId: data.groupId,
-    commodityType: data.commodityType,
-    seasonStart: data.seasonStart ? (data.seasonStart instanceof Date ? data.seasonStart.toISOString().slice(0, 10) : data.seasonStart) : null,
-    seasonEnd: data.seasonEnd ? (data.seasonEnd instanceof Date ? data.seasonEnd.toISOString().slice(0, 10) : data.seasonEnd) : null,
-    floorPricePerKg: data.floorPricePerKg != null ? data.floorPricePerKg.toString() : null,
-    currency: data.currency ?? "UGX",
-    notes: data.notes ?? null,
-    status: data.status ?? "DRAFT",
-    createdById: req.authedUser?.id ?? null,
-  }).returning();
+  // Retry on the (vanishingly rare) collision: random suffix + millisecond timestamp.
+  let contract: typeof procurementContractsTable.$inferSelect | undefined;
+  let lastError: any;
+  for (let attempt = 0; attempt < 3 && !contract; attempt++) {
+    const contractNumber = generateContractNumber(data.contractType);
+    try {
+      [contract] = await db.insert(procurementContractsTable).values({
+        contractNumber,
+        contractType: data.contractType,
+        groupId: data.groupId,
+        commodityType: data.commodityType,
+        seasonStart: data.seasonStart ? (data.seasonStart instanceof Date ? data.seasonStart.toISOString().slice(0, 10) : data.seasonStart) : null,
+        seasonEnd: data.seasonEnd ? (data.seasonEnd instanceof Date ? data.seasonEnd.toISOString().slice(0, 10) : data.seasonEnd) : null,
+        floorPricePerKg: data.floorPricePerKg != null ? data.floorPricePerKg.toString() : null,
+        currency: data.currency ?? "UGX",
+        notes: data.notes ?? null,
+        status: data.status ?? "DRAFT",
+        createdById: req.authedUser?.id ?? null,
+      }).returning();
+    } catch (e: any) {
+      lastError = e;
+      if (e?.code !== "23505") throw e; // re-throw anything that isn't a unique violation
+    }
+  }
+  if (!contract) { throw lastError ?? new Error("Failed to allocate unique contract number"); }
   await db.insert(auditLogsTable).values({
     entityType: "procurement_contract",
     entityId: contract.id,
@@ -72,7 +85,7 @@ router.post("/procurement/contracts", requirePermission("procurement.contracts.w
     actorId: req.authedUser?.id ?? "system",
     actorName: req.authedUser?.email ?? "system",
     actorRole: req.authedUser?.role ?? "system",
-    after: { contractNumber, ...data },
+    after: { contractNumber: contract.contractNumber, ...data },
   });
   res.status(201).json(await shape(contract));
 });

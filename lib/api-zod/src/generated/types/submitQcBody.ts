@@ -11,4 +11,6 @@ export interface SubmitQcBody {
   defectCount: number;
   cupScore?: number;
   photoUrl?: string;
+  /** Optional Sampling Module sample whose readings populate this QC submission. When provided, the same values must match the sample's recorded readings. */
+  sampleId?: string | null;
 }

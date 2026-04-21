@@ -8,6 +8,7 @@ import {
   useProposeDeliveryPricing,
   useApproveDeliveryPricing,
   useRejectDelivery,
+  useResumeDelivery,
 } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -77,12 +78,14 @@ export default function DeliveryDetail() {
   const proposePricing = useProposeDeliveryPricing();
   const approvePricing = useApproveDeliveryPricing();
   const rejectMut = useRejectDelivery();
+  const resumeMut = useResumeDelivery();
 
   const [gross, setGross] = useState("");
   const [tare, setTare] = useState("");
   const [moisture, setMoisture] = useState("");
   const [defects, setDefects] = useState("");
   const [cupScore, setCupScore] = useState("");
+  const [sampleId, setSampleId] = useState("");
   const [price, setPrice] = useState("");
 
   const [rejectOpen, setRejectOpen] = useState(false);
@@ -112,8 +115,8 @@ export default function DeliveryDetail() {
   }
   async function handleSubmitQc() {
     try {
-      await submitQc.mutateAsync({ deliveryId: id, data: { moistureContent: Number(moisture), defectCount: Number(defects), cupScore: cupScore ? Number(cupScore) : undefined } });
-      setMoisture(""); setDefects(""); setCupScore(""); ok("QC submitted — awaiting approver");
+      await submitQc.mutateAsync({ deliveryId: id, data: { moistureContent: Number(moisture), defectCount: Number(defects), cupScore: cupScore ? Number(cupScore) : undefined, sampleId: sampleId.trim() || undefined } });
+      setMoisture(""); setDefects(""); setCupScore(""); setSampleId(""); ok("QC submitted — awaiting approver");
     } catch (e) { fail(e); }
   }
   async function handleApproveQc() {
@@ -124,6 +127,9 @@ export default function DeliveryDetail() {
   }
   async function handleApprovePricing() {
     try { await approvePricing.mutateAsync({ deliveryId: id }); ok("Pricing approved — delivery completed"); } catch (e) { fail(e); }
+  }
+  async function handleResume() {
+    try { await resumeMut.mutateAsync({ deliveryId: id, data: {} }); ok("Delivery resumed"); } catch (e) { fail(e); }
   }
   async function handleReject() {
     try {
@@ -141,6 +147,11 @@ export default function DeliveryDetail() {
           <p className="text-muted-foreground mt-1">Dual-approver procurement workflow</p>
         </div>
         <Badge variant={statusVariants[status] ?? "secondary"} data-testid="delivery-status">{statusLabels[status] ?? status}</Badge>
+        {(status === "partial_rejection" || status === "rejected_escalate") && (
+          <Button variant="default" size="sm" onClick={handleResume} disabled={resumeMut.isPending} data-testid="resume-btn">
+            Resume
+          </Button>
+        )}
         {!isTerminal && (
           <Button variant="outline" size="sm" onClick={() => setRejectOpen(true)} data-testid="reject-btn">
             <ShieldAlert className="h-4 w-4 mr-1" /> Reject
@@ -217,7 +228,10 @@ export default function DeliveryDetail() {
                   <div><Label>Moisture %</Label><Input value={moisture} onChange={e => setMoisture(e.target.value)} disabled={!delivery.weightApproved} placeholder="0.0" data-testid="moisture-input" /></div>
                   <div><Label>Defects</Label><Input value={defects} onChange={e => setDefects(e.target.value)} disabled={!delivery.weightApproved} placeholder="0" data-testid="defects-input" /></div>
                 </div>
-                <div><Label>Cup score (opt.)</Label><Input value={cupScore} onChange={e => setCupScore(e.target.value)} disabled={!delivery.weightApproved} placeholder="0-100" data-testid="cupscore-input" /></div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div><Label>Cup score (opt.)</Label><Input value={cupScore} onChange={e => setCupScore(e.target.value)} disabled={!delivery.weightApproved} placeholder="0-100" data-testid="cupscore-input" /></div>
+                  <div><Label>Sample ID (opt.)</Label><Input value={sampleId} onChange={e => setSampleId(e.target.value)} disabled={!delivery.weightApproved} placeholder="QC-SAMPLE-…" data-testid="sample-id-input" /></div>
+                </div>
                 <Button onClick={handleSubmitQc} disabled={submitQc.isPending || !delivery.weightApproved || !moisture || !defects} className="w-full" data-testid="submit-qc-btn">Submit QC</Button>
               </>
             )}

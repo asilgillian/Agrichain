@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, desc, inArray } from "drizzle-orm";
 import {
   db,
   deliveriesTable,
@@ -74,19 +74,29 @@ function shapeDelivery(
 
 // Atomic state transition: UPDATE with status precondition + audit insert in a single transaction.
 // Returns the updated row, or null when the precondition no longer holds (race lost).
+//
+// expectedStatus may be a single string OR an array of acceptable prior statuses (used by
+// /resume which accepts both partial_rejection and rejected_escalate).
 async function transition(
   deliveryId: string,
-  expectedStatus: string,
+  expectedStatus: string | string[],
   patch: Partial<typeof deliveriesTable.$inferInsert>,
   user: AuthedRequest["authedUser"] | undefined,
   action: string,
   metadata: Record<string, unknown>,
 ): Promise<typeof deliveriesTable.$inferSelect | null> {
   return await db.transaction(async (tx) => {
+    // Capture full BEFORE snapshot inside the txn so the audit row can reconstruct field-level
+    // changes for any later forensic review or compliance audit.
+    const [before] = await tx.select().from(deliveriesTable).where(eq(deliveriesTable.id, deliveryId));
+    if (!before) return null;
+    const statusGuard = Array.isArray(expectedStatus)
+      ? inArray(deliveriesTable.status, expectedStatus)
+      : eq(deliveriesTable.status, expectedStatus);
     const updated = await tx
       .update(deliveriesTable)
       .set({ ...patch, updatedAt: new Date() })
-      .where(and(eq(deliveriesTable.id, deliveryId), eq(deliveriesTable.status, expectedStatus)))
+      .where(and(eq(deliveriesTable.id, deliveryId), statusGuard))
       .returning();
     if (updated.length === 0) return null;
     await tx.insert(auditLogsTable).values({
@@ -96,9 +106,35 @@ async function transition(
       actorId: user?.id ?? "system",
       actorName: user?.email ?? "system",
       actorRole: user?.role ?? "system",
-      after: metadata,
+      before: { status: before.status, ...stripNoiseFromAudit(before) },
+      after: { status: updated[0].status, ...stripNoiseFromAudit(updated[0]), _change: metadata },
     });
     return updated[0];
+  });
+}
+
+// Drop high-noise / always-changing fields from the audit snapshot. We keep the business-meaningful
+// columns so a reviewer can diff before vs. after in one glance without scrolling past timestamps.
+function stripNoiseFromAudit(row: typeof deliveriesTable.$inferSelect) {
+  const { id: _id, lotTag: _lt, createdAt: _ca, updatedAt: _ua, ...rest } = row;
+  return rest;
+}
+
+// Helper for warnings written to the audit trail without changing delivery state.
+async function writeAuditWarning(
+  entityId: string,
+  action: string,
+  user: AuthedRequest["authedUser"] | undefined,
+  payload: Record<string, unknown>,
+) {
+  await db.insert(auditLogsTable).values({
+    entityType: "delivery",
+    entityId,
+    action,
+    actorId: user?.id ?? "system",
+    actorName: user?.email ?? "system",
+    actorRole: user?.role ?? "system",
+    after: { warning: true, ...payload },
   });
 }
 
@@ -244,11 +280,13 @@ router.post("/procurement/deliveries/:deliveryId/qc/submit", requirePermission("
   }
   const userId = req.authedUser!.id;
   const grade = determineGrade(parsed.data.moistureContent, parsed.data.defectCount, parsed.data.cupScore ?? undefined);
+  const sampleId = (parsed.data as any).sampleId ?? null; // populated when QC values originate from a Sampling Module sample
   const delivery = await transition(deliveryId as string, "pending_qc_submit", {
     moistureContent: parsed.data.moistureContent.toString(),
     defectCount: parsed.data.defectCount.toString(),
     cupScore: parsed.data.cupScore?.toString() ?? null,
     grade,
+    qcSampleId: sampleId,
     qcSubmittedById: userId,
     qcSubmittedAt: new Date(),
     qcApproved: false,
@@ -256,7 +294,7 @@ router.post("/procurement/deliveries/:deliveryId/qc/submit", requirePermission("
     qcApprovedAt: null,
     status: "pending_qc_approve",
     rejectionType: null, rejectionStage: null, rejectionReason: null, rejectionById: null, rejectionAt: null,
-  }, req.authedUser, "qc.submit", { moistureContent: parsed.data.moistureContent, defectCount: parsed.data.defectCount, cupScore: parsed.data.cupScore, grade });
+  }, req.authedUser, "qc.submit", { moistureContent: parsed.data.moistureContent, defectCount: parsed.data.defectCount, cupScore: parsed.data.cupScore, grade, sampleId });
   if (!delivery) { res.status(409).json({ error: "Delivery state changed concurrently — refresh and retry" }); return; }
   res.json(shapeDelivery(delivery));
 });
@@ -294,27 +332,86 @@ router.post("/procurement/deliveries/:deliveryId/pricing/propose", requirePermis
   if (!current.weightApproved || !current.qcApproved) {
     res.status(400).json({ error: "Weight and QC must both be approved before pricing" }); return;
   }
-  // Floor-price enforcement via active PRE_SEASON contract
+  // Floor-price enforcement via active PRE_SEASON contract.
+  //
+  // Resolution policy (per product decision):
+  //   - LENIENT + AUDIT: when contract resolution is ambiguous (no group on batch, commodity
+  //     mismatch, or non-UGX contract), the floor check is skipped but a warning audit event is
+  //     written so the gap shows up in compliance reports.
+  //   - PIN-IF-ACTIVE: if this delivery already has a contractId (from a prior CORRECTION
+  //     re-propose), reuse it when still ACTIVE. If it's no longer ACTIVE, re-resolve and emit a
+  //     warning so the buyer/manager sees that the original protection was lost.
   const [batch] = await db.select().from(batchesTable).where(eq(batchesTable.id, current.batchId));
   let floor: number | null = null;
   let contractId: string | null = null;
-  if (batch?.groupId) {
-    const candidates = await db.select().from(procurementContractsTable).where(and(
-      eq(procurementContractsTable.groupId, batch.groupId),
-      eq(procurementContractsTable.commodityType, batch.cropType ?? ""),
-      eq(procurementContractsTable.status, "ACTIVE"),
-    ));
-    const preSeason = candidates
-      .filter(c => c.contractType === "PRE_SEASON" && c.floorPricePerKg)
-      .sort((a, b) => parseFloat(b.floorPricePerKg!) - parseFloat(a.floorPricePerKg!))[0];
-    if (preSeason && preSeason.floorPricePerKg) {
-      floor = parseFloat(preSeason.floorPricePerKg);
-      contractId = preSeason.id;
-      if (parsed.data.pricePerKg < floor) {
-        res.status(400).json({ error: `Proposed price ${parsed.data.pricePerKg} below contract floor ${floor}`, floorPricePerKg: floor, contractId });
-        return;
+  let resolvedFromPin = false;
+  let resolutionWarning: { code: string; message: string; details?: any } | null = null;
+
+  // Pin path
+  if (current.contractId) {
+    const [pinned] = await db.select().from(procurementContractsTable).where(eq(procurementContractsTable.id, current.contractId));
+    if (pinned && pinned.status === "ACTIVE") {
+      contractId = pinned.id;
+      floor = pinned.floorPricePerKg ? parseFloat(pinned.floorPricePerKg) : null;
+      resolvedFromPin = true;
+      if (pinned.currency && pinned.currency !== "UGX") {
+        resolutionWarning = { code: "non_ugx_contract", message: `Pinned contract ${pinned.contractNumber} is denominated in ${pinned.currency}; floor check skipped (no FX support yet)`, details: { contractId: pinned.id, currency: pinned.currency } };
+        floor = null;
+      }
+    } else if (pinned) {
+      resolutionWarning = { code: "pinned_contract_not_active", message: `Originally pinned contract ${pinned.contractNumber} is now ${pinned.status}; re-resolving the latest active contract for this group/commodity`, details: { previousContractId: pinned.id, previousStatus: pinned.status } };
+    }
+  }
+
+  // Re-resolve path (no pin, or pin was stale)
+  if (!resolvedFromPin) {
+    if (!batch?.groupId) {
+      const w: { code: string; message: string; details?: any } = { code: "batch_missing_group", message: "Batch has no farmer group; floor-price enforcement skipped (no contract resolvable)", details: { batchId: current.batchId } };
+      resolutionWarning = resolutionWarning ?? w;
+    } else {
+      const candidates = await db.select().from(procurementContractsTable).where(and(
+        eq(procurementContractsTable.groupId, batch.groupId),
+        eq(procurementContractsTable.commodityType, batch.cropType ?? ""),
+        eq(procurementContractsTable.status, "ACTIVE"),
+      ));
+      const preSeason = candidates
+        .filter(c => c.contractType === "PRE_SEASON" && c.floorPricePerKg)
+        .sort((a, b) => parseFloat(b.floorPricePerKg!) - parseFloat(a.floorPricePerKg!))[0];
+      if (!preSeason) {
+        // Try a permissive lookup to surface "near-miss" warnings (group has contracts but with a
+        // commodity string that differs from batch.cropType — likely a catalog drift).
+        const groupAll = await db.select().from(procurementContractsTable).where(and(
+          eq(procurementContractsTable.groupId, batch.groupId),
+          eq(procurementContractsTable.status, "ACTIVE"),
+        ));
+        const otherCommodities = groupAll.filter(c => c.commodityType !== (batch.cropType ?? "")).map(c => c.commodityType);
+        if (otherCommodities.length > 0) {
+          resolutionWarning = resolutionWarning ?? { code: "commodity_string_mismatch", message: `Batch commodity '${batch.cropType}' does not match any active contract for this group; floor-price enforcement skipped`, details: { batchCommodity: batch.cropType, availableContractCommodities: otherCommodities } };
+        }
+      } else if (preSeason.currency && preSeason.currency !== "UGX") {
+        // Pin the contract on first resolution even if floor check is skipped, so subsequent
+        // re-proposals re-use the same contract instead of resolving anew (architect requirement).
+        contractId = preSeason.id;
+        resolutionWarning = resolutionWarning ?? { code: "non_ugx_contract", message: `Active contract ${preSeason.contractNumber} is denominated in ${preSeason.currency}; floor check skipped (no FX support yet)`, details: { contractId: preSeason.id, currency: preSeason.currency } };
+      } else if (preSeason.floorPricePerKg) {
+        floor = parseFloat(preSeason.floorPricePerKg);
+        contractId = preSeason.id;
       }
     }
+  }
+
+  if (resolutionWarning) {
+    await writeAuditWarning(deliveryId as string, "pricing.floor_skipped", req.authedUser, resolutionWarning);
+  }
+
+  if (floor != null && parsed.data.pricePerKg < floor) {
+    res.status(400).json({
+      error: `Proposed price ${parsed.data.pricePerKg} below contract floor ${floor}`,
+      floorPricePerKg: floor,
+      contractId,
+      resolvedFromPin,
+    });
+    return;
   }
   const userId = req.authedUser!.id;
   const netKg = parseFloat(current.netWeightKg ?? "0");
@@ -375,13 +472,18 @@ function stageOf(status: string): "weight" | "qc" | "pricing" | "final" {
   return "final";
 }
 
+// Terminal states cannot be re-rejected, re-submitted, or resumed. Approved deliveries are
+// archival; COMMODITY (rejected outright as wrong/contaminated commodity) and SUSPEND (operations
+// frozen pending investigation) are also terminal per product policy.
+const TERMINAL_STATUSES = ["approved", "rejected_commodity", "suspended"];
+
 router.post("/procurement/deliveries/:deliveryId/reject", requirePermission("procurement.reject"), async (req: AuthedRequest, res): Promise<void> => {
   const parsed = RejectDeliveryBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
   const { deliveryId } = req.params;
   const [current] = await db.select().from(deliveriesTable).where(eq(deliveriesTable.id, deliveryId as string));
   if (!current) { res.status(404).json({ error: "Delivery not found" }); return; }
-  if (["approved", "rejected_commodity", "suspended"].includes(current.status)) {
+  if (TERMINAL_STATUSES.includes(current.status)) {
     res.status(409).json({ error: `Cannot reject from terminal status ${current.status}` }); return;
   }
   const userId = req.authedUser!.id;
@@ -430,13 +532,52 @@ router.post("/procurement/deliveries/:deliveryId/reject", requirePermission("pro
       updates.totalValue = null;
       updates.pricingDeductions = null;
       updates.pricingIncentives = null;
-      updates.contractId = null;
-      updates.floorPricePerKg = null;
+      // Intentionally KEEP contractId + floorPricePerKg so pricing/propose can pin to the
+      // originally-resolved contract on the next attempt (per pin-if-active policy).
+    } else if (stage === "final") {
+      // CORRECTION raised against an already-approved or already-rejected delivery: there is no
+      // earlier partial state to bounce back to. Treat it like pricing (most common late catch).
+      updates.status = "pending_pricing_propose";
+      updates.pricingApprovedById = null;
+      updates.pricingApprovedAt = null;
     }
   }
   const delivery = await transition(deliveryId as string, current.status, updates, req.authedUser, "reject", {
     rejectionType: parsed.data.rejectionType, stage, reason: parsed.data.reason,
   });
+  if (!delivery) { res.status(409).json({ error: "Delivery state changed concurrently — refresh and retry" }); return; }
+  res.json(shapeDelivery(delivery));
+});
+
+// ---------- RESUME (PARTIAL / ESCALATE) ----------
+//
+// PARTIAL and ESCALATE are recoverable rejection types per product policy:
+//   - PARTIAL: a portion of the delivery was rejected; the buyer wants to keep & approve the
+//     remainder. We send it back to the stage that was being worked on so the kept portion
+//     re-enters the normal approval chain.
+//   - ESCALATE: a manager review unblocks the gate. Same routing: bounce to the matching submit
+//     step so the supervised actor can re-do the contested step with management oversight.
+//
+// CORRECTION already auto-routes back via the reject handler; COMMODITY and SUSPEND are terminal.
+router.post("/procurement/deliveries/:deliveryId/resume", requirePermission("procurement.resume"), async (req: AuthedRequest, res): Promise<void> => {
+  const { deliveryId } = req.params;
+  const [current] = await db.select().from(deliveriesTable).where(eq(deliveriesTable.id, deliveryId as string));
+  if (!current) { res.status(404).json({ error: "Delivery not found" }); return; }
+  if (!["partial_rejection", "rejected_escalate"].includes(current.status)) {
+    res.status(409).json({ error: `Resume only applies to PARTIAL or ESCALATE rejections; current status is ${current.status}` }); return;
+  }
+  const stage = current.rejectionStage ?? "pricing";
+  const next =
+    stage === "weight" ? "pending_weight_submit"
+    : stage === "qc" ? "pending_qc_submit"
+    : stage === "pricing" ? "pending_pricing_propose"
+    : "pending_pricing_propose"; // 'final' falls through to pricing as the most common late catch
+
+  const reason = (req.body?.note as string | undefined) ?? null;
+  const delivery = await transition(deliveryId as string, current.status, {
+    status: next,
+    rejectionType: null, rejectionStage: null, rejectionReason: null, rejectionById: null, rejectionAt: null,
+  }, req.authedUser, "resume", { fromStatus: current.status, toStatus: next, originalRejectionType: current.rejectionType, originalReason: current.rejectionReason, resumeNote: reason });
   if (!delivery) { res.status(409).json({ error: "Delivery state changed concurrently — refresh and retry" }); return; }
   res.json(shapeDelivery(delivery));
 });

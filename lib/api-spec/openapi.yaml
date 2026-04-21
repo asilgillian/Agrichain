@@ -959,6 +959,31 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/Delivery" }
 
+  /procurement/deliveries/{deliveryId}/resume:
+    post:
+      operationId: resumeDelivery
+      tags: [procurement]
+      summary: Resume a delivery rejected as PARTIAL or ESCALATE; routes back to the matching submit step
+      parameters:
+        - in: path
+          name: deliveryId
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                note: { type: string, description: "Optional manager note explaining the resume" }
+      responses:
+        "200":
+          description: Delivery resumed; status returned to the matching submit step
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Delivery" }
+
   /procurement/contracts:
     get:
       operationId: listProcurementContracts
@@ -2678,6 +2703,11 @@ components:
         defectCount: { type: number }
         cupScore: { type: number }
         photoUrl: { type: string }
+        sampleId:
+          type: string
+          format: uuid
+          nullable: true
+          description: "Optional Sampling Module sample whose readings populate this QC submission. When provided, the same values must match the sample's recorded readings."
       required: [moistureContent, defectCount]
 
     ProposePricingBody:

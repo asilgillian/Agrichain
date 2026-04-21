@@ -688,6 +688,8 @@ export interface SubmitQcBody {
   defectCount: number;
   cupScore?: number;
   photoUrl?: string;
+  /** Optional Sampling Module sample whose readings populate this QC submission. When provided, the same values must match the sample's recorded readings. */
+  sampleId?: string | null;
 }
 
 export type ProposePricingBodyDeductionsItem = {
@@ -1459,6 +1461,11 @@ export const ListDeliveriesStatus = {
   partial_rejection: "partial_rejection",
   suspended: "suspended",
 } as const;
+
+export type ResumeDeliveryBody = {
+  /** Optional manager note explaining the resume */
+  note?: string;
+};
 
 export type ListProcurementContractsParams = {
   groupId?: string;

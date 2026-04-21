@@ -91,6 +91,7 @@ import type {
   ProposePricingBody,
   Region,
   RejectDeliveryBody,
+  ResumeDeliveryBody,
   ReturnAssetBody,
   ReviewSubmissionBody,
   Role,
@@ -3821,6 +3822,93 @@ export const useRejectDelivery = <
   TContext
 > => {
   return useMutation(getRejectDeliveryMutationOptions(options));
+};
+
+/**
+ * @summary Resume a delivery rejected as PARTIAL or ESCALATE; routes back to the matching submit step
+ */
+export const getResumeDeliveryUrl = (deliveryId: string) => {
+  return `/api/procurement/deliveries/${deliveryId}/resume`;
+};
+
+export const resumeDelivery = async (
+  deliveryId: string,
+  resumeDeliveryBody?: ResumeDeliveryBody,
+  options?: RequestInit,
+): Promise<Delivery> => {
+  return customFetch<Delivery>(getResumeDeliveryUrl(deliveryId), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(resumeDeliveryBody),
+  });
+};
+
+export const getResumeDeliveryMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof resumeDelivery>>,
+    TError,
+    { deliveryId: string; data: BodyType<ResumeDeliveryBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof resumeDelivery>>,
+  TError,
+  { deliveryId: string; data: BodyType<ResumeDeliveryBody> },
+  TContext
+> => {
+  const mutationKey = ["resumeDelivery"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof resumeDelivery>>,
+    { deliveryId: string; data: BodyType<ResumeDeliveryBody> }
+  > = (props) => {
+    const { deliveryId, data } = props ?? {};
+
+    return resumeDelivery(deliveryId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ResumeDeliveryMutationResult = NonNullable<
+  Awaited<ReturnType<typeof resumeDelivery>>
+>;
+export type ResumeDeliveryMutationBody = BodyType<ResumeDeliveryBody>;
+export type ResumeDeliveryMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Resume a delivery rejected as PARTIAL or ESCALATE; routes back to the matching submit step
+ */
+export const useResumeDelivery = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof resumeDelivery>>,
+    TError,
+    { deliveryId: string; data: BodyType<ResumeDeliveryBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof resumeDelivery>>,
+  TError,
+  { deliveryId: string; data: BodyType<ResumeDeliveryBody> },
+  TContext
+> => {
+  return useMutation(getResumeDeliveryMutationOptions(options));
 };
 
 /**

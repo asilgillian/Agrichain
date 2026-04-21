@@ -26,6 +26,7 @@ export const deliveriesTable = pgTable("deliveries", {
   cupScore: numeric("cup_score", { precision: 5, scale: 2 }),
   grade: text("grade"),
 
+  qcSampleId: uuid("qc_sample_id"), // populated when QC values come from a Sampling Module sample
   qcSubmittedById: uuid("qc_submitted_by_id"),
   qcSubmittedAt: timestamp("qc_submitted_at", { withTimezone: true }),
   qcApprovedById: uuid("qc_approved_by_id"),
