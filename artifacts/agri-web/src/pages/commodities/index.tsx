@@ -33,16 +33,10 @@ type CommodityType = {
 };
 
 async function api<T>(path: string, init?: RequestInit): Promise<T> {
-  const r = await customFetch(`${API_BASE}${path}`, {
+  return customFetch<T>(`${API_BASE}${path}`, {
     ...init,
     headers: { "Content-Type": "application/json", ...(init?.headers ?? {}) },
   });
-  if (!r.ok) {
-    const body = await r.json().catch(() => ({}));
-    throw new Error(body?.error ?? `${r.status}`);
-  }
-  if (r.status === 204) return undefined as T;
-  return r.json();
 }
 
 const stageBadge: Record<string, "default" | "secondary" | "outline"> = {
