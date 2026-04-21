@@ -18,6 +18,7 @@ import {
   Globe,
   FileBarChart2,
   Building2,
+  Map as MapIcon,
 } from "lucide-react";
 import { 
   Sidebar, 
@@ -55,6 +56,7 @@ const operationsItems = [
   { title: "Payments", icon: CreditCard, href: "/payments" },
   { title: "Compliance", icon: ShieldCheck, href: "/compliance" },
   { title: "Surveys", icon: ClipboardCheck, href: "/surveys" },
+  { title: "Plot Map (GIS)", icon: MapIcon, href: "/plots-map" },
   { title: "Exports", icon: Ship, href: "/exports" },
 ];
 

@@ -78,6 +78,7 @@
   "dependencies": {
     "@clerk/react": "^6.4.2",
     "@clerk/themes": "^2.4.57",
+    "@geoman-io/leaflet-geoman-free": "^2.19.3",
     "leaflet": "^1.9.4",
     "react-leaflet": "^5.0.0"
   }

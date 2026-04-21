@@ -34,6 +34,7 @@ import AssetsPage from "@/pages/assets/index";
 import ActivityFundsPage from "@/pages/activity-funds/index";
 import AuditPage from "@/pages/audit/index";
 import AdminPage from "@/pages/admin/index";
+import PlotsMapPage from "@/pages/plots-map/index";
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: false, refetchOnWindowFocus: false } },
@@ -159,6 +160,7 @@ function ProtectedRoutes() {
             <Route path="/activity-funds" component={ActivityFundsPage} />
             <Route path="/audit" component={AuditPage} />
             <Route path="/admin" component={AdminPage} />
+            <Route path="/plots-map" component={PlotsMapPage} />
             <Route component={NotFound} />
           </Switch>
         </AppLayout>
