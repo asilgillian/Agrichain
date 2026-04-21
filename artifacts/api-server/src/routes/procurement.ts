@@ -405,6 +405,14 @@ router.post("/procurement/deliveries/:deliveryId/pricing/propose", requirePermis
   }
 
   if (floor != null && parsed.data.pricePerKg < floor) {
+    // Compliance: every attempt to undercut the contractual floor must leave a forensic trace
+    // even though the state did not change. Reviewers / regulators need to see who tried.
+    await writeAuditWarning(deliveryId as string, "pricing.below_floor_denied", req.authedUser, {
+      attemptedPricePerKg: parsed.data.pricePerKg,
+      floorPricePerKg: floor,
+      contractId,
+      resolvedFromPin,
+    });
     res.status(400).json({
       error: `Proposed price ${parsed.data.pricePerKg} below contract floor ${floor}`,
       floorPricePerKg: floor,
