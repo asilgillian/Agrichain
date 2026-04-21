@@ -40,7 +40,7 @@ function isCalendarDate(s: unknown): s is string {
 
 // =============== COMMODITIES ===============
 
-router.get("/api/commodities", requirePermission("commodities.read"), async (req, res) => {
+router.get("/commodities", requirePermission("commodities.read"), async (req, res) => {
   const status = typeof req.query.status === "string" ? req.query.status : undefined;
   const where = status ? eq(commoditiesTable.status, status) : undefined;
   const rows = await db.select().from(commoditiesTable).where(where).orderBy(commoditiesTable.name);
@@ -55,7 +55,7 @@ router.get("/api/commodities", requirePermission("commodities.read"), async (req
   res.json(rows.map(c => ({ ...c, types: typesByCommodity.get(c.id) ?? [] })));
 });
 
-router.post("/api/commodities", requirePermission("commodities.write"), async (req: AuthedRequest, res) => {
+router.post("/commodities", requirePermission("commodities.write"), async (req: AuthedRequest, res) => {
   const { name, code, scientificName, defaultUnit, description, status } = req.body ?? {};
   if (typeof name !== "string" || !name.trim()) { res.status(400).json({ error: "name required" }); return; }
   if (typeof code !== "string" || !code.trim()) { res.status(400).json({ error: "code required" }); return; }
@@ -76,7 +76,7 @@ router.post("/api/commodities", requirePermission("commodities.write"), async (r
   res.status(201).json(created);
 });
 
-router.patch("/api/commodities/:id", requirePermission("commodities.write"), async (req: AuthedRequest, res) => {
+router.patch("/commodities/:id", requirePermission("commodities.write"), async (req: AuthedRequest, res) => {
   const { id } = req.params;
   if (!isUuid(id)) { res.status(400).json({ error: "Invalid id" }); return; }
   const [existing] = await db.select().from(commoditiesTable).where(eq(commoditiesTable.id, id));
@@ -97,7 +97,7 @@ router.patch("/api/commodities/:id", requirePermission("commodities.write"), asy
 
 // =============== COMMODITY TYPES ===============
 
-router.get("/api/commodities/:commodityId/types", requirePermission("commodities.read"), async (req, res) => {
+router.get("/commodities/:commodityId/types", requirePermission("commodities.read"), async (req, res) => {
   const { commodityId } = req.params;
   if (!isUuid(commodityId)) { res.status(400).json({ error: "Invalid commodityId" }); return; }
   const rows = await db.select().from(commodityTypesTable)
@@ -106,7 +106,7 @@ router.get("/api/commodities/:commodityId/types", requirePermission("commodities
   res.json(rows);
 });
 
-router.post("/api/commodities/:commodityId/types", requirePermission("commodities.write"), async (req: AuthedRequest, res) => {
+router.post("/commodities/:commodityId/types", requirePermission("commodities.write"), async (req: AuthedRequest, res) => {
   const { commodityId } = req.params;
   if (!isUuid(commodityId)) { res.status(400).json({ error: "Invalid commodityId" }); return; }
   const [parent] = await db.select().from(commoditiesTable).where(eq(commoditiesTable.id, commodityId));
@@ -155,7 +155,7 @@ router.post("/api/commodities/:commodityId/types", requirePermission("commoditie
   res.status(201).json(created);
 });
 
-router.patch("/api/commodity-types/:typeId", requirePermission("commodities.write"), async (req: AuthedRequest, res) => {
+router.patch("/commodity-types/:typeId", requirePermission("commodities.write"), async (req: AuthedRequest, res) => {
   const { typeId } = req.params;
   if (!isUuid(typeId)) { res.status(400).json({ error: "Invalid typeId" }); return; }
   const [existing] = await db.select().from(commodityTypesTable).where(eq(commodityTypesTable.id, typeId));
@@ -207,7 +207,7 @@ router.patch("/api/commodity-types/:typeId", requirePermission("commodities.writ
 
 // =============== SEASONS ===============
 
-router.get("/api/commodity-types/:typeId/seasons", requirePermission("commodities.read"), async (req, res) => {
+router.get("/commodity-types/:typeId/seasons", requirePermission("commodities.read"), async (req, res) => {
   const { typeId } = req.params;
   if (!isUuid(typeId)) { res.status(400).json({ error: "Invalid typeId" }); return; }
   const rows = await db.select().from(commoditySeasonsTable)
@@ -216,7 +216,7 @@ router.get("/api/commodity-types/:typeId/seasons", requirePermission("commoditie
   res.json(rows);
 });
 
-router.post("/api/commodity-types/:typeId/seasons", requirePermission("commodities.write"), async (req: AuthedRequest, res) => {
+router.post("/commodity-types/:typeId/seasons", requirePermission("commodities.write"), async (req: AuthedRequest, res) => {
   const { typeId } = req.params;
   if (!isUuid(typeId)) { res.status(400).json({ error: "Invalid typeId" }); return; }
   const [type] = await db.select().from(commodityTypesTable).where(eq(commodityTypesTable.id, typeId));
@@ -240,7 +240,7 @@ router.post("/api/commodity-types/:typeId/seasons", requirePermission("commoditi
   res.status(201).json(created);
 });
 
-router.delete("/api/commodity-seasons/:seasonId", requirePermission("commodities.write"), async (req: AuthedRequest, res) => {
+router.delete("/commodity-seasons/:seasonId", requirePermission("commodities.write"), async (req: AuthedRequest, res) => {
   const { seasonId } = req.params;
   if (!isUuid(seasonId)) { res.status(400).json({ error: "Invalid seasonId" }); return; }
   const [existing] = await db.select().from(commoditySeasonsTable).where(eq(commoditySeasonsTable.id, seasonId));
@@ -252,7 +252,7 @@ router.delete("/api/commodity-seasons/:seasonId", requirePermission("commodities
 
 // =============== PRICES ===============
 
-router.get("/api/commodity-types/:typeId/prices", requirePermission("commodities.read"), async (req, res) => {
+router.get("/commodity-types/:typeId/prices", requirePermission("commodities.read"), async (req, res) => {
   const { typeId } = req.params;
   if (!isUuid(typeId)) { res.status(400).json({ error: "Invalid typeId" }); return; }
   const limit = Math.min(parseInt(String(req.query.limit ?? "100"), 10) || 100, 500);
@@ -263,7 +263,7 @@ router.get("/api/commodity-types/:typeId/prices", requirePermission("commodities
   res.json(rows);
 });
 
-router.get("/api/commodity-types/:typeId/prices/current", requirePermission("commodities.read"), async (req, res) => {
+router.get("/commodity-types/:typeId/prices/current", requirePermission("commodities.read"), async (req, res) => {
   const { typeId } = req.params;
   if (!isUuid(typeId)) { res.status(400).json({ error: "Invalid typeId" }); return; }
   let regionId: string | null = null;
@@ -289,7 +289,7 @@ router.get("/api/commodity-types/:typeId/prices/current", requirePermission("com
   res.json(row);
 });
 
-router.post("/api/commodity-types/:typeId/prices", requirePermission("commodities.prices.write"), async (req: AuthedRequest, res) => {
+router.post("/commodity-types/:typeId/prices", requirePermission("commodities.prices.write"), async (req: AuthedRequest, res) => {
   const { typeId } = req.params;
   if (!isUuid(typeId)) { res.status(400).json({ error: "Invalid typeId" }); return; }
   const [type] = await db.select().from(commodityTypesTable).where(eq(commodityTypesTable.id, typeId));
@@ -329,7 +329,7 @@ router.post("/api/commodity-types/:typeId/prices", requirePermission("commoditie
 
 // List conversions where the given type is either source or destination — used to render the
 // processing graph for that type.
-router.get("/api/commodity-types/:typeId/conversions", requirePermission("commodities.read"), async (req, res) => {
+router.get("/commodity-types/:typeId/conversions", requirePermission("commodities.read"), async (req, res) => {
   const { typeId } = req.params;
   if (!isUuid(typeId)) { res.status(400).json({ error: "Invalid typeId" }); return; }
   const rows = await db.select().from(commodityConversionsTable)
@@ -338,7 +338,7 @@ router.get("/api/commodity-types/:typeId/conversions", requirePermission("commod
 });
 
 // Full conversions catalog (admin view, optionally filter by commodityId).
-router.get("/api/commodity-conversions", requirePermission("commodities.read"), async (req, res) => {
+router.get("/commodity-conversions", requirePermission("commodities.read"), async (req, res) => {
   const commodityId = typeof req.query.commodityId === "string" && isUuid(req.query.commodityId) ? req.query.commodityId : null;
   if (commodityId) {
     const types = await db.select({ id: commodityTypesTable.id }).from(commodityTypesTable).where(eq(commodityTypesTable.commodityId, commodityId));
@@ -354,7 +354,7 @@ router.get("/api/commodity-conversions", requirePermission("commodities.read"), 
   res.json(rows);
 });
 
-router.post("/api/commodity-conversions", requirePermission("commodities.write"), async (req: AuthedRequest, res) => {
+router.post("/commodity-conversions", requirePermission("commodities.write"), async (req: AuthedRequest, res) => {
   const { fromCommodityTypeId, toCommodityTypeId, expectedRate, minRate, maxRate, processType, effectiveDate, version, notes } = req.body ?? {};
   if (!isUuid(fromCommodityTypeId)) { res.status(400).json({ error: "fromCommodityTypeId required" }); return; }
   if (!isUuid(toCommodityTypeId)) { res.status(400).json({ error: "toCommodityTypeId required" }); return; }
@@ -400,7 +400,7 @@ router.post("/api/commodity-conversions", requirePermission("commodities.write")
   }
 });
 
-router.delete("/api/commodity-conversions/:conversionId", requirePermission("commodities.write"), async (req: AuthedRequest, res) => {
+router.delete("/commodity-conversions/:conversionId", requirePermission("commodities.write"), async (req: AuthedRequest, res) => {
   const { conversionId } = req.params;
   if (!isUuid(conversionId)) { res.status(400).json({ error: "Invalid conversionId" }); return; }
   const [existing] = await db.select().from(commodityConversionsTable).where(eq(commodityConversionsTable.id, conversionId));
@@ -413,7 +413,7 @@ router.delete("/api/commodity-conversions/:conversionId", requirePermission("com
 // On-the-fly conversion calculator: from one type to another, applying chain of conversions if
 // no direct rate exists. Returns the multiplied effective rate. e.g. Cherry → Green Bean via
 // Cherry → Parchment (0.45) × Parchment → Green Bean (0.50) = 0.225.
-router.get("/api/commodity-types/:fromTypeId/convert/:toTypeId", requirePermission("commodities.read"), async (req, res) => {
+router.get("/commodity-types/:fromTypeId/convert/:toTypeId", requirePermission("commodities.read"), async (req, res) => {
   const { fromTypeId, toTypeId } = req.params;
   if (!isUuid(fromTypeId) || !isUuid(toTypeId)) { res.status(400).json({ error: "Invalid type id" }); return; }
   const qty = Number(req.query.quantity ?? 1);
@@ -484,7 +484,7 @@ router.get("/api/commodity-types/:fromTypeId/convert/:toTypeId", requirePermissi
 // created for a given CommodityType. The latest active version of each parameterCode (by
 // effectiveDate desc, version desc) is what sampling will surface.
 
-router.get("/api/commodity-types/:typeId/quality-specs", requirePermission("commodities.read"), async (req, res) => {
+router.get("/commodity-types/:typeId/quality-specs", requirePermission("commodities.read"), async (req, res) => {
   const { typeId } = req.params;
   if (!isUuid(typeId)) { res.status(400).json({ error: "Invalid typeId" }); return; }
   const showInactive = req.query.includeInactive === "true";
@@ -498,7 +498,7 @@ router.get("/api/commodity-types/:typeId/quality-specs", requirePermission("comm
 
 // "Active set" — the resolved spec that sampling should use today: latest active version of each
 // parameterCode with effectiveDate <= today, optionally filtered by sample stage.
-router.get("/api/commodity-types/:typeId/quality-specs/active", requirePermission("commodities.read"), async (req, res) => {
+router.get("/commodity-types/:typeId/quality-specs/active", requirePermission("commodities.read"), async (req, res) => {
   const { typeId } = req.params;
   if (!isUuid(typeId)) { res.status(400).json({ error: "Invalid typeId" }); return; }
   const stage = typeof req.query.stage === "string" ? req.query.stage : null;
@@ -530,7 +530,7 @@ router.get("/api/commodity-types/:typeId/quality-specs/active", requirePermissio
   res.json([...latest.values()]);
 });
 
-router.post("/api/commodity-types/:typeId/quality-specs", requirePermission("commodities.quality.write"), async (req: AuthedRequest, res) => {
+router.post("/commodity-types/:typeId/quality-specs", requirePermission("commodities.quality.write"), async (req: AuthedRequest, res) => {
   const { typeId } = req.params;
   if (!isUuid(typeId)) { res.status(400).json({ error: "Invalid typeId" }); return; }
   const [type] = await db.select().from(commodityTypesTable).where(eq(commodityTypesTable.id, typeId));
@@ -601,7 +601,7 @@ router.post("/api/commodity-types/:typeId/quality-specs", requirePermission("com
   }
 });
 
-router.patch("/api/commodity-quality-specs/:specId", requirePermission("commodities.quality.write"), async (req: AuthedRequest, res) => {
+router.patch("/commodity-quality-specs/:specId", requirePermission("commodities.quality.write"), async (req: AuthedRequest, res) => {
   const { specId } = req.params;
   if (!isUuid(specId)) { res.status(400).json({ error: "Invalid specId" }); return; }
   const [existing] = await db.select().from(commodityQualitySpecsTable).where(eq(commodityQualitySpecsTable.id, specId));
@@ -663,7 +663,7 @@ router.patch("/api/commodity-quality-specs/:specId", requirePermission("commodit
   res.json(updated);
 });
 
-router.delete("/api/commodity-quality-specs/:specId", requirePermission("commodities.quality.write"), async (req: AuthedRequest, res) => {
+router.delete("/commodity-quality-specs/:specId", requirePermission("commodities.quality.write"), async (req: AuthedRequest, res) => {
   const { specId } = req.params;
   if (!isUuid(specId)) { res.status(400).json({ error: "Invalid specId" }); return; }
   const [existing] = await db.select().from(commodityQualitySpecsTable).where(eq(commodityQualitySpecsTable.id, specId));
@@ -684,7 +684,7 @@ router.delete("/api/commodity-quality-specs/:specId", requirePermission("commodi
 
 // Evaluate a measured value against the active spec for a single parameter — useful for the
 // Sampling Module's out-of-range detector and the QC pricing-adjustment formula.
-router.get("/api/commodity-types/:typeId/quality-specs/:parameterCode/evaluate", requirePermission("commodities.read"), async (req, res) => {
+router.get("/commodity-types/:typeId/quality-specs/:parameterCode/evaluate", requirePermission("commodities.read"), async (req, res) => {
   const { typeId, parameterCode } = req.params;
   if (!isUuid(typeId)) { res.status(400).json({ error: "Invalid typeId" }); return; }
   const value = Number(req.query.value);
