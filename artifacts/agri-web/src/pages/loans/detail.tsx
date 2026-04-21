@@ -1,12 +1,16 @@
+import { useState } from "react";
 import { useParams } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Separator } from "@/components/ui/separator";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { CheckCircle2, DollarSign, Clock, User } from "lucide-react";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Plus } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 const API_BASE = import.meta.env.BASE_URL?.replace(/\/$/, "");
@@ -26,10 +30,14 @@ function fmt(n: string | null | undefined) {
   return "KES " + Number(n).toLocaleString("en-KE", { minimumFractionDigits: 0 });
 }
 
+const emptyRepay = { amount: "", paymentDate: new Date().toISOString().slice(0, 10), paymentMethod: "MPESA", reference: "" };
+
 export default function LoanDetail() {
   const { id } = useParams<{ id: string }>();
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const [repayOpen, setRepayOpen] = useState(false);
+  const [repayForm, setRepayForm] = useState(emptyRepay);
 
   const { data: loan, isLoading } = useQuery({
     queryKey: ["/api/loans", id],
@@ -47,6 +55,28 @@ export default function LoanDetail() {
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/loans", id] }); toast({ title: "Loan disbursed" }); },
   });
 
+  const repayMutation = useMutation({
+    mutationFn: (body: any) => fetch(`${API_BASE}/api/loans/${id}/repayments`, {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
+    }).then(async r => { if (!r.ok) throw new Error((await r.json()).error ?? "Failed"); return r.json(); }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/loans", id] });
+      toast({ title: "Repayment recorded" });
+      setRepayOpen(false); setRepayForm(emptyRepay);
+    },
+    onError: (e: any) => toast({ title: "Failed to record repayment", description: e.message, variant: "destructive" }),
+  });
+
+  const submitRepay = () => {
+    if (!repayForm.amount || Number(repayForm.amount) <= 0) { toast({ title: "Valid amount required", variant: "destructive" }); return; }
+    repayMutation.mutate({
+      amount: Number(repayForm.amount),
+      paymentDate: repayForm.paymentDate,
+      paymentMethod: repayForm.paymentMethod,
+      reference: repayForm.reference.trim() || undefined,
+    });
+  };
+
   if (isLoading) return <div className="p-8 space-y-4"><Skeleton className="h-32 w-full" /><Skeleton className="h-48 w-full" /></div>;
   if (!loan || loan.error) return <div className="p-8 text-center text-muted-foreground">Loan not found</div>;
 
@@ -54,6 +84,7 @@ export default function LoanDetail() {
   const principal = Number(loan.principalAmount ?? 0);
   const outstanding = Number(loan.outstandingBalance ?? 0);
   const progress = principal > 0 ? Math.round(((principal - outstanding) / principal) * 100) : 0;
+  const canRepay = ["DISBURSED", "REPAYING"].includes(loan.status);
 
   return (
     <div className="space-y-6 max-w-5xl mx-auto pb-12">
@@ -124,7 +155,45 @@ export default function LoanDetail() {
       </div>
 
       <Card>
-        <CardHeader><CardTitle className="text-base">Repayment History</CardTitle></CardHeader>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <CardTitle className="text-base">Repayment History</CardTitle>
+          {canRepay && (
+            <Dialog open={repayOpen} onOpenChange={setRepayOpen}>
+              <DialogTrigger asChild>
+                <Button size="sm" className="gap-2" data-testid="add-repayment-btn"><Plus className="h-4 w-4" /> Add Repayment</Button>
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-md">
+                <DialogHeader>
+                  <DialogTitle>Record Repayment</DialogTitle>
+                  <DialogDescription>Outstanding balance: {fmt(loan.outstandingBalance)}</DialogDescription>
+                </DialogHeader>
+                <div className="space-y-3">
+                  <div><Label>Amount (KES) *</Label><Input type="number" value={repayForm.amount} onChange={e => setRepayForm({ ...repayForm, amount: e.target.value })} placeholder="10000" data-testid="input-amount" /></div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div><Label>Payment Date</Label><Input type="date" value={repayForm.paymentDate} onChange={e => setRepayForm({ ...repayForm, paymentDate: e.target.value })} data-testid="input-date" /></div>
+                    <div>
+                      <Label>Method</Label>
+                      <Select value={repayForm.paymentMethod} onValueChange={v => setRepayForm({ ...repayForm, paymentMethod: v })}>
+                        <SelectTrigger data-testid="input-method"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="MPESA">M-PESA</SelectItem>
+                          <SelectItem value="BANK_TRANSFER">Bank Transfer</SelectItem>
+                          <SelectItem value="CASH">Cash</SelectItem>
+                          <SelectItem value="CROP_DEDUCTION">Crop Deduction</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  <div><Label>Reference</Label><Input value={repayForm.reference} onChange={e => setRepayForm({ ...repayForm, reference: e.target.value })} placeholder="M-PESA code or txn ref" data-testid="input-ref" /></div>
+                </div>
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setRepayOpen(false)}>Cancel</Button>
+                  <Button onClick={submitRepay} disabled={repayMutation.isPending} data-testid="submit-repayment">{repayMutation.isPending ? "Saving..." : "Record"}</Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          )}
+        </CardHeader>
         <CardContent>
           {loan.repayments?.length === 0 ? (
             <p className="text-sm text-muted-foreground text-center py-8">No repayments recorded</p>

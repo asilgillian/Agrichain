@@ -1,13 +1,18 @@
 import { useState } from "react";
 import { Link } from "wouter";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Plus, DollarSign, TrendingDown, AlertCircle, CheckCircle2 } from "lucide-react";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
+import { Plus } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 
 const API_BASE = import.meta.env.BASE_URL?.replace(/\/$/, "");
 
@@ -26,10 +31,16 @@ function fmt(n: string | null | undefined) {
   return "KES " + Number(n).toLocaleString("en-KE", { minimumFractionDigits: 0 });
 }
 
+const emptyForm = { farmerId: "", loanType: "CASH_ADVANCE", principalAmount: "", interestRatePct: "", purpose: "", collateral: "", dueDate: "", notes: "" };
+
 export default function LoansPage() {
   const [status, setStatus] = useState("all");
   const [loanType, setLoanType] = useState("all");
   const [page, setPage] = useState(1);
+  const [open, setOpen] = useState(false);
+  const [form, setForm] = useState(emptyForm);
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
 
   const params = new URLSearchParams({ page: String(page), limit: "20" });
   if (status !== "all") params.set("status", status);
@@ -45,6 +56,39 @@ export default function LoansPage() {
     queryFn: () => fetch(`${API_BASE}/api/loans/summary`).then(r => r.json()),
   });
 
+  const { data: farmersData } = useQuery({
+    queryKey: ["/api/farmers/for-loan"],
+    queryFn: () => fetch(`${API_BASE}/api/farmers?limit=200`).then(r => r.json()),
+    enabled: open,
+  });
+
+  const createMutation = useMutation({
+    mutationFn: (body: any) => fetch(`${API_BASE}/api/loans`, {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
+    }).then(async r => { if (!r.ok) throw new Error((await r.json()).error ?? "Failed"); return r.json(); }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/loans"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/loans/summary"] });
+      toast({ title: "Loan created" });
+      setOpen(false); setForm(emptyForm);
+    },
+    onError: (e: any) => toast({ title: "Failed to create loan", description: e.message, variant: "destructive" }),
+  });
+
+  const submit = () => {
+    if (!form.principalAmount || Number(form.principalAmount) <= 0) { toast({ title: "Valid principal amount required", variant: "destructive" }); return; }
+    createMutation.mutate({
+      farmerId: form.farmerId || undefined,
+      loanType: form.loanType,
+      principalAmount: Number(form.principalAmount),
+      interestRatePct: form.interestRatePct ? Number(form.interestRatePct) : undefined,
+      purpose: form.purpose.trim() || undefined,
+      collateral: form.collateral.trim() || undefined,
+      dueDate: form.dueDate || undefined,
+      notes: form.notes.trim() || undefined,
+    });
+  };
+
   const totalDisbursed = summary?.find((s: any) => s.status === "DISBURSED")?.totalOutstanding ?? 0;
   const totalRepaying = summary?.find((s: any) => s.status === "REPAYING")?.totalOutstanding ?? 0;
   const totalDefaulted = summary?.find((s: any) => s.status === "DEFAULTED")?.count ?? 0;
@@ -57,7 +101,60 @@ export default function LoansPage() {
           <h1 className="text-3xl font-bold tracking-tight">Loan Management</h1>
           <p className="text-muted-foreground mt-1">Farmer and group loans — cash advances, input loans, and welfare.</p>
         </div>
-        <Button data-testid="new-loan-btn" className="gap-2"><Plus className="h-4 w-4" /> New Loan</Button>
+        <Dialog open={open} onOpenChange={setOpen}>
+          <DialogTrigger asChild>
+            <Button data-testid="new-loan-btn" className="gap-2"><Plus className="h-4 w-4" /> New Loan</Button>
+          </DialogTrigger>
+          <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>New Loan</DialogTitle>
+              <DialogDescription>Create a new loan application. Loans start in PENDING status.</DialogDescription>
+            </DialogHeader>
+            <div className="space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label>Loan Type *</Label>
+                  <Select value={form.loanType} onValueChange={v => setForm({ ...form, loanType: v })}>
+                    <SelectTrigger data-testid="input-loan-type"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="CASH_ADVANCE">Cash Advance</SelectItem>
+                      <SelectItem value="INPUT_LOAN">Input Loan</SelectItem>
+                      <SelectItem value="EMERGENCY_WELFARE">Emergency / Welfare</SelectItem>
+                      <SelectItem value="GROUP_LOAN">Group Loan</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label>Principal (KES) *</Label>
+                  <Input type="number" value={form.principalAmount} onChange={e => setForm({ ...form, principalAmount: e.target.value })} placeholder="50000" data-testid="input-principal" />
+                </div>
+              </div>
+              <div>
+                <Label>Farmer (optional for group loans)</Label>
+                <Select value={form.farmerId || "none"} onValueChange={v => setForm({ ...form, farmerId: v === "none" ? "" : v })}>
+                  <SelectTrigger data-testid="input-farmer"><SelectValue placeholder="Select farmer" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">— None (group loan) —</SelectItem>
+                    {(farmersData?.data ?? []).map((f: any) => (
+                      <SelectItem key={f.id} value={f.id}>{f.firstName} {f.lastName} ({f.referenceNumber})</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div><Label>Interest Rate (%)</Label><Input type="number" step="0.1" value={form.interestRatePct} onChange={e => setForm({ ...form, interestRatePct: e.target.value })} placeholder="5" data-testid="input-interest" /></div>
+                <div><Label>Due Date</Label><Input type="date" value={form.dueDate} onChange={e => setForm({ ...form, dueDate: e.target.value })} data-testid="input-due-date" /></div>
+              </div>
+              <div><Label>Purpose</Label><Input value={form.purpose} onChange={e => setForm({ ...form, purpose: e.target.value })} placeholder="e.g. School fees, fertilizer" data-testid="input-purpose" /></div>
+              <div><Label>Collateral</Label><Input value={form.collateral} onChange={e => setForm({ ...form, collateral: e.target.value })} placeholder="e.g. Future harvest" data-testid="input-collateral" /></div>
+              <div><Label>Notes</Label><Textarea value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} rows={2} data-testid="input-notes" /></div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
+              <Button onClick={submit} disabled={createMutation.isPending} data-testid="submit-loan">{createMutation.isPending ? "Creating..." : "Create Loan"}</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
