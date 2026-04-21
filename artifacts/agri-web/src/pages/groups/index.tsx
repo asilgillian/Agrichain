@@ -24,12 +24,11 @@ export default function GroupsList() {
 
   const { data: regions } = useQuery<any[]>({
     queryKey: ["/api/admin/regions"],
-    queryFn: () => customFetch(`${API_BASE}/api/admin/regions`).then(r => r.json()).then(d => Array.isArray(d) ? d : []),
+    queryFn: () => customFetch<any[]>(`${API_BASE}/api/admin/regions`).then(d => Array.isArray(d) ? d : []),
   });
 
   const createMut = useMutation({
-    mutationFn: (body: any) => customFetch(`${API_BASE}/api/groups`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) })
-      .then(async r => { if (!r.ok) throw new Error((await r.json()).error ?? "Failed"); return r.json(); }),
+    mutationFn: (body: any) => customFetch(`${API_BASE}/api/groups`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["/api/groups"] });
       toast({ title: "Group created" });
