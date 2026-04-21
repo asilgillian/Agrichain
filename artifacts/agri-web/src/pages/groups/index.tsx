@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useListGroups } from "@workspace/api-client-react";
+import { useListGroups, customFetch } from "@workspace/api-client-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -24,11 +24,11 @@ export default function GroupsList() {
 
   const { data: regions } = useQuery<any[]>({
     queryKey: ["/api/admin/regions"],
-    queryFn: () => fetch(`${API_BASE}/api/admin/regions`).then(r => r.json()),
+    queryFn: () => customFetch(`${API_BASE}/api/admin/regions`).then(r => r.json()).then(d => Array.isArray(d) ? d : []),
   });
 
   const createMut = useMutation({
-    mutationFn: (body: any) => fetch(`${API_BASE}/api/groups`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) })
+    mutationFn: (body: any) => customFetch(`${API_BASE}/api/groups`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) })
       .then(async r => { if (!r.ok) throw new Error((await r.json()).error ?? "Failed"); return r.json(); }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["/api/groups"] });
