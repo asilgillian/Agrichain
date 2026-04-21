@@ -34,6 +34,16 @@ import {
 } from "@/components/ui/sidebar";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
+import { useUser, useClerk } from "@clerk/react";
+import { LogOut } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 const operationsItems = [
   { title: "Dashboard", icon: LayoutDashboard, href: "/" },
@@ -120,9 +130,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
           <header className="h-12 flex items-center px-4 border-b gap-4 sticky top-0 bg-background z-10">
             <SidebarTrigger />
             <div className="flex-1" />
-            <Avatar className="h-8 w-8">
-              <AvatarFallback className="text-xs bg-primary text-primary-foreground">MC</AvatarFallback>
-            </Avatar>
+            <UserMenu />
           </header>
           <main className="flex-1 p-6 overflow-auto">
             {children}
@@ -130,5 +138,33 @@ export function AppLayout({ children }: { children: ReactNode }) {
         </div>
       </div>
     </SidebarProvider>
+  );
+}
+
+function UserMenu() {
+  const { user } = useUser();
+  const { signOut } = useClerk();
+  const initials = (user?.firstName?.[0] ?? "") + (user?.lastName?.[0] ?? "") || (user?.primaryEmailAddress?.emailAddress?.[0] ?? "U").toUpperCase();
+  const display = user?.fullName || user?.primaryEmailAddress?.emailAddress || "User";
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button className="flex items-center gap-2 hover-elevate rounded-md p-1" data-testid="user-menu">
+          <Avatar className="h-8 w-8">
+            <AvatarFallback className="text-xs bg-primary text-primary-foreground">{initials}</AvatarFallback>
+          </Avatar>
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-56">
+        <DropdownMenuLabel>
+          <div className="font-medium">{display}</div>
+          <div className="text-xs text-muted-foreground font-normal">{user?.primaryEmailAddress?.emailAddress}</div>
+        </DropdownMenuLabel>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem onClick={() => signOut()} data-testid="sign-out" className="cursor-pointer">
+          <LogOut className="h-4 w-4 mr-2" /> Sign out
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }

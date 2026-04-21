@@ -2,10 +2,11 @@ import { Router, type IRouter } from "express";
 import { eq, and, desc } from "drizzle-orm";
 import { db, usersTable } from "@workspace/db";
 import { CreateUserBody, UpdateUserBody, ListUsersQueryParams } from "@workspace/api-zod";
+import { requirePermission } from "../middlewares/auth";
 
 const router: IRouter = Router();
 
-router.get("/users", async (req, res): Promise<void> => {
+router.get("/users", requirePermission("users.read"), async (req, res): Promise<void> => {
   const parsed = ListUsersQueryParams.safeParse(req.query);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
@@ -23,7 +24,7 @@ router.get("/users", async (req, res): Promise<void> => {
   res.json(users);
 });
 
-router.post("/users", async (req, res): Promise<void> => {
+router.post("/users", requirePermission("users.write"), async (req, res): Promise<void> => {
   const parsed = CreateUserBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
@@ -33,7 +34,7 @@ router.post("/users", async (req, res): Promise<void> => {
   res.status(201).json(user);
 });
 
-router.get("/users/:userId", async (req, res): Promise<void> => {
+router.get("/users/:userId", requirePermission("users.read"), async (req, res): Promise<void> => {
   const { userId } = req.params;
   const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId as string));
   if (!user) {
@@ -43,7 +44,7 @@ router.get("/users/:userId", async (req, res): Promise<void> => {
   res.json(user);
 });
 
-router.patch("/users/:userId", async (req, res): Promise<void> => {
+router.patch("/users/:userId", requirePermission("users.write"), async (req, res): Promise<void> => {
   const { userId } = req.params;
   const parsed = UpdateUserBody.safeParse(req.body);
   if (!parsed.success) {

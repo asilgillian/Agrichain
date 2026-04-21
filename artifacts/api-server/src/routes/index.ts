@@ -1,5 +1,7 @@
 import { Router, type IRouter } from "express";
 import healthRouter from "./health";
+import meRouter from "./me";
+import { requireAuth } from "../middlewares/auth";
 import dashboardRouter from "./dashboard";
 import farmersRouter from "./farmers";
 import groupsRouter from "./groups";
@@ -25,6 +27,10 @@ import adminRouter from "./admin";
 const router: IRouter = Router();
 
 router.use(healthRouter);
+router.use(meRouter);
+
+router.use(requireAuth);
+
 router.use(dashboardRouter);
 router.use(farmersRouter);
 router.use(groupsRouter);

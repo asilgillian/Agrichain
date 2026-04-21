@@ -1,8 +1,12 @@
-import { Switch, Route, Router as WouterRouter } from "wouter";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { useEffect, useRef } from "react";
+import { Switch, Route, Router as WouterRouter, useLocation, Redirect } from "wouter";
+import { QueryClient, QueryClientProvider, useQueryClient } from "@tanstack/react-query";
+import { ClerkProvider, SignIn, SignUp, Show, useClerk } from "@clerk/react";
+import { shadcn } from "@clerk/themes";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import NotFound from "@/pages/not-found";
+import Landing from "@/pages/landing";
 import { AppLayout } from "@/components/layout/app-layout";
 
 import Dashboard from "@/pages/dashboard/index";
@@ -31,58 +35,187 @@ import AuditPage from "@/pages/audit/index";
 import AdminPage from "@/pages/admin/index";
 
 const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      retry: false,
-      refetchOnWindowFocus: false,
-    },
-  },
+  defaultOptions: { queries: { retry: false, refetchOnWindowFocus: false } },
 });
 
-function Router() {
+const clerkPubKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
+const clerkProxyUrl = import.meta.env.VITE_CLERK_PROXY_URL;
+const basePath = import.meta.env.BASE_URL?.replace(/\/$/, "") ?? "";
+
+function stripBase(p: string): string {
+  return basePath && p.startsWith(basePath) ? p.slice(basePath.length) || "/" : p;
+}
+
+if (!clerkPubKey) throw new Error("Missing VITE_CLERK_PUBLISHABLE_KEY");
+
+const clerkAppearance = {
+  theme: shadcn,
+  cssLayerName: "clerk",
+  options: {
+    logoPlacement: "inside" as const,
+    logoLinkUrl: basePath || "/",
+    logoImageUrl: typeof window !== "undefined" ? `${window.location.origin}${basePath}/logo.svg` : "",
+  },
+  variables: {
+    colorPrimary: "hsl(142 71% 30%)",
+    colorForeground: "hsl(220 13% 18%)",
+    colorMutedForeground: "hsl(220 9% 46%)",
+    colorDanger: "hsl(0 72% 51%)",
+    colorBackground: "hsl(0 0% 100%)",
+    colorInput: "hsl(0 0% 100%)",
+    colorInputForeground: "hsl(220 13% 18%)",
+    colorNeutral: "hsl(220 13% 91%)",
+    colorModalBackdrop: "rgba(0,0,0,0.5)",
+    fontFamily: "system-ui, -apple-system, sans-serif",
+    borderRadius: "0.5rem",
+  },
+  elements: {
+    rootBox: "w-full",
+    cardBox: "bg-white rounded-2xl w-[440px] max-w-full overflow-hidden shadow-xl border border-gray-200",
+    card: "!shadow-none !border-0 !bg-transparent !rounded-none",
+    footer: "!shadow-none !border-0 !bg-transparent !rounded-none",
+    headerTitle: "text-gray-900 text-2xl font-bold",
+    headerSubtitle: "text-gray-600",
+    socialButtonsBlockButtonText: "text-gray-900 font-medium",
+    formFieldLabel: "text-gray-900 font-medium",
+    footerActionLink: "text-emerald-700 font-medium hover:text-emerald-800",
+    footerActionText: "text-gray-600",
+    dividerText: "text-gray-500",
+    identityPreviewEditButton: "text-emerald-700",
+    formFieldSuccessText: "text-emerald-700",
+    alertText: "text-red-700",
+    logoBox: "justify-center mb-4",
+    logoImage: "h-10",
+    socialButtonsBlockButton: "border border-gray-300 hover:bg-gray-50",
+    formButtonPrimary: "bg-emerald-700 hover:bg-emerald-800 text-white",
+    formFieldInput: "border-gray-300 focus:border-emerald-600 focus:ring-emerald-600",
+    footerAction: "text-center",
+    dividerLine: "bg-gray-200",
+    alert: "border-red-200 bg-red-50",
+    otpCodeFieldInput: "border-gray-300",
+    formFieldRow: "",
+    main: "",
+  },
+};
+
+function SignInPage() {
+  // To update login providers, app branding, or OAuth settings use the Auth
+  // pane in the workspace toolbar. More information can be found in the Replit docs.
   return (
-    <AppLayout>
-      <Switch>
-        <Route path="/" component={Dashboard} />
-        <Route path="/farmers/duplicates" component={FarmerDuplicates} />
-        <Route path="/farmers/:id" component={FarmerDetail} />
-        <Route path="/farmers" component={FarmersList} />
-        <Route path="/groups/:id" component={GroupDetail} />
-        <Route path="/groups" component={GroupsList} />
-        <Route path="/procurement/:id" component={DeliveryDetail} />
-        <Route path="/procurement" component={ProcurementHub} />
-        <Route path="/warehouse/:id" component={LotDetail} />
-        <Route path="/warehouse" component={WarehousePage} />
-        <Route path="/payments" component={PaymentsPage} />
-        <Route path="/compliance" component={CompliancePage} />
-        <Route path="/surveys" component={SurveysPage} />
-        <Route path="/exports" component={ExportsPage} />
-        <Route path="/loans/:id" component={LoanDetail} />
-        <Route path="/loans" component={LoansPage} />
-        <Route path="/buyers" component={BuyersPage} />
-        <Route path="/sales/:id" component={SalesContractDetail} />
-        <Route path="/sales" component={SalesPage} />
-        <Route path="/staff" component={StaffPage} />
-        <Route path="/assets" component={AssetsPage} />
-        <Route path="/activity-funds" component={ActivityFundsPage} />
-        <Route path="/audit" component={AuditPage} />
-        <Route path="/admin" component={AdminPage} />
-        <Route component={NotFound} />
-      </Switch>
-    </AppLayout>
+    <div className="flex min-h-[100dvh] items-center justify-center bg-gradient-to-br from-emerald-50 to-lime-50 px-4">
+      <SignIn routing="path" path={`${basePath}/sign-in`} signUpUrl={`${basePath}/sign-up`} />
+    </div>
+  );
+}
+
+function SignUpPage() {
+  // To update login providers, app branding, or OAuth settings use the Auth
+  // pane in the workspace toolbar. More information can be found in the Replit docs.
+  return (
+    <div className="flex min-h-[100dvh] items-center justify-center bg-gradient-to-br from-emerald-50 to-lime-50 px-4">
+      <SignUp routing="path" path={`${basePath}/sign-up`} signInUrl={`${basePath}/sign-in`} />
+    </div>
+  );
+}
+
+function HomeRedirect() {
+  return (
+    <>
+      <Show when="signed-in"><Redirect to="/dashboard" /></Show>
+      <Show when="signed-out"><Landing /></Show>
+    </>
+  );
+}
+
+function ProtectedRoutes() {
+  return (
+    <>
+      <Show when="signed-in">
+        <AppLayout>
+          <Switch>
+            <Route path="/dashboard" component={Dashboard} />
+            <Route path="/farmers/duplicates" component={FarmerDuplicates} />
+            <Route path="/farmers/:id" component={FarmerDetail} />
+            <Route path="/farmers" component={FarmersList} />
+            <Route path="/groups/:id" component={GroupDetail} />
+            <Route path="/groups" component={GroupsList} />
+            <Route path="/procurement/:id" component={DeliveryDetail} />
+            <Route path="/procurement" component={ProcurementHub} />
+            <Route path="/warehouse/:id" component={LotDetail} />
+            <Route path="/warehouse" component={WarehousePage} />
+            <Route path="/payments" component={PaymentsPage} />
+            <Route path="/compliance" component={CompliancePage} />
+            <Route path="/surveys" component={SurveysPage} />
+            <Route path="/exports" component={ExportsPage} />
+            <Route path="/loans/:id" component={LoanDetail} />
+            <Route path="/loans" component={LoansPage} />
+            <Route path="/buyers" component={BuyersPage} />
+            <Route path="/sales/:id" component={SalesContractDetail} />
+            <Route path="/sales" component={SalesPage} />
+            <Route path="/staff" component={StaffPage} />
+            <Route path="/assets" component={AssetsPage} />
+            <Route path="/activity-funds" component={ActivityFundsPage} />
+            <Route path="/audit" component={AuditPage} />
+            <Route path="/admin" component={AdminPage} />
+            <Route component={NotFound} />
+          </Switch>
+        </AppLayout>
+      </Show>
+      <Show when="signed-out"><Redirect to="/" /></Show>
+    </>
+  );
+}
+
+function ClerkQueryClientCacheInvalidator() {
+  const { addListener } = useClerk();
+  const qc = useQueryClient();
+  const prevUserIdRef = useRef<string | null | undefined>(undefined);
+  useEffect(() => {
+    const unsub = addListener(({ user }) => {
+      const id = user?.id ?? null;
+      if (prevUserIdRef.current !== undefined && prevUserIdRef.current !== id) qc.clear();
+      prevUserIdRef.current = id;
+    });
+    return unsub;
+  }, [addListener, qc]);
+  return null;
+}
+
+function ClerkProviderWithRoutes() {
+  const [, setLocation] = useLocation();
+  return (
+    <ClerkProvider
+      publishableKey={clerkPubKey}
+      proxyUrl={clerkProxyUrl}
+      appearance={clerkAppearance}
+      localization={{
+        signIn: { start: { title: "Welcome back", subtitle: "Sign in to MTANDEO Commodities" } },
+        signUp: { start: { title: "Create your account", subtitle: "Join the MTANDEO platform" } },
+      }}
+      routerPush={(to) => setLocation(stripBase(to))}
+      routerReplace={(to) => setLocation(stripBase(to), { replace: true })}
+    >
+      <QueryClientProvider client={queryClient}>
+        <ClerkQueryClientCacheInvalidator />
+        <TooltipProvider>
+          <Switch>
+            <Route path="/" component={HomeRedirect} />
+            <Route path="/sign-in/*?" component={SignInPage} />
+            <Route path="/sign-up/*?" component={SignUpPage} />
+            <Route component={ProtectedRoutes} />
+          </Switch>
+          <Toaster />
+        </TooltipProvider>
+      </QueryClientProvider>
+    </ClerkProvider>
   );
 }
 
 function App() {
   return (
-    <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <WouterRouter base={import.meta.env.BASE_URL?.replace(/\/$/, "")}>
-          <Router />
-        </WouterRouter>
-        <Toaster />
-      </TooltipProvider>
-    </QueryClientProvider>
+    <WouterRouter base={basePath}>
+      <ClerkProviderWithRoutes />
+    </WouterRouter>
   );
 }
 

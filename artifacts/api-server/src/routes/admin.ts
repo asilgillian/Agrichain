@@ -2,6 +2,7 @@ import { Router, type IRouter } from "express";
 import { eq } from "drizzle-orm";
 import { db, regionsTable, rolesTable } from "@workspace/db";
 import { CreateRegionBody, UpdateRolePermissionsBody } from "@workspace/api-zod";
+import { requirePermission } from "../middlewares/auth";
 
 const router: IRouter = Router();
 
@@ -63,12 +64,12 @@ function parseCreateRoleBody(body: unknown):
   return { ok: true, data: { name: b.name.trim(), description: b.description as string | undefined, permissions: b.permissions as string[] } };
 }
 
-router.get("/admin/regions", async (_req, res): Promise<void> => {
+router.get("/admin/regions", requirePermission("admin.regions"), async (_req, res): Promise<void> => {
   const regions = await db.select().from(regionsTable);
   res.json(regions);
 });
 
-router.post("/admin/regions", async (req, res): Promise<void> => {
+router.post("/admin/regions", requirePermission("admin.regions"), async (req, res): Promise<void> => {
   const parsed = CreateRegionBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
@@ -78,16 +79,16 @@ router.post("/admin/regions", async (req, res): Promise<void> => {
   res.status(201).json(region);
 });
 
-router.get("/admin/permissions", async (_req, res): Promise<void> => {
+router.get("/admin/permissions", requirePermission("admin.roles"), async (_req, res): Promise<void> => {
   res.json(PERMISSION_CATALOG);
 });
 
-router.get("/admin/roles", async (_req, res): Promise<void> => {
+router.get("/admin/roles", requirePermission("admin.roles"), async (_req, res): Promise<void> => {
   const roles = await db.select().from(rolesTable).orderBy(rolesTable.name);
   res.json(roles.map(r => ({ id: r.id, name: r.name, description: r.description ?? undefined, permissions: r.permissions ?? [], isSystem: r.isSystem })));
 });
 
-router.post("/admin/roles", async (req, res): Promise<void> => {
+router.post("/admin/roles", requirePermission("admin.roles"), async (req, res): Promise<void> => {
   const parsed = parseCreateRoleBody(req.body);
   if (!parsed.ok) {
     res.status(400).json({ error: parsed.error });
@@ -112,7 +113,7 @@ router.post("/admin/roles", async (req, res): Promise<void> => {
   res.status(201).json({ id: role.id, name: role.name, description: role.description ?? undefined, permissions: role.permissions ?? [], isSystem: role.isSystem });
 });
 
-router.patch("/admin/roles/:roleId/permissions", async (req, res): Promise<void> => {
+router.patch("/admin/roles/:roleId/permissions", requirePermission("admin.roles"), async (req, res): Promise<void> => {
   const { roleId } = req.params;
   if (!UUID_RE.test(roleId)) {
     res.status(400).json({ error: "Invalid roleId" });
@@ -139,7 +140,7 @@ router.patch("/admin/roles/:roleId/permissions", async (req, res): Promise<void>
   res.json({ id: role.id, name: role.name, description: role.description ?? undefined, permissions: role.permissions ?? [], isSystem: role.isSystem });
 });
 
-router.delete("/admin/roles/:roleId", async (req, res): Promise<void> => {
+router.delete("/admin/roles/:roleId", requirePermission("admin.roles"), async (req, res): Promise<void> => {
   const { roleId } = req.params;
   if (!UUID_RE.test(roleId)) {
     res.status(400).json({ error: "Invalid roleId" });
@@ -158,7 +159,7 @@ router.delete("/admin/roles/:roleId", async (req, res): Promise<void> => {
   res.status(204).end();
 });
 
-router.get("/admin/sync-queue", async (_req, res): Promise<void> => {
+router.get("/admin/sync-queue", requirePermission("admin.roles"), async (_req, res): Promise<void> => {
   res.json({
     pendingRecords: 3,
     failedRecords: 0,
