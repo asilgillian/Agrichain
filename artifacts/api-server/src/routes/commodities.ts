@@ -7,6 +7,7 @@ import {
   commodityPricesTable,
   commodityConversionsTable,
   commoditySeasonsTable,
+  commodityQualitySpecsTable,
   auditLogsTable,
 } from "@workspace/db";
 import { requirePermission, type AuthedRequest } from "../middlewares/auth";
@@ -17,6 +18,9 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 const isUuid = (v: unknown): v is string => typeof v === "string" && UUID_RE.test(v);
 const STAGES = new Set(["raw", "intermediate", "finished"]);
 const PRICE_SOURCES = new Set(["manual", "market", "contract"]);
+// Sample stages where a quality spec can apply. Mirrors the planned Sampling Module's
+// `SampleStage` enum so a spec authored here can be auto-loaded by sampling without translation.
+const SAMPLE_STAGES = new Set(["field", "pre_offload", "post_offload", "warehouse", "processing", "export"]);
 
 async function audit(entityType: string, entityId: string, action: string, user: any, before: any, after: any) {
   await db.insert(auditLogsTable).values({
@@ -472,6 +476,261 @@ router.get("/api/commodity-types/:fromTypeId/convert/:toTypeId", requirePermissi
     }
   }
   res.status(404).json({ error: "No conversion path found between these commodity types" });
+});
+
+// =============== QUALITY SPECS (Sampling Module input) ===============
+//
+// These rows define the QC parameters that the Sampling Module will auto-load when a sample is
+// created for a given CommodityType. The latest active version of each parameterCode (by
+// effectiveDate desc, version desc) is what sampling will surface.
+
+router.get("/api/commodity-types/:typeId/quality-specs", requirePermission("commodities.read"), async (req, res) => {
+  const { typeId } = req.params;
+  if (!isUuid(typeId)) { res.status(400).json({ error: "Invalid typeId" }); return; }
+  const showInactive = req.query.includeInactive === "true";
+  const conds = [eq(commodityQualitySpecsTable.commodityTypeId, typeId)];
+  if (!showInactive) conds.push(eq(commodityQualitySpecsTable.status, "active"));
+  const rows = await db.select().from(commodityQualitySpecsTable)
+    .where(and(...conds))
+    .orderBy(commodityQualitySpecsTable.parameterName, desc(commodityQualitySpecsTable.effectiveDate), desc(commodityQualitySpecsTable.version));
+  res.json(rows);
+});
+
+// "Active set" — the resolved spec that sampling should use today: latest active version of each
+// parameterCode with effectiveDate <= today, optionally filtered by sample stage.
+router.get("/api/commodity-types/:typeId/quality-specs/active", requirePermission("commodities.read"), async (req, res) => {
+  const { typeId } = req.params;
+  if (!isUuid(typeId)) { res.status(400).json({ error: "Invalid typeId" }); return; }
+  const stage = typeof req.query.stage === "string" ? req.query.stage : null;
+  if (stage && !SAMPLE_STAGES.has(stage)) { res.status(400).json({ error: `stage must be one of ${[...SAMPLE_STAGES].join("|")}` }); return; }
+  const today = new Date().toISOString().slice(0, 10);
+
+  const rows = await db.select().from(commodityQualitySpecsTable)
+    .where(and(
+      eq(commodityQualitySpecsTable.commodityTypeId, typeId),
+      eq(commodityQualitySpecsTable.status, "active"),
+      lte(commodityQualitySpecsTable.effectiveDate, today),
+    ))
+    .orderBy(desc(commodityQualitySpecsTable.effectiveDate), desc(commodityQualitySpecsTable.version));
+
+  // Stage filter MUST run before the latest-per-parameterCode reduction. Otherwise a newer
+  // stage-specific spec (e.g. v2 export-only) would mask an older broadly-applicable one
+  // (e.g. v1 all-stages) and the requested stage would incorrectly come back empty.
+  const stageFiltered = stage
+    ? rows.filter(s => {
+        const stages = Array.isArray(s.appliesAtStages) ? s.appliesAtStages as string[] : null;
+        return !stages || stages.length === 0 || stages.includes(stage);
+      })
+    : rows;
+
+  const latest = new Map<string, typeof rows[number]>();
+  for (const r of stageFiltered) {
+    if (!latest.has(r.parameterCode)) latest.set(r.parameterCode, r);
+  }
+  res.json([...latest.values()]);
+});
+
+router.post("/api/commodity-types/:typeId/quality-specs", requirePermission("commodities.quality.write"), async (req: AuthedRequest, res) => {
+  const { typeId } = req.params;
+  if (!isUuid(typeId)) { res.status(400).json({ error: "Invalid typeId" }); return; }
+  const [type] = await db.select().from(commodityTypesTable).where(eq(commodityTypesTable.id, typeId));
+  if (!type) { res.status(404).json({ error: "Commodity type not found" }); return; }
+
+  const { parameterName, parameterCode, unit, minValue, maxValue, targetValue, methodUsed,
+          affectsPrice, mandatory, appliesAtStages, effectiveDate, version, notes } = req.body ?? {};
+
+  if (typeof parameterName !== "string" || !parameterName.trim()) { res.status(400).json({ error: "parameterName required" }); return; }
+  if (typeof parameterCode !== "string" || !parameterCode.trim()) { res.status(400).json({ error: "parameterCode required" }); return; }
+  const code = parameterCode.trim().toLowerCase().replace(/\s+/g, "_");
+
+  const num = (v: any) => v == null || v === "" ? null : (Number.isFinite(Number(v)) ? Number(v) : NaN);
+  const min = num(minValue), max = num(maxValue), target = num(targetValue);
+  if (Number.isNaN(min) || Number.isNaN(max) || Number.isNaN(target)) {
+    res.status(400).json({ error: "minValue/maxValue/targetValue must be numeric" }); return;
+  }
+  if (min == null && max == null) {
+    res.status(400).json({ error: "At least one of minValue or maxValue must be provided" }); return;
+  }
+  if (min != null && max != null && min > max) {
+    res.status(400).json({ error: "minValue must be <= maxValue" }); return;
+  }
+  if (target != null) {
+    if (min != null && target < min) { res.status(400).json({ error: "targetValue must be >= minValue" }); return; }
+    if (max != null && target > max) { res.status(400).json({ error: "targetValue must be <= maxValue" }); return; }
+  }
+
+  let stages: string[] | null = null;
+  if (appliesAtStages != null) {
+    if (!Array.isArray(appliesAtStages)) { res.status(400).json({ error: "appliesAtStages must be an array" }); return; }
+    const invalid = appliesAtStages.find((s: any) => typeof s !== "string" || !SAMPLE_STAGES.has(s));
+    if (invalid !== undefined) { res.status(400).json({ error: `appliesAtStages contains invalid stage; valid: ${[...SAMPLE_STAGES].join("|")}` }); return; }
+    stages = appliesAtStages.length === 0 ? null : appliesAtStages;
+  }
+
+  const eff = effectiveDate || new Date().toISOString().slice(0, 10);
+  if (!isCalendarDate(eff)) { res.status(400).json({ error: "effectiveDate must be valid YYYY-MM-DD" }); return; }
+  const ver = Number.isInteger(version) && version > 0 ? version : 1;
+
+  try {
+    const [created] = await db.insert(commodityQualitySpecsTable).values({
+      commodityTypeId: typeId,
+      parameterName: parameterName.trim(),
+      parameterCode: code,
+      unit: unit?.toString().trim() || null,
+      minValue: min != null ? min.toString() : null,
+      maxValue: max != null ? max.toString() : null,
+      targetValue: target != null ? target.toString() : null,
+      methodUsed: methodUsed?.toString().trim() || null,
+      affectsPrice: !!affectsPrice,
+      mandatory: mandatory === false ? false : true,
+      appliesAtStages: stages,
+      effectiveDate: eff,
+      version: ver,
+      status: "active",
+      notes: notes ?? null,
+      createdById: req.authedUser?.id ?? null,
+    }).returning();
+    await audit("commodity_quality_spec", created.id, "commodity_quality_spec.create", req.authedUser, null, created);
+    res.status(201).json(created);
+  } catch (e: any) {
+    if (e?.code === "23505") {
+      res.status(409).json({ error: "A spec for this parameterCode on that effective date and version already exists — bump version to revise" });
+      return;
+    }
+    throw e;
+  }
+});
+
+router.patch("/api/commodity-quality-specs/:specId", requirePermission("commodities.quality.write"), async (req: AuthedRequest, res) => {
+  const { specId } = req.params;
+  if (!isUuid(specId)) { res.status(400).json({ error: "Invalid specId" }); return; }
+  const [existing] = await db.select().from(commodityQualitySpecsTable).where(eq(commodityQualitySpecsTable.id, specId));
+  if (!existing) { res.status(404).json({ error: "Spec not found" }); return; }
+
+  const patch: any = { updatedAt: new Date() };
+  const { parameterName, unit, methodUsed, affectsPrice, mandatory, status, notes, appliesAtStages,
+          minValue, maxValue, targetValue } = req.body ?? {};
+
+  if (typeof parameterName === "string" && parameterName.trim()) patch.parameterName = parameterName.trim();
+  if (unit !== undefined) patch.unit = unit?.toString().trim() || null;
+  if (methodUsed !== undefined) patch.methodUsed = methodUsed?.toString().trim() || null;
+  if (affectsPrice !== undefined) patch.affectsPrice = !!affectsPrice;
+  if (mandatory !== undefined) patch.mandatory = !!mandatory;
+  if (status === "active" || status === "inactive") patch.status = status;
+  if (notes !== undefined) patch.notes = notes;
+  if (appliesAtStages !== undefined) {
+    if (appliesAtStages === null) {
+      patch.appliesAtStages = null;
+    } else {
+      if (!Array.isArray(appliesAtStages)) { res.status(400).json({ error: "appliesAtStages must be an array or null" }); return; }
+      const invalid = appliesAtStages.find((s: any) => typeof s !== "string" || !SAMPLE_STAGES.has(s));
+      if (invalid !== undefined) { res.status(400).json({ error: "appliesAtStages contains invalid stage" }); return; }
+      patch.appliesAtStages = appliesAtStages.length === 0 ? null : appliesAtStages;
+    }
+  }
+  const num = (v: any) => v == null || v === "" ? null : (Number.isFinite(Number(v)) ? Number(v) : NaN);
+  if (minValue !== undefined) {
+    const n = num(minValue);
+    if (Number.isNaN(n)) { res.status(400).json({ error: "minValue must be numeric" }); return; }
+    patch.minValue = n != null ? n.toString() : null;
+  }
+  if (maxValue !== undefined) {
+    const n = num(maxValue);
+    if (Number.isNaN(n)) { res.status(400).json({ error: "maxValue must be numeric" }); return; }
+    patch.maxValue = n != null ? n.toString() : null;
+  }
+  if (targetValue !== undefined) {
+    const n = num(targetValue);
+    if (Number.isNaN(n)) { res.status(400).json({ error: "targetValue must be numeric" }); return; }
+    patch.targetValue = n != null ? n.toString() : null;
+  }
+
+  // Cross-field guards on merged result.
+  const finalMin = patch.minValue !== undefined ? patch.minValue : existing.minValue;
+  const finalMax = patch.maxValue !== undefined ? patch.maxValue : existing.maxValue;
+  const finalTarget = patch.targetValue !== undefined ? patch.targetValue : existing.targetValue;
+  if (finalMin == null && finalMax == null) { res.status(400).json({ error: "At least one of minValue or maxValue must remain set" }); return; }
+  if (finalMin != null && finalMax != null && Number(finalMin) > Number(finalMax)) {
+    res.status(400).json({ error: "minValue must be <= maxValue" }); return;
+  }
+  if (finalTarget != null) {
+    if (finalMin != null && Number(finalTarget) < Number(finalMin)) { res.status(400).json({ error: "targetValue must be >= minValue" }); return; }
+    if (finalMax != null && Number(finalTarget) > Number(finalMax)) { res.status(400).json({ error: "targetValue must be <= maxValue" }); return; }
+  }
+
+  const [updated] = await db.update(commodityQualitySpecsTable).set(patch).where(eq(commodityQualitySpecsTable.id, specId)).returning();
+  await audit("commodity_quality_spec", specId, "commodity_quality_spec.update", req.authedUser, existing, updated);
+  res.json(updated);
+});
+
+router.delete("/api/commodity-quality-specs/:specId", requirePermission("commodities.quality.write"), async (req: AuthedRequest, res) => {
+  const { specId } = req.params;
+  if (!isUuid(specId)) { res.status(400).json({ error: "Invalid specId" }); return; }
+  const [existing] = await db.select().from(commodityQualitySpecsTable).where(eq(commodityQualitySpecsTable.id, specId));
+  if (!existing) { res.status(404).json({ error: "Spec not found" }); return; }
+  // Soft-archive by default — preserves audit and prior sample test references.
+  // Pass ?hard=true to actually delete (only if no sample has used this spec yet).
+  if (req.query.hard === "true") {
+    await db.delete(commodityQualitySpecsTable).where(eq(commodityQualitySpecsTable.id, specId));
+    await audit("commodity_quality_spec", specId, "commodity_quality_spec.delete", req.authedUser, existing, null);
+  } else {
+    const [updated] = await db.update(commodityQualitySpecsTable)
+      .set({ status: "inactive", updatedAt: new Date() })
+      .where(eq(commodityQualitySpecsTable.id, specId)).returning();
+    await audit("commodity_quality_spec", specId, "commodity_quality_spec.archive", req.authedUser, existing, updated);
+  }
+  res.status(204).end();
+});
+
+// Evaluate a measured value against the active spec for a single parameter — useful for the
+// Sampling Module's out-of-range detector and the QC pricing-adjustment formula.
+router.get("/api/commodity-types/:typeId/quality-specs/:parameterCode/evaluate", requirePermission("commodities.read"), async (req, res) => {
+  const { typeId, parameterCode } = req.params;
+  if (!isUuid(typeId)) { res.status(400).json({ error: "Invalid typeId" }); return; }
+  const value = Number(req.query.value);
+  if (!Number.isFinite(value)) { res.status(400).json({ error: "value must be numeric" }); return; }
+  const stage = typeof req.query.stage === "string" ? req.query.stage : null;
+  if (stage && !SAMPLE_STAGES.has(stage)) { res.status(400).json({ error: `stage must be one of ${[...SAMPLE_STAGES].join("|")}` }); return; }
+  const today = new Date().toISOString().slice(0, 10);
+
+  // Pull every active candidate ordered newest-first, then stage-filter, then take the latest.
+  // Same ordering as /active to keep results consistent for sampling.
+  const candidates = await db.select().from(commodityQualitySpecsTable)
+    .where(and(
+      eq(commodityQualitySpecsTable.commodityTypeId, typeId),
+      eq(commodityQualitySpecsTable.parameterCode, parameterCode),
+      eq(commodityQualitySpecsTable.status, "active"),
+      lte(commodityQualitySpecsTable.effectiveDate, today),
+    ))
+    .orderBy(desc(commodityQualitySpecsTable.effectiveDate), desc(commodityQualitySpecsTable.version));
+
+  const stageFiltered = stage
+    ? candidates.filter(s => {
+        const stages = Array.isArray(s.appliesAtStages) ? s.appliesAtStages as string[] : null;
+        return !stages || stages.length === 0 || stages.includes(stage);
+      })
+    : candidates;
+  const spec = stageFiltered[0];
+  if (!spec) { res.status(404).json({ error: stage ? `No active spec for this parameter at stage '${stage}'` : "No active spec for this parameter" }); return; }
+
+  const min = spec.minValue != null ? Number(spec.minValue) : null;
+  const max = spec.maxValue != null ? Number(spec.maxValue) : null;
+  const target = spec.targetValue != null ? Number(spec.targetValue) : null;
+  const belowMin = min != null && value < min;
+  const aboveMax = max != null && value > max;
+  const inRange = !belowMin && !aboveMax;
+  const deviationFromTarget = target != null ? value - target : null;
+  res.json({
+    parameterCode: spec.parameterCode,
+    parameterName: spec.parameterName,
+    unit: spec.unit,
+    value, min, max, target,
+    inRange, belowMin, aboveMax,
+    deviationFromTarget,
+    affectsPrice: spec.affectsPrice,
+    mandatory: spec.mandatory,
+    specId: spec.id, specVersion: spec.version, specEffectiveDate: spec.effectiveDate,
+  });
 });
 
 export default router;

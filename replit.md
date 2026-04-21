@@ -2,205 +2,50 @@
 
 ## Overview
 
-Full-stack digital agriculture platform for managing agricultural supply chains. Field agents register farmers, map plots by GPS, and collect data offline on Android (auto-sync). Back-office teams manage procurement, payments, warehouse traceability, certification compliance (EUDR, Rainforest Alliance), and export documentation.
+This project is a full-stack digital agriculture platform designed to streamline and manage agricultural supply chains. Its primary purpose is to empower field agents with tools for farmer registration, plot mapping via GPS, and offline data collection, while providing back-office teams with comprehensive functionalities for procurement, payments, warehouse traceability, certification compliance (e.g., EUDR, Rainforest Alliance), and export documentation. The platform aims to revolutionize agricultural operations by enhancing efficiency, transparency, and compliance across the entire supply chain.
 
-## Architecture
+## User Preferences
 
-pnpm workspace monorepo using TypeScript. Each package manages its own dependencies.
+- I want iterative development.
+- Ask before making major changes.
 
-### Artifacts
-- **Web App** (`artifacts/agri-web`) — React + Vite SPA at path `/`, port from `$PORT`. Back-office management interface.
-- **API Server** (`artifacts/api-server`) — Express 5 API server at port 8080. Serves `/api/*` routes.
+## System Architecture
 
-### Libraries
-- **`lib/db`** — Drizzle ORM schema + PostgreSQL client (`@workspace/db`)
-- **`lib/api-spec`** — OpenAPI spec + Orval codegen config (`@workspace/api-spec`)
-- **`lib/api-zod`** — Orval-generated Zod schemas (`@workspace/api-zod`)
-- **`lib/api-client-react`** — Orval-generated React Query hooks (`@workspace/api-client-react`)
+The project is structured as a pnpm workspace monorepo using TypeScript. Each package manages its own dependencies.
 
-## Stack
+**Core Architectural Components:**
 
-- **Monorepo**: pnpm workspaces
-- **Node.js**: 24
-- **Package manager**: pnpm
-- **TypeScript**: 5.9
-- **API framework**: Express 5
-- **Database**: PostgreSQL + Drizzle ORM
-- **Validation**: Zod (`zod/v4`), `drizzle-zod`
-- **API codegen**: Orval (from OpenAPI spec)
-- **Frontend**: React + Vite + shadcn/ui + Tailwind CSS + TanStack Query + wouter
-- **Build**: esbuild (for API server)
+-   **Web Application (`artifacts/agri-web`):** A React + Vite Single Page Application (SPA) serving as the back-office management interface. It utilizes `shadcn/ui` and Tailwind CSS for a modern, responsive UI/UX, TanStack Query for data fetching, and wouter for routing.
+-   **API Server (`artifacts/api-server`):** An Express 5 API server handling all backend logic and data interactions.
+-   **Database Layer (`lib/db`):** Employs Drizzle ORM with PostgreSQL for robust data management.
+-   **API Specification & Codegen (`lib/api-spec`, `lib/api-zod`, `lib/api-client-react`):** Uses OpenAPI for API specification and Orval for generating Zod schemas (`@workspace/api-zod`) and React Query hooks (`@workspace/api-client-react`) to ensure type-safe and efficient API interactions.
+-   **Validation:** Zod is used for data validation across the platform.
 
-## Database Schema
+**Key Technical Implementations and Features:**
 
-17 tables in `lib/db/src/schema/`:
-- `regions` — Geographic regions (Kenya counties)
-- `users` — System users (agents, managers, etc.)
-- `groups` — Farmer cooperative groups
-- `farmers` — Farmer registry
-- `plots` — Agricultural plots with GPS/GeoJSON
-- `certification_streams` — Certification types (EUDR, Rainforest Alliance)
-- `certification_enrolments` — Farmer-to-stream enrolment records
-- `survey_templates` — Survey form definitions
-- `survey_submissions` — Field survey responses
-- `visits` — Scheduled field visits
-- `batches` — Farmer batch aggregations (for procurement)
-- `deliveries` — Inbound deliveries with multi-step approval workflow
-- `lots` — Warehouse lot inventory
-- `payments` — Farmer payments
-- `gap_assessments` — Good Agricultural Practice scores
-- `training_sessions` — Training event records
-- `export_contracts` — Export contract records
-- `shipments` — Shipment containers
-- `export_documents` — Export document tracker
-- `assets` — Physical asset registry
-- `activity_funds` — Field agent activity fund requests
-- `audit_logs` — Immutable system audit trail
+-   **Monorepo Structure:** Facilitates development and dependency management across multiple artifacts and libraries.
+-   **Database Schema:** Comprehensive schema covering farmer management, plot registration, certification, surveys, visits, procurement, warehousing, payments, compliance (EUDR, GAP), training, exports, user management, assets, activity funds, audit logs, loans, sales, buying stations, silo processing, storage management, and commodity management.
+-   **API Design:** All API routes are under `/api` and cover a wide range of modules including dashboard analytics, farmer/group management, procurement, warehouse operations, payments, compliance, surveys, exports, user/asset/activity fund management, and administration.
+-   **Frontend Pages:** Over 24 distinct routes providing detailed interfaces for every aspect of the platform, including dashboards, farmer/group registries, procurement workflows, warehouse inventory, payment summaries, compliance tracking, survey management, export operations, staff management, asset tracking, and an immutable audit log.
+-   **Module Implementations:**
+    -   **Group Management Module:** Supports hierarchical groups, leader appointments, farmer transfers, group archiving with redistribution, and comprehensive reporting.
+    -   **Commodity Management Module:** Provides a master catalog for commodities and their types, manages daily pricing (region-specific and national fallback), and handles conversion ratios between different forms of commodities.
+-   **Audit Logging:** All significant state changes across modules are meticulously recorded in an immutable `audit_logs` table, ensuring transparency and traceability.
+-   **Transaction Management:** Critical operations spanning multiple database tables (e.g., farmer transfers, group archiving) are wrapped in database transactions to maintain data consistency and atomicity with audit log entries.
+-   **UI/UX:** Utilizes shadcn/ui and Tailwind CSS for a consistent and modern design, with dedicated dialogs for create/action operations across various modules.
 
-## API Routes (all under `/api`)
+## External Dependencies
 
-All 11 modules implemented:
-- `GET/POST /dashboard/*` — KPIs, activity feed, compliance overview, procurement stats
-- `GET/POST /farmers`, `GET/PATCH /farmers/:id`, `GET /farmers/duplicates`, `POST /farmers/duplicates/:pairId/merge`
-- `GET/POST /groups`, `GET /groups/:id`
-- `GET/POST /plots`, `GET /plots/:id`
-- `GET /certifications/streams`, `GET/POST /certifications/enrolments`
-- `GET/POST /surveys/templates`, `GET/POST /surveys/submissions`, `POST /surveys/submissions/:id/review`
-- `GET/POST /visits`, `POST /visits/:id/complete`
-- `GET/POST /batches`, `GET /batches/:id`, `POST /batches/:id/lock`
-- `GET/POST /procurement/deliveries`, `GET /procurement/deliveries/:id`, weight/QC/pricing/approve endpoints
-- `GET /warehouse/lots`, `GET /warehouse/lots/:id`, `GET /warehouse/mass-balance`
-- `GET/POST /payments`, `GET /payments/summary`
-- `GET /compliance/eudr`, `GET/POST /compliance/gap-assessments`, `GET/POST /compliance/training-sessions`
-- `GET/POST /exports/contracts`, `GET /exports/shipments`, `GET /exports/shipments/:id`, `GET /exports/shipments/:id/documents`
-- `GET/POST /users`, `GET/PATCH /users/:id`
-- `GET/POST /assets`, `GET /assets/:id`, assign/return endpoints
-- `GET/POST /activity-funds`, `POST /activity-funds/:id/approve`
-- `GET /audit`
-- `GET/POST /admin/regions`, `GET /admin/roles`, `PATCH /admin/roles/:id/permissions`, `GET /admin/sync-queue`
-
-## Frontend Pages (24 routes)
-
-- `/` — Dashboard with KPIs, activity feed, compliance overview
-- `/farmers` — Farmer registry with search and pagination
-- `/farmers/:id` — Farmer detail with plots, certifications, surveys
-- `/farmers/duplicates` — Duplicate detection and merge workflow
-- `/groups` — Farmer groups list
-- `/groups/:id` — Group detail with member roster
-- `/procurement` — Delivery list with multi-step status indicators
-- `/procurement/:id` — Delivery detail: weight → QC → pricing (gated) → approval
-- `/warehouse` — Lot inventory + mass balance report
-- `/warehouse/:id` — Lot detail with chain of custody
-- `/payments` — Payment list with KES summary cards
-- `/compliance` — EUDR status, GAP assessments, training sessions
-- `/surveys` — Survey templates and submission QA
-- `/exports` — Export contracts and shipments
-- `/staff` — User management
-- `/assets` — Asset registry
-- `/activity-funds` — Fund request tracker
-- `/audit` — Immutable audit log
-- `/loans` — Loan management with status/type filters and portfolio KPIs
-- `/loans/:id` — Loan detail with repayment history and approve/disburse workflow
-- `/buyers` — Buyer registry card view with search
-- `/sales` — Sales & Commodity Exit: Contracts / Dispatches / Invoices tabs
-- `/sales/:id` — Contract detail with lot allocations and invoices
-- `/admin` — Regions, roles, sync queue
-
-## New Schema Tables (Prisma schema expansion)
-
-Added in expansion:
-- `loans`, `loan_repayments`, `loan_guarantors` — Full loan lifecycle
-- `buyers`, `sales_contracts`, `contract_allocations`, `dispatches`, `invoices` — Sales/exit module
-- `buying_stations`, `agent_cash_floats`, `cash_float_transactions` — Buying station + cash float
-- `silos`, `silo_assignments`, `silo_batches`, `silo_batch_processes` — Silo processing
-- `storage_bins`, `warehouse_assignments`, `stock_movements` — Storage management
-- `preprocessing_steps` — Configurable processing deductions
-- `farmer_cards`, `group_leadership`, `rejection_logs` — Registry enhancements
-- `asset_categories`, `asset_assignments`, `maintenance_schedules`, `maintenance_logs` — Enhanced assets
-- `activity_types`, `activity_reconciliations` — Activity fund reconciliation
-- Farmers table: added `household_size`, `dependants`, `head_of_household`, `land_tenure`, `biometric_photo_url`, `registration_date`, `approved_at`
-
-## Key Commands
-
-```bash
-pnpm --filter @workspace/api-spec run codegen      # Regenerate hooks/schemas from OpenAPI spec
-pnpm --filter @workspace/db run push               # Push DB schema (dev only)
-pnpm --filter @workspace/db run push-force         # Force push schema
-pnpm --filter @workspace/db run seed               # Seed database with sample data
-pnpm --filter @workspace/api-server run dev        # Run API server locally
-pnpm --filter @workspace/agri-web run dev          # Run web app locally
-pnpm run typecheck                                 # Full typecheck
-```
-
-## Seed Data (Kenya)
-
-- 2 regions (Nyeri County, Kirinyaga County)
-- 3 users (2 field agents, 1 manager)
-- 2 farmer groups
-- 3 farmers with plots, certifications (EUDR + Rainforest Alliance)
-- 2 batches, 2 deliveries (1 approved, 1 pending QC)
-- 1 warehouse lot
-- 2 payments, GAP assessments, training sessions
-- 1 export contract + shipment
-- 3 assets, 2 activity fund requests, 3 audit log entries
-- Default currency: KES (Kenyan Shilling)
-
-## Notes
-
-- Procurement delivery pricing screen is gated: requires `weightApproved AND qcApproved` before pricing can be set
-- Frontend uses `@workspace/api-client-react` for all API calls — never relative paths
-- API uses structured pino logging — never `console.log`
-- Orval config uses `indexFiles: false` for zod target to avoid barrel file conflicts
-- `lib/api-zod/src/index.ts` must only export from `./generated/api` (not types)
-- All 8 module list pages have wired Create/Action dialogs (Farmers, Groups, Procurement, Activity Funds, Assets, Staff, Exports, Compliance) — direct `fetch` POST + react-query invalidation; payloads omit empty optional fields and validate numbers/dates client-side; staff role enum uses capitalized values (Agronomist, Manager, etc.)
-- Admin Roles & Permissions: 8 system roles seeded (Agronomist, Manager, Supervisor, ProcurementHead, FinanceOfficer, SystemAdministrator, WarehouseManager, ComplianceOfficer) with `isSystem=true` (cannot be deleted). PERMISSION_CATALOG in `artifacts/api-server/src/routes/admin.ts` is source of truth (~40 keys grouped by module, plus `*` wildcard). Endpoints: `GET /api/admin/permissions`, `GET/POST /api/admin/roles`, `PATCH /api/admin/roles/:roleId/permissions`, `DELETE /api/admin/roles/:roleId`. Path roleId is UUID-validated. Server rejects unknown permission keys.
-- ⚠️ Auth: `/api/admin/*` (and all other API routes) currently have no authentication or authorization. A dedicated auth feature must be added before production.
-
-## Group Management Module (10 capabilities)
-
-Schema (`lib/db/src/schema/groups.ts`):
-- `groupsTable` extended with: `parish`, `subCounty`, `district`, `parentGroupId` (hierarchy), `groupType` (cooperative|association|producer_group), `status` (active|archived), `archivedAt`, `archivedById`.
-- New `groupLeadersTable`: position-based leadership terms (chairperson, secretary, treasurer, extension_lead, gender_lead) with `termStart`/`termEnd`/`status`.
-- New `groupTransfersTable`: append-only audit of every farmer movement (`fromGroupId`, `toGroupId`, `reason`, `kind`: transfer|bulk_reassign|archive_redistribute, actor metadata).
-
-API (`artifacts/api-server/src/routes/groups.ts`):
-- `GET /api/groups?regionId=&status=&parentGroupId=` — list with KPIs (members, active plots, procurement volume kg, compliance score).
-- `POST /api/groups` — create, with parent validation (existence + not-archived).
-- `PATCH /api/groups/:id` — update with cycle prevention on parent re-link.
-- `GET /api/groups/:id` — detail with parent, children, leaders, members, last 50 transfers.
-- `POST /api/groups/:id/leaders` — appoint leader (transactional: auto-ends prior holder of same position with audit).
-- `PATCH /api/groups/:id/leaders/:leaderId/end` — end a term.
-- `POST /api/groups/:toId/transfer` — single or bulk reassign, transactional, strict UUID batch validation, rejects all-same-group.
-- `POST /api/groups/:id/archive` — deactivate with required redistribution; transactional with TOCTOU re-read; per-farmer audit + leader-end audit + group-archive audit all in one tx.
-- `GET /api/groups/:id/report` — CSV export for auditors (group metadata, KPIs, member roster with plot counts and area).
-
-Permission keys (added to PERMISSION_CATALOG): `groups.read`, `groups.write`, `groups.leaders.write`, `groups.transfer`, `groups.archive`.
-
-Farmer registration enforcement (`artifacts/api-server/src/routes/farmers.ts`): POST /api/farmers now rejects (400) missing groupId (`GROUP_REQUIRED`), unknown group (`GROUP_NOT_FOUND`), and archived group (`GROUP_ARCHIVED`).
-
-UI (`artifacts/agri-web/src/pages/groups/detail.tsx`): full rewrite with KPI cards, hierarchy breadcrumb, leadership table with appoint/end-term, member checkbox-multiselect with single+bulk transfer dialog, archive dialog (with required redistribution target when members exist), CSV report download, transfer history.
-
-Audit invariants: every state change (group create/update/archive, leader appoint/end, farmer group transfer) writes to `audit_logs`. Inserts that span multiple tables (transfer, archive, leader appointment) are wrapped in `db.transaction` so audit + state updates commit atomically.
-
-## Commodity Management Module
-
-Schema (`lib/db/src/schema/commodities.ts`):
-- `commoditiesTable` — master catalog (Coffee, Maize, Beans, Cocoa…). Unique `code`.
-- `commodityTypesTable` — varieties per commodity (Robusta, Arabica, Yellow Maize…) with `defaultUnit`, `defaultForm`, `harvestSeasonStartMonth`/`harvestSeasonEndMonth` (1–12; may wrap year-end). Unique `(commodityId, code)`.
-- `commodityPricesTable` — append-only daily price per kg, scoped by `(commodityTypeId, regionId|null, form|null, currency, effectiveDate)`. Unique index on that scope (NULL coalesced) prevents duplicate-day races; conflicts return 409.
-- `commodityConversionsTable` — ratio between two forms of the same type (e.g. cherry → green_bean = 0.2). Ratio semantics: `ratio = toForm units / fromForm units`. Unique `(typeId, fromForm, toForm)`.
-
-API (`artifacts/api-server/src/routes/commodities.ts`):
-- `GET/POST /api/commodities`, `PATCH /api/commodities/:id` — master CRUD.
-- `GET/POST /api/commodities/:commodityId/types`, `PATCH /api/commodity-types/:typeId` — varieties with month-range validation.
-- `GET /api/commodity-types/:typeId/prices` — full history (limit ≤ 500).
-- `GET /api/commodity-types/:typeId/prices/current?regionId=&form=` — resolves the latest `effectiveDate ≤ today` row; tries region-specific first then falls back to national (`regionId IS NULL`). Invalid regionId rejected (400).
-- `POST /api/commodity-types/:typeId/prices` — calendar-validated date, normalized lowercase form, unique-constraint enforced.
-- `GET/POST /api/commodity-types/:typeId/conversions`, `PATCH/DELETE /api/commodity-conversions/:id` — conversion CRUD.
-- `GET /api/commodity-types/:typeId/convert?fromForm=&toForm=&quantity=` — calculator; uses direct ratio if defined, else inverse ratio.
-
-Permissions added to catalog: `commodities.read`, `commodities.write`, `commodities.prices.write`.
-
-UI (`artifacts/agri-web/src/pages/commodities/index.tsx`): single-page catalog with create-commodity / create-variety dialogs, varieties table with harvest-season display, and a per-variety Manage panel (tabbed: Prices history + setter, Conversions list + add/remove). Nav entry added under Operations.
-
-Audit: every create/update/delete on commodities, types, prices, and conversions writes to `audit_logs`.
+-   **Database:** PostgreSQL
+-   **ORM:** Drizzle ORM
+-   **Frontend Framework:** React
+-   **Build Tool (Frontend):** Vite
+-   **UI Component Library:** shadcn/ui
+-   **Styling:** Tailwind CSS
+-   **State Management/Data Fetching (Frontend):** TanStack Query
+-   **Routing (Frontend):** wouter
+-   **API Framework (Backend):** Express 5
+-   **Validation Library:** Zod
+-   **API Codegen:** Orval (from OpenAPI specification)
+-   **Logging:** pino
+-   **Build Tool (API Server):** esbuild (for local development)

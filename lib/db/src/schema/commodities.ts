@@ -1,4 +1,4 @@
-import { pgTable, text, uuid, timestamp, date, numeric, integer, boolean, index, uniqueIndex } from "drizzle-orm/pg-core";
+import { pgTable, text, uuid, timestamp, date, numeric, integer, boolean, jsonb, index, uniqueIndex } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 
 // =================================================================================================
@@ -119,5 +119,48 @@ export const commodityConversionsTable = pgTable("commodity_conversions", {
   // (e.g. v1 superseded by v2 mid-day after a recalibration). Latest-version wins per pair+date.
   uniqueIndex("commodity_conversions_pair_effective_version_uniq").on(
     t.fromCommodityTypeId, t.toCommodityTypeId, t.effectiveDate, t.version,
+  ),
+]);
+
+// =================================================================================================
+// Commodity Quality Specs — per-CommodityType QC parameters that the Sampling Module auto-loads
+// when a sample is created. Each spec defines a measurable parameter (Moisture %, Defects %,
+// Screen Size, Bean Density, Aflatoxin, etc.) with an acceptable range, unit, and the test method
+// to use. `mandatory` means sampling MUST capture this parameter at the configured stages;
+// `affectsPrice` means out-of-range values feed the QC pricing-adjustment formula.
+//
+// `appliesAtStages` is a JSON array of sample stage codes (field|pre_offload|post_offload|
+// warehouse|processing|export) — null/empty means applies at every stage. This lets, for example,
+// "Aflatoxin" only be required at the export stage while "Moisture" is required at every stage.
+// =================================================================================================
+export const commodityQualitySpecsTable = pgTable("commodity_quality_specs", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  commodityTypeId: uuid("commodity_type_id").notNull().references(() => commodityTypesTable.id, { onDelete: "cascade" }),
+  parameterName: text("parameter_name").notNull(),
+  parameterCode: text("parameter_code").notNull(),
+  unit: text("unit"),
+  minValue: numeric("min_value", { precision: 18, scale: 6 }),
+  maxValue: numeric("max_value", { precision: 18, scale: 6 }),
+  // Optional preferred / target value within the range (e.g. moisture target 12.5% with band 11–13).
+  targetValue: numeric("target_value", { precision: 18, scale: 6 }),
+  methodUsed: text("method_used"),
+  affectsPrice: boolean("affects_price").notNull().default(false),
+  mandatory: boolean("mandatory").notNull().default(true),
+  appliesAtStages: jsonb("applies_at_stages"),
+  effectiveDate: date("effective_date").notNull(),
+  version: integer("version").notNull().default(1),
+  // 'active' | 'inactive' — inactive specs are kept for audit but no longer loaded by sampling.
+  status: text("status").notNull().default("active"),
+  notes: text("notes"),
+  createdById: uuid("created_by_id"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("commodity_quality_specs_type_idx").on(t.commodityTypeId),
+  index("commodity_quality_specs_type_status_idx").on(t.commodityTypeId, t.status),
+  // One active version of a parameter per type per effective date — supports re-versioning by
+  // adding a new row with a higher `version` on the same date when a spec is corrected mid-day.
+  uniqueIndex("commodity_quality_specs_type_param_effective_version_uniq").on(
+    t.commodityTypeId, t.parameterCode, t.effectiveDate, t.version,
   ),
 ]);

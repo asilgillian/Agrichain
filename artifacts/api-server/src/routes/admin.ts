@@ -17,6 +17,7 @@ const PERMISSION_CATALOG: Array<{ key: string; module: string; description: stri
   { key: "commodities.read", module: "Commodities", description: "View commodity catalog, types, prices, conversions" },
   { key: "commodities.write", module: "Commodities", description: "Create and edit commodities, types, conversions" },
   { key: "commodities.prices.write", module: "Commodities", description: "Set daily purchase prices per kg" },
+  { key: "commodities.quality.write", module: "Commodities", description: "Define and version per-commodity QC parameters used by the Sampling Module" },
   { key: "plots.read", module: "Plots", description: "View plots and GPS data" },
   { key: "plots.write", module: "Plots", description: "Map and edit plots" },
   { key: "surveys.read", module: "Surveys", description: "View survey templates and submissions" },

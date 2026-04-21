@@ -1,0 +1,271 @@
+I need a standalone Sampling Module that spans field → transport → buying station → warehouse → processing.
+Let’s design this properly so it integrates with Our new Commodity Management layer.
+
+NEW MODULE: Sampling & Sample Management
+This becomes a cross-cutting module (like Compliance), not just a step.
+
+1. Core Concept
+Sampling is not one event—it’s a chain of samples across stages:
+Sampling Points:
+1.	Field (pre-bulking / farm level)
+2.	Pre-offload (truck arrival)
+3.	Post-offload (buying station QC)
+4.	Warehouse intake
+5.	Processing (pre & post process)
+6.	Export / final QA
+ Each sample must be:
+•	Traceable
+•	Comparable
+•	Versioned
+•	Linked to commodity + stage
+
+2. Data Model (Core Tables)
+2.1 Sample Master
+Table: Sample
+•	SampleID
+•	SampleCode (auto-generated QR/barcode)
+•	CommodityTypeID
+•	SampleStage
+(Field / Pre-Offload / Post-Offload / Warehouse / Processing / Export)
+•	ReferenceType
+(Farmer / Batch / Lot / SiloBatch / Container)
+•	ReferenceID
+•	SampleMethod (grab / composite / incremental)
+•	CollectedBy (UserID)
+•	CollectionDateTime
+•	GPSLocation
+•	Status (Pending / Tested / Approved / Rejected)
+•	ParentSampleID (for split/retest scenarios)
+
+2.2 Sample Details (Physical)
+Table: SampleDetails
+•	SampleID
+•	Weight
+•	NumberOfSubSamples
+•	ContainerType
+•	SealNumber
+•	StorageLocation (lab, fridge, shelf)
+•	RetentionPeriod
+
+2.3 Sample Test Results
+Table: SampleTest
+•	TestID
+•	SampleID
+•	Parameter (Moisture, Defects, etc.)
+•	Value
+•	Unit
+•	MethodUsed
+•	TestedBy
+•	TestDate
+•	IsOutOfRange (auto)
+
+2.4 Sampling Plan (VERY IMPORTANT)
+Table: SamplingPlan
+•	PlanID
+•	CommodityTypeID
+•	Stage
+•	SamplingMethod
+•	FrequencyRule
+(per batch / per X kg / per truck)
+•	MinSamples
+•	CompositeAllowed (yes/no)
+•	Mandatory (yes/no)
+
+2.5 Sample Chain of Custody
+Table: SampleMovement
+•	MovementID
+•	SampleID
+•	FromLocation
+•	ToLocation
+•	MovedBy
+•	Timestamp
+•	ConditionNotes
+
+3. Integration with Commodity Management
+Sampling becomes commodity-driven
+Example:
+From CommodityQualitySpec:
+•	Moisture range
+•	Defect thresholds
+ Sampling auto-loads:
+•	Required parameters
+•	Acceptable ranges
+•	Testing methods
+
+4. Updates to Existing Modules
+
+MODULE 2: Field Operations
+Add: Field Sampling
+Mobile:
+•	Capture sample at farmer or plot level
+•	Link to:
+o	Farmer
+o	CommodityType
+•	Capture:
+o	Moisture (basic)
+o	Visual quality
+o	Photos
+ Web:
+•	Configure sampling plans per commodity + region
+•	Monitor field quality trends
+
+MODULE 2: Bulking
+Before batch creation:
+ NEW RULE:
+•	Optional or mandatory pre-bulking sample
+System:
+•	Warns if:
+o	Farmer quality deviates
+o	Mixed quality risks batch downgrade
+
+MODULE 3: Buying Station
+
+Truck Arrival (Pre-Offload Sampling)
+Move this OUT of “optional”
+ Make it configurable via SamplingPlan
+New flow:
+1.	Truck arrives
+2.	System prompts:
+o	“Sampling required?”
+3.	If yes:
+o	Create sample
+o	Record:
+	Method (top/middle/bottom)
+	Composite or not
+
+Post-Offload Sampling (Current QC)
+Now becomes:
+•	A separate sample record
+•	Linked to:
+o	LotID
+ Not just a QC form
+
+Changes:
+•	Multiple samples per lot allowed
+•	Each sample independently tested
+•	Final grade derived from:
+o	Sampling rules (avg, worst-case, weighted)
+
+MODULE 4: Warehouse
+Intake Sampling
+Before accepting lot:
+•	Sample required (based on plan)
+System:
+•	Compares:
+o	Buying station sample vs warehouse sample
+ If variance high:
+•	Trigger discrepancy alert
+
+MODULE 4: Processing
+Pre-Process Sample
+•	Input quality baseline
+Post-Process Sample
+•	Output quality
+ Enables:
+•	Yield vs quality correlation
+•	Process performance tracking
+
+MODULE 6: Compliance
+Massive upgrade here
+Sampling feeds:
+•	Certification audits
+•	EUDR evidence (quality + traceability)
+Add:
+•	Sample-based compliance reports
+•	Lab certification records
+
+MODULE 9: Sales
+Export Sampling
+Before shipment:
+•	Final QA sample
+Linked to:
+•	Container
+Required for:
+•	Buyer specs
+•	Certification
+
+5. Sampling Workflows
+
+Workflow 1: Buying Station
+1.	Truck arrives
+2.	Pre-offload sample created
+3.	Offloading
+4.	Post-offload sample created
+5.	Lab testing
+6.	Grade determined
+
+Workflow 2: Warehouse Intake
+1.	Lot arrives
+2.	Intake sample taken
+3.	Compare vs buying station sample
+4.	Accept / reject / escalate
+
+Workflow 3: Processing
+1.	Pre-process sample
+2.	Process
+3.	Post-process sample
+4.	Compare quality change
+
+6. Key System Logic (Critical)
+
+6.1 Auto Parameter Loading
+When sample created:
+•	Load:
+o	Required tests from CommodityQualitySpec
+
+6.2 Out-of-Range Detection
+System flags:
+•	Moisture too high
+•	Defects too high
+
+6.3 Sample Comparison Engine
+Compare:
+•	Sample A vs Sample B
+Used for:
+•	Fraud detection
+•	Quality degradation tracking
+
+6.4 Grade Calculation
+Instead of:
+Single QC input
+Use:
+•	Multiple samples
+•	Rule-based aggregation:
+o	Average
+o	Worst-case
+o	Weighted
+
+7. Mobile vs Web Breakdown
+
+Mobile App
+•	Capture samples (offline)
+•	Scan QR sample codes
+•	Record test results (basic or full)
+•	Take photos
+•	Chain-of-custody updates
+Web App
+•	Configure sampling plans
+•	View sample dashboards
+•	Compare samples across stages
+•	Lab data entry & validation
+•	Audit trails
+
+8. Advanced Features (High Value)
+
+1. Composite Sampling Engine
+•	Combine multiple farmer samples into one
+
+2. Sample Retention Tracking
+•	Store samples for X days
+•	Track expiry/disposal
+
+3. Lab Integration
+•	External lab results upload/API
+
+4. AI Quality Prediction (later)
+•	Predict grade from:
+o	Field data
+o	Historical samples
+
+
+

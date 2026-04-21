@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
-import { Leaf, Plus, Tag, Coins, ArrowRightLeft, CalendarRange } from "lucide-react";
+import { Leaf, Plus, Tag, Coins, ArrowRightLeft, CalendarRange, FlaskConical } from "lucide-react";
 
 const API_BASE = import.meta.env.BASE_URL?.replace(/\/$/, "");
 
@@ -267,10 +267,12 @@ function ManagePanel({ type, commodity, siblings }: { type: CommodityType; commo
         <TabsTrigger value="prices"><Coins className="h-4 w-4 mr-1" /> Prices</TabsTrigger>
         <TabsTrigger value="conversions"><ArrowRightLeft className="h-4 w-4 mr-1" /> Conversions</TabsTrigger>
         <TabsTrigger value="seasons"><CalendarRange className="h-4 w-4 mr-1" /> Seasons</TabsTrigger>
+        <TabsTrigger value="quality"><FlaskConical className="h-4 w-4 mr-1" /> Quality Specs</TabsTrigger>
       </TabsList>
       <TabsContent value="prices"><PricesPanel type={type} commodity={commodity} /></TabsContent>
       <TabsContent value="conversions"><ConversionsPanel type={type} siblings={siblings} /></TabsContent>
       <TabsContent value="seasons"><SeasonsPanel type={type} /></TabsContent>
+      <TabsContent value="quality"><QualitySpecsPanel type={type} /></TabsContent>
     </Tabs>
   );
 }
@@ -426,6 +428,166 @@ function ConversionsPanel({ type, siblings }: { type: CommodityType; siblings: C
             </TableRow>
           ))}
           {(conversions ?? []).length === 0 && <TableRow><TableCell colSpan={7} className="text-muted-foreground text-center py-6">No conversions defined.</TableCell></TableRow>}
+        </TableBody>
+      </Table>
+    </div>
+  );
+}
+
+const SAMPLE_STAGE_OPTS: Array<{ value: string; label: string }> = [
+  { value: "field", label: "Field" },
+  { value: "pre_offload", label: "Pre-Offload" },
+  { value: "post_offload", label: "Post-Offload" },
+  { value: "warehouse", label: "Warehouse" },
+  { value: "processing", label: "Processing" },
+  { value: "export", label: "Export" },
+];
+
+function QualitySpecsPanel({ type }: { type: CommodityType }) {
+  const qc = useQueryClient();
+  const { toast } = useToast();
+  const { data: specs } = useQuery<any[]>({
+    queryKey: [`/api/commodity-types/${type.id}/quality-specs`],
+    queryFn: () => api(`/api/commodity-types/${type.id}/quality-specs?includeInactive=true`),
+  });
+  const today = new Date().toISOString().slice(0, 10);
+  const initial = {
+    parameterName: "", parameterCode: "", unit: "%",
+    minValue: "", maxValue: "", targetValue: "",
+    methodUsed: "", affectsPrice: false, mandatory: true,
+    appliesAtStages: [] as string[],
+    effectiveDate: today, version: 1, notes: "",
+  };
+  const [form, setForm] = useState(initial);
+  const create = useMutation({
+    mutationFn: (b: any) => api(`/api/commodity-types/${type.id}/quality-specs`, { method: "POST", body: JSON.stringify(b) }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: [`/api/commodity-types/${type.id}/quality-specs`] });
+      toast({ title: "Quality spec added" });
+      setForm(initial);
+    },
+    onError: (e: any) => toast({ title: "Failed", description: e.message, variant: "destructive" }),
+  });
+  const archive = useMutation({
+    mutationFn: (id: string) => api(`/api/commodity-quality-specs/${id}`, { method: "DELETE" }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: [`/api/commodity-types/${type.id}/quality-specs`] }),
+  });
+  const reactivate = useMutation({
+    mutationFn: (id: string) => api(`/api/commodity-quality-specs/${id}`, { method: "PATCH", body: JSON.stringify({ status: "active" }) }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: [`/api/commodity-types/${type.id}/quality-specs`] }),
+  });
+
+  const toggleStage = (s: string) => {
+    setForm(f => ({
+      ...f,
+      appliesAtStages: f.appliesAtStages.includes(s) ? f.appliesAtStages.filter(x => x !== s) : [...f.appliesAtStages, s],
+    }));
+  };
+
+  const submit = () => {
+    create.mutate({
+      ...form,
+      minValue: form.minValue === "" ? null : Number(form.minValue),
+      maxValue: form.maxValue === "" ? null : Number(form.maxValue),
+      targetValue: form.targetValue === "" ? null : Number(form.targetValue),
+      methodUsed: form.methodUsed || undefined,
+      notes: form.notes || undefined,
+      appliesAtStages: form.appliesAtStages.length === 0 ? null : form.appliesAtStages,
+    });
+  };
+
+  const formatRange = (s: any) => {
+    const parts = [];
+    if (s.minValue != null) parts.push(`≥ ${s.minValue}`);
+    if (s.maxValue != null) parts.push(`≤ ${s.maxValue}`);
+    return parts.join(" & ") || "—";
+  };
+
+  return (
+    <div className="space-y-4 mt-3">
+      <div className="text-sm text-muted-foreground">
+        QC parameters for <strong>{type.name}</strong>. The Sampling Module auto-loads the latest active version of each parameter when a sample is captured.
+        Parameters with <em>affects price</em> feed the QC pricing-adjustment formula at the buying station.
+      </div>
+
+      <div className="border rounded-md p-3 space-y-3 bg-muted/30">
+        <div className="grid grid-cols-4 gap-2">
+          <div><Label>Parameter Name</Label><Input value={form.parameterName} onChange={e => setForm({ ...form, parameterName: e.target.value })} placeholder="Moisture" data-testid="input-param-name" /></div>
+          <div><Label>Code</Label><Input value={form.parameterCode} onChange={e => setForm({ ...form, parameterCode: e.target.value })} placeholder="moisture" data-testid="input-param-code" /></div>
+          <div><Label>Unit</Label><Input value={form.unit} onChange={e => setForm({ ...form, unit: e.target.value })} placeholder="%" /></div>
+          <div><Label>Effective Date</Label><Input type="date" value={form.effectiveDate} onChange={e => setForm({ ...form, effectiveDate: e.target.value })} /></div>
+        </div>
+        <div className="grid grid-cols-4 gap-2">
+          <div><Label>Min</Label><Input type="number" step="0.01" value={form.minValue} onChange={e => setForm({ ...form, minValue: e.target.value })} placeholder="11" data-testid="input-min" /></div>
+          <div><Label>Max</Label><Input type="number" step="0.01" value={form.maxValue} onChange={e => setForm({ ...form, maxValue: e.target.value })} placeholder="13" data-testid="input-max" /></div>
+          <div><Label>Target (optional)</Label><Input type="number" step="0.01" value={form.targetValue} onChange={e => setForm({ ...form, targetValue: e.target.value })} placeholder="12.5" /></div>
+          <div><Label>Test Method</Label><Input value={form.methodUsed} onChange={e => setForm({ ...form, methodUsed: e.target.value })} placeholder="ISO 6673 oven" /></div>
+        </div>
+        <div>
+          <Label>Applies at sample stages <span className="text-muted-foreground text-xs">(none = all stages)</span></Label>
+          <div className="flex flex-wrap gap-2 mt-1">
+            {SAMPLE_STAGE_OPTS.map(s => (
+              <button key={s.value} type="button" onClick={() => toggleStage(s.value)}
+                className={`text-xs px-2 py-1 rounded border ${form.appliesAtStages.includes(s.value) ? "bg-primary text-primary-foreground border-primary" : "bg-background"}`}
+                data-testid={`stage-${s.value}`}>
+                {s.label}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="flex items-center gap-6">
+          <label className="flex items-center gap-2 text-sm cursor-pointer">
+            <input type="checkbox" checked={form.mandatory} onChange={e => setForm({ ...form, mandatory: e.target.checked })} />
+            Mandatory (sampling must capture)
+          </label>
+          <label className="flex items-center gap-2 text-sm cursor-pointer">
+            <input type="checkbox" checked={form.affectsPrice} onChange={e => setForm({ ...form, affectsPrice: e.target.checked })} />
+            Affects price
+          </label>
+          <div className="flex items-center gap-2"><Label>Version</Label><Input className="w-16" type="number" min={1} value={form.version} onChange={e => setForm({ ...form, version: Number(e.target.value) || 1 })} /></div>
+          <div className="flex-1"><Label>Notes</Label><Input value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} placeholder="Optional context" /></div>
+          <Button onClick={submit} disabled={!form.parameterName || !form.parameterCode || (form.minValue === "" && form.maxValue === "")} data-testid="btn-add-spec">Add Spec</Button>
+        </div>
+      </div>
+
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Parameter</TableHead>
+            <TableHead>Range</TableHead>
+            <TableHead>Target</TableHead>
+            <TableHead>Method</TableHead>
+            <TableHead>Stages</TableHead>
+            <TableHead>Flags</TableHead>
+            <TableHead>Effective</TableHead>
+            <TableHead>Version</TableHead>
+            <TableHead>Status</TableHead>
+            <TableHead />
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {(specs ?? []).map(s => (
+            <TableRow key={s.id} data-testid={`row-spec-${s.parameterCode}-${s.version}`}>
+              <TableCell><div className="font-medium">{s.parameterName}</div><div className="text-xs text-muted-foreground">{s.parameterCode}</div></TableCell>
+              <TableCell>{formatRange(s)} {s.unit ? <span className="text-muted-foreground">{s.unit}</span> : null}</TableCell>
+              <TableCell>{s.targetValue ?? "—"}</TableCell>
+              <TableCell className="text-xs">{s.methodUsed ?? "—"}</TableCell>
+              <TableCell className="text-xs">{Array.isArray(s.appliesAtStages) && s.appliesAtStages.length > 0 ? s.appliesAtStages.join(", ") : <span className="text-muted-foreground">all</span>}</TableCell>
+              <TableCell className="text-xs space-x-1">
+                {s.mandatory && <Badge variant="outline">mandatory</Badge>}
+                {s.affectsPrice && <Badge>price</Badge>}
+              </TableCell>
+              <TableCell>{s.effectiveDate}</TableCell>
+              <TableCell>v{s.version}</TableCell>
+              <TableCell><Badge variant={s.status === "active" ? "default" : "secondary"}>{s.status}</Badge></TableCell>
+              <TableCell>
+                {s.status === "active"
+                  ? <Button size="sm" variant="ghost" onClick={() => archive.mutate(s.id)}>Archive</Button>
+                  : <Button size="sm" variant="ghost" onClick={() => reactivate.mutate(s.id)}>Reactivate</Button>}
+              </TableCell>
+            </TableRow>
+          ))}
+          {(specs ?? []).length === 0 && <TableRow><TableCell colSpan={10} className="text-muted-foreground text-center py-6">No quality specs defined.</TableCell></TableRow>}
         </TableBody>
       </Table>
     </div>
