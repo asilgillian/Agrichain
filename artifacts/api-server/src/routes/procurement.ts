@@ -1,4 +1,4 @@
-import { Router, type IRouter, type Response } from "express";
+import { Router, type IRouter } from "express";
 import { eq, and, desc } from "drizzle-orm";
 import {
   db,
@@ -72,20 +72,33 @@ function shapeDelivery(
   };
 }
 
-async function audit(
-  entityId: string,
-  action: string,
+// Atomic state transition: UPDATE with status precondition + audit insert in a single transaction.
+// Returns the updated row, or null when the precondition no longer holds (race lost).
+async function transition(
+  deliveryId: string,
+  expectedStatus: string,
+  patch: Partial<typeof deliveriesTable.$inferInsert>,
   user: AuthedRequest["authedUser"] | undefined,
+  action: string,
   metadata: Record<string, unknown>,
-) {
-  await db.insert(auditLogsTable).values({
-    entityType: "delivery",
-    entityId,
-    action,
-    actorId: user?.id ?? "system",
-    actorName: user?.email ?? "system",
-    actorRole: user?.role ?? "system",
-    after: metadata,
+): Promise<typeof deliveriesTable.$inferSelect | null> {
+  return await db.transaction(async (tx) => {
+    const updated = await tx
+      .update(deliveriesTable)
+      .set({ ...patch, updatedAt: new Date() })
+      .where(and(eq(deliveriesTable.id, deliveryId), eq(deliveriesTable.status, expectedStatus)))
+      .returning();
+    if (updated.length === 0) return null;
+    await tx.insert(auditLogsTable).values({
+      entityType: "delivery",
+      entityId: deliveryId,
+      action,
+      actorId: user?.id ?? "system",
+      actorName: user?.email ?? "system",
+      actorRole: user?.role ?? "system",
+      after: metadata,
+    });
+    return updated[0];
   });
 }
 
@@ -117,24 +130,33 @@ router.post("/procurement/deliveries", requirePermission("procurement.write"), a
     res.status(400).json({ error: parsed.error.message });
     return;
   }
-  const [batch] = await db.select().from(batchesTable).where(eq(batchesTable.batchTag, parsed.data.batchTag));
-  if (!batch) {
-    res.status(404).json({ error: "Batch not found" });
-    return;
-  }
-  const lotTag = generateLotTag();
-  const [delivery] = await db.insert(deliveriesTable).values({
-    lotTag,
-    batchId: batch.id,
-    stationId: parsed.data.stationId,
-    truckPlate: parsed.data.truckPlate,
-    driverName: parsed.data.driverName,
-    preOffloadSampleTaken: parsed.data.preOffloadSampleTaken ?? false,
-    qualifyingStreams: batch.qualifyingStreams,
-    status: "pending_weight_submit",
-  }).returning();
-  await audit(delivery.id, "delivery.create", req.authedUser, { lotTag, batchTag: parsed.data.batchTag });
-  res.status(201).json(shapeDelivery(delivery));
+  const result = await db.transaction(async (tx) => {
+    const [batch] = await tx.select().from(batchesTable).where(eq(batchesTable.batchTag, parsed.data.batchTag));
+    if (!batch) return { error: "Batch not found" as const };
+    const lotTag = generateLotTag();
+    const [delivery] = await tx.insert(deliveriesTable).values({
+      lotTag,
+      batchId: batch.id,
+      stationId: parsed.data.stationId,
+      truckPlate: parsed.data.truckPlate,
+      driverName: parsed.data.driverName,
+      preOffloadSampleTaken: parsed.data.preOffloadSampleTaken ?? false,
+      qualifyingStreams: batch.qualifyingStreams,
+      status: "pending_weight_submit",
+    }).returning();
+    await tx.insert(auditLogsTable).values({
+      entityType: "delivery",
+      entityId: delivery.id,
+      action: "delivery.create",
+      actorId: req.authedUser?.id ?? "system",
+      actorName: req.authedUser?.email ?? "system",
+      actorRole: req.authedUser?.role ?? "system",
+      after: { lotTag, batchTag: parsed.data.batchTag },
+    });
+    return { delivery };
+  });
+  if ("error" in result) { res.status(404).json({ error: result.error }); return; }
+  res.status(201).json(shapeDelivery(result.delivery));
 });
 
 router.get("/procurement/deliveries/:deliveryId", requirePermission("procurement.read"), async (req, res): Promise<void> => {
@@ -170,11 +192,11 @@ router.post("/procurement/deliveries/:deliveryId/weight/submit", requirePermissi
   const [current] = await db.select().from(deliveriesTable).where(eq(deliveriesTable.id, deliveryId as string));
   if (!current) { res.status(404).json({ error: "Delivery not found" }); return; }
   if (current.status !== "pending_weight_submit") {
-    res.status(400).json({ error: `Cannot submit weight from status ${current.status}` }); return;
+    res.status(409).json({ error: `Cannot submit weight from status ${current.status}` }); return;
   }
   const userId = req.authedUser!.id;
   const net = (parsed.data.grossWeightKg - parsed.data.tareWeightKg).toFixed(3);
-  const [delivery] = await db.update(deliveriesTable).set({
+  const delivery = await transition(deliveryId as string, "pending_weight_submit", {
     grossWeightKg: parsed.data.grossWeightKg.toString(),
     tareWeightKg: parsed.data.tareWeightKg.toString(),
     netWeightKg: net,
@@ -185,9 +207,8 @@ router.post("/procurement/deliveries/:deliveryId/weight/submit", requirePermissi
     weightApprovedAt: null,
     status: "pending_weight_approve",
     rejectionType: null, rejectionStage: null, rejectionReason: null, rejectionById: null, rejectionAt: null,
-    updatedAt: new Date(),
-  }).where(eq(deliveriesTable.id, deliveryId as string)).returning();
-  await audit(delivery.id, "weight.submit", req.authedUser, { grossWeightKg: parsed.data.grossWeightKg, tareWeightKg: parsed.data.tareWeightKg, netWeightKg: parseFloat(net) });
+  }, req.authedUser, "weight.submit", { grossWeightKg: parsed.data.grossWeightKg, tareWeightKg: parsed.data.tareWeightKg, netWeightKg: parseFloat(net) });
+  if (!delivery) { res.status(409).json({ error: "Delivery state changed concurrently — refresh and retry" }); return; }
   res.json(shapeDelivery(delivery));
 });
 
@@ -196,20 +217,19 @@ router.post("/procurement/deliveries/:deliveryId/weight/approve", requirePermiss
   const [current] = await db.select().from(deliveriesTable).where(eq(deliveriesTable.id, deliveryId as string));
   if (!current) { res.status(404).json({ error: "Delivery not found" }); return; }
   if (current.status !== "pending_weight_approve") {
-    res.status(400).json({ error: `Cannot approve weight from status ${current.status}` }); return;
+    res.status(409).json({ error: `Cannot approve weight from status ${current.status}` }); return;
   }
   const userId = req.authedUser!.id;
   if (current.weightSubmittedById === userId) {
     res.status(403).json({ error: "Approver cannot be the same person as submitter" }); return;
   }
-  const [delivery] = await db.update(deliveriesTable).set({
+  const delivery = await transition(deliveryId as string, "pending_weight_approve", {
     weightApproved: true,
     weightApprovedById: userId,
     weightApprovedAt: new Date(),
     status: "pending_qc_submit",
-    updatedAt: new Date(),
-  }).where(eq(deliveriesTable.id, deliveryId as string)).returning();
-  await audit(delivery.id, "weight.approve", req.authedUser, {});
+  }, req.authedUser, "weight.approve", {});
+  if (!delivery) { res.status(409).json({ error: "Delivery state changed concurrently — refresh and retry" }); return; }
   res.json(shapeDelivery(delivery));
 });
 
@@ -220,14 +240,14 @@ router.post("/procurement/deliveries/:deliveryId/qc/submit", requirePermission("
   const [current] = await db.select().from(deliveriesTable).where(eq(deliveriesTable.id, deliveryId as string));
   if (!current) { res.status(404).json({ error: "Delivery not found" }); return; }
   if (current.status !== "pending_qc_submit") {
-    res.status(400).json({ error: `Cannot submit QC from status ${current.status}` }); return;
+    res.status(409).json({ error: `Cannot submit QC from status ${current.status}` }); return;
   }
   const userId = req.authedUser!.id;
   const grade = determineGrade(parsed.data.moistureContent, parsed.data.defectCount, parsed.data.cupScore ?? undefined);
-  const [delivery] = await db.update(deliveriesTable).set({
+  const delivery = await transition(deliveryId as string, "pending_qc_submit", {
     moistureContent: parsed.data.moistureContent.toString(),
     defectCount: parsed.data.defectCount.toString(),
-    cupScore: parsed.data.cupScore?.toString(),
+    cupScore: parsed.data.cupScore?.toString() ?? null,
     grade,
     qcSubmittedById: userId,
     qcSubmittedAt: new Date(),
@@ -236,9 +256,8 @@ router.post("/procurement/deliveries/:deliveryId/qc/submit", requirePermission("
     qcApprovedAt: null,
     status: "pending_qc_approve",
     rejectionType: null, rejectionStage: null, rejectionReason: null, rejectionById: null, rejectionAt: null,
-    updatedAt: new Date(),
-  }).where(eq(deliveriesTable.id, deliveryId as string)).returning();
-  await audit(delivery.id, "qc.submit", req.authedUser, { moistureContent: parsed.data.moistureContent, defectCount: parsed.data.defectCount, cupScore: parsed.data.cupScore, grade });
+  }, req.authedUser, "qc.submit", { moistureContent: parsed.data.moistureContent, defectCount: parsed.data.defectCount, cupScore: parsed.data.cupScore, grade });
+  if (!delivery) { res.status(409).json({ error: "Delivery state changed concurrently — refresh and retry" }); return; }
   res.json(shapeDelivery(delivery));
 });
 
@@ -247,20 +266,19 @@ router.post("/procurement/deliveries/:deliveryId/qc/approve", requirePermission(
   const [current] = await db.select().from(deliveriesTable).where(eq(deliveriesTable.id, deliveryId as string));
   if (!current) { res.status(404).json({ error: "Delivery not found" }); return; }
   if (current.status !== "pending_qc_approve") {
-    res.status(400).json({ error: `Cannot approve QC from status ${current.status}` }); return;
+    res.status(409).json({ error: `Cannot approve QC from status ${current.status}` }); return;
   }
   const userId = req.authedUser!.id;
   if (current.qcSubmittedById === userId) {
     res.status(403).json({ error: "Approver cannot be the same person as submitter" }); return;
   }
-  const [delivery] = await db.update(deliveriesTable).set({
+  const delivery = await transition(deliveryId as string, "pending_qc_approve", {
     qcApproved: true,
     qcApprovedById: userId,
     qcApprovedAt: new Date(),
     status: "pending_pricing_propose",
-    updatedAt: new Date(),
-  }).where(eq(deliveriesTable.id, deliveryId as string)).returning();
-  await audit(delivery.id, "qc.approve", req.authedUser, {});
+  }, req.authedUser, "qc.approve", {});
+  if (!delivery) { res.status(409).json({ error: "Delivery state changed concurrently — refresh and retry" }); return; }
   res.json(shapeDelivery(delivery));
 });
 
@@ -271,7 +289,7 @@ router.post("/procurement/deliveries/:deliveryId/pricing/propose", requirePermis
   const [current] = await db.select().from(deliveriesTable).where(eq(deliveriesTable.id, deliveryId as string));
   if (!current) { res.status(404).json({ error: "Delivery not found" }); return; }
   if (current.status !== "pending_pricing_propose") {
-    res.status(400).json({ error: `Cannot propose pricing from status ${current.status}` }); return;
+    res.status(409).json({ error: `Cannot propose pricing from status ${current.status}` }); return;
   }
   if (!current.weightApproved || !current.qcApproved) {
     res.status(400).json({ error: "Weight and QC must both be approved before pricing" }); return;
@@ -301,7 +319,7 @@ router.post("/procurement/deliveries/:deliveryId/pricing/propose", requirePermis
   const userId = req.authedUser!.id;
   const netKg = parseFloat(current.netWeightKg ?? "0");
   const totalValue = (netKg * parsed.data.pricePerKg).toFixed(2);
-  const [delivery] = await db.update(deliveriesTable).set({
+  const delivery = await transition(deliveryId as string, "pending_pricing_propose", {
     pricePerKg: parsed.data.pricePerKg.toString(),
     totalValue,
     pricingDeductions: parsed.data.deductions ?? null,
@@ -313,9 +331,10 @@ router.post("/procurement/deliveries/:deliveryId/pricing/propose", requirePermis
     floorPricePerKg: floor != null ? floor.toString() : null,
     contractId,
     status: "pending_pricing_approve",
-    updatedAt: new Date(),
-  }).where(eq(deliveriesTable.id, deliveryId as string)).returning();
-  await audit(delivery.id, "pricing.propose", req.authedUser, { pricePerKg: parsed.data.pricePerKg, totalValue, floorPricePerKg: floor, contractId });
+    // Clear any leftover rejection metadata from a prior pricing rejection
+    rejectionType: null, rejectionStage: null, rejectionReason: null, rejectionById: null, rejectionAt: null,
+  }, req.authedUser, "pricing.propose", { pricePerKg: parsed.data.pricePerKg, totalValue, floorPricePerKg: floor, contractId });
+  if (!delivery) { res.status(409).json({ error: "Delivery state changed concurrently — refresh and retry" }); return; }
   res.json(shapeDelivery(delivery));
 });
 
@@ -324,19 +343,18 @@ router.post("/procurement/deliveries/:deliveryId/pricing/approve", requirePermis
   const [current] = await db.select().from(deliveriesTable).where(eq(deliveriesTable.id, deliveryId as string));
   if (!current) { res.status(404).json({ error: "Delivery not found" }); return; }
   if (current.status !== "pending_pricing_approve") {
-    res.status(400).json({ error: `Cannot approve pricing from status ${current.status}` }); return;
+    res.status(409).json({ error: `Cannot approve pricing from status ${current.status}` }); return;
   }
   const userId = req.authedUser!.id;
   if (current.pricingProposedById === userId) {
     res.status(403).json({ error: "Approver cannot be the same person as proposer" }); return;
   }
-  const [delivery] = await db.update(deliveriesTable).set({
+  const delivery = await transition(deliveryId as string, "pending_pricing_approve", {
     pricingApprovedById: userId,
     pricingApprovedAt: new Date(),
     status: "approved",
-    updatedAt: new Date(),
-  }).where(eq(deliveriesTable.id, deliveryId as string)).returning();
-  await audit(delivery.id, "pricing.approve", req.authedUser, { pricePerKg: num(delivery.pricePerKg), totalValue: num(delivery.totalValue) });
+  }, req.authedUser, "pricing.approve", { pricePerKg: num(current.pricePerKg), totalValue: num(current.totalValue) });
+  if (!delivery) { res.status(409).json({ error: "Delivery state changed concurrently — refresh and retry" }); return; }
   res.json(shapeDelivery(delivery));
 });
 
@@ -364,7 +382,7 @@ router.post("/procurement/deliveries/:deliveryId/reject", requirePermission("pro
   const [current] = await db.select().from(deliveriesTable).where(eq(deliveriesTable.id, deliveryId as string));
   if (!current) { res.status(404).json({ error: "Delivery not found" }); return; }
   if (["approved", "rejected_commodity", "suspended"].includes(current.status)) {
-    res.status(400).json({ error: `Cannot reject from terminal status ${current.status}` }); return;
+    res.status(409).json({ error: `Cannot reject from terminal status ${current.status}` }); return;
   }
   const userId = req.authedUser!.id;
   const newStatus = REJECTION_STATUS[parsed.data.rejectionType];
@@ -376,10 +394,9 @@ router.post("/procurement/deliveries/:deliveryId/reject", requirePermission("pro
     rejectionReason: parsed.data.reason,
     rejectionById: userId,
     rejectionAt: new Date(),
-    updatedAt: new Date(),
   };
-  // CORRECTION returns to a submit step; clear stage payload + actor refs so the
-  // UI/state machine treats it as a fresh submission slot.
+  // CORRECTION returns the delivery to the matching submit step and clears
+  // both actor refs AND the stale stage payload, so the resubmission starts clean.
   if (parsed.data.rejectionType === "CORRECTION") {
     if (stage === "weight") {
       updates.status = "pending_weight_submit";
@@ -388,6 +405,10 @@ router.post("/procurement/deliveries/:deliveryId/reject", requirePermission("pro
       updates.weightSubmittedAt = null;
       updates.weightApprovedById = null;
       updates.weightApprovedAt = null;
+      updates.grossWeightKg = null;
+      updates.tareWeightKg = null;
+      updates.netWeightKg = null;
+      updates.weightVarianceKg = null;
     } else if (stage === "qc") {
       updates.status = "pending_qc_submit";
       updates.qcApproved = false;
@@ -395,16 +416,28 @@ router.post("/procurement/deliveries/:deliveryId/reject", requirePermission("pro
       updates.qcSubmittedAt = null;
       updates.qcApprovedById = null;
       updates.qcApprovedAt = null;
+      updates.moistureContent = null;
+      updates.defectCount = null;
+      updates.cupScore = null;
+      updates.grade = null;
     } else if (stage === "pricing") {
       updates.status = "pending_pricing_propose";
       updates.pricingProposedById = null;
       updates.pricingProposedAt = null;
       updates.pricingApprovedById = null;
       updates.pricingApprovedAt = null;
+      updates.pricePerKg = null;
+      updates.totalValue = null;
+      updates.pricingDeductions = null;
+      updates.pricingIncentives = null;
+      updates.contractId = null;
+      updates.floorPricePerKg = null;
     }
   }
-  const [delivery] = await db.update(deliveriesTable).set(updates).where(eq(deliveriesTable.id, deliveryId as string)).returning();
-  await audit(delivery.id, "reject", req.authedUser, { rejectionType: parsed.data.rejectionType, stage, reason: parsed.data.reason });
+  const delivery = await transition(deliveryId as string, current.status, updates, req.authedUser, "reject", {
+    rejectionType: parsed.data.rejectionType, stage, reason: parsed.data.reason,
+  });
+  if (!delivery) { res.status(409).json({ error: "Delivery state changed concurrently — refresh and retry" }); return; }
   res.json(shapeDelivery(delivery));
 });
 
