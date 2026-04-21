@@ -9,6 +9,7 @@ import {
   commoditySeasonsTable,
   commodityQualitySpecsTable,
   samplingConfigsTable,
+  processesTable,
   auditLogsTable,
 } from "@workspace/db";
 import { requirePermission, type AuthedRequest } from "../middlewares/auth";
@@ -358,7 +359,7 @@ router.get("/commodity-conversions", requirePermission("commodities.read"), asyn
 });
 
 router.post("/commodity-conversions", requirePermission("commodities.write"), async (req: AuthedRequest, res) => {
-  const { fromCommodityTypeId, toCommodityTypeId, expectedRate, minRate, maxRate, processType, effectiveDate, version, notes } = req.body ?? {};
+  const { fromCommodityTypeId, toCommodityTypeId, expectedRate, minRate, maxRate, processType, processId, effectiveDate, version, notes } = req.body ?? {};
   if (!isUuid(fromCommodityTypeId)) { res.status(400).json({ error: "fromCommodityTypeId required" }); return; }
   if (!isUuid(toCommodityTypeId)) { res.status(400).json({ error: "toCommodityTypeId required" }); return; }
   if (fromCommodityTypeId === toCommodityTypeId) { res.status(400).json({ error: "from and to must differ" }); return; }
@@ -388,6 +389,7 @@ router.post("/commodity-conversions", requirePermission("commodities.write"), as
       minRate: min != null ? min.toString() : null,
       maxRate: max != null ? max.toString() : null,
       processType: processType?.toString().trim() || null,
+      processId: processId && isUuid(processId) ? processId : null,
       effectiveDate: eff,
       version: Number.isInteger(version) && version > 0 ? version : 1,
       notes: notes ?? null,
@@ -857,6 +859,115 @@ router.delete("/sampling-configs/:configId", requirePermission("commodities.writ
   if (!existing) { res.status(404).json({ error: "Sampling config not found" }); return; }
   await db.delete(samplingConfigsTable).where(eq(samplingConfigsTable.id, configId));
   await audit("sampling_config", configId, "sampling_config.delete", req.authedUser, existing, null);
+  res.status(204).end();
+});
+
+// =============== PROCESSES MASTER ===============
+
+router.get("/processes", requirePermission("commodities.read"), async (req, res) => {
+  const status = typeof req.query.status === "string" ? req.query.status : undefined;
+  const stage = typeof req.query.stage === "string" ? req.query.stage : undefined;
+  const where = status ? eq(processesTable.status, status) : undefined;
+  let rows = await db.select().from(processesTable).where(where).orderBy(processesTable.name);
+  if (stage) {
+    if (!SAMPLE_STAGES.has(stage)) { res.status(400).json({ error: "Invalid stage filter" }); return; }
+    rows = rows.filter((p: any) => {
+      const stages = Array.isArray(p.allowedStages) ? p.allowedStages : null;
+      return !stages || stages.length === 0 || stages.includes(stage);
+    });
+  }
+  res.json(rows);
+});
+
+function validateAllowedStages(input: any): string[] | null | { error: string } {
+  if (input == null) return null;
+  if (!Array.isArray(input)) return { error: "allowedStages must be an array of stage codes" };
+  for (const s of input) {
+    if (!SAMPLE_STAGES.has(s)) return { error: `Invalid stage in allowedStages: ${s}` };
+  }
+  return Array.from(new Set(input as string[]));
+}
+
+router.post("/processes", requirePermission("commodities.write"), async (req: AuthedRequest, res) => {
+  const { name, code, description, allowedStages, defaultExpectedRate, defaultMinRate, defaultMaxRate } = req.body ?? {};
+  if (typeof name !== "string" || !name.trim()) { res.status(400).json({ error: "name is required" }); return; }
+  if (typeof code !== "string" || !code.trim()) { res.status(400).json({ error: "code is required" }); return; }
+  const stages = validateAllowedStages(allowedStages);
+  if (stages && typeof stages === "object" && "error" in stages) { res.status(400).json({ error: stages.error }); return; }
+  const num = (v: any, name: string) => {
+    if (v == null || v === "") return null;
+    const n = Number(v);
+    if (!Number.isFinite(n) || n < 0) throw new Error(`${name} must be a non-negative number`);
+    return n;
+  };
+  let exp, min, max;
+  try {
+    exp = num(defaultExpectedRate, "defaultExpectedRate");
+    min = num(defaultMinRate, "defaultMinRate");
+    max = num(defaultMaxRate, "defaultMaxRate");
+  } catch (e: any) { res.status(400).json({ error: e.message }); return; }
+  if (min != null && exp != null && min > exp) { res.status(400).json({ error: "defaultMinRate cannot exceed defaultExpectedRate" }); return; }
+  if (max != null && exp != null && max < exp) { res.status(400).json({ error: "defaultMaxRate cannot be less than defaultExpectedRate" }); return; }
+
+  const [created] = await db.insert(processesTable).values({
+    name: name.trim(),
+    code: code.trim(),
+    description: description?.toString().trim() || null,
+    allowedStages: stages as any,
+    defaultExpectedRate: exp != null ? String(exp) : null,
+    defaultMinRate: min != null ? String(min) : null,
+    defaultMaxRate: max != null ? String(max) : null,
+  }).returning();
+  await audit("process", created.id, "process.create", req.authedUser, null, created);
+  res.status(201).json(created);
+});
+
+router.patch("/processes/:processId", requirePermission("commodities.write"), async (req: AuthedRequest, res) => {
+  const { processId } = req.params;
+  if (!isUuid(processId)) { res.status(400).json({ error: "Invalid processId" }); return; }
+  const [existing] = await db.select().from(processesTable).where(eq(processesTable.id, processId));
+  if (!existing) { res.status(404).json({ error: "Process not found" }); return; }
+
+  const patch: any = { updatedAt: new Date() };
+  const { name, description, allowedStages, defaultExpectedRate, defaultMinRate, defaultMaxRate, status } = req.body ?? {};
+  if (typeof name === "string" && name.trim()) patch.name = name.trim();
+  if (description !== undefined) patch.description = description?.toString().trim() || null;
+  if (allowedStages !== undefined) {
+    const stages = validateAllowedStages(allowedStages);
+    if (stages && typeof stages === "object" && "error" in stages) { res.status(400).json({ error: stages.error }); return; }
+    patch.allowedStages = stages;
+  }
+  const numField = (v: any, name: string) => {
+    if (v === undefined) return undefined;
+    if (v == null || v === "") return null;
+    const n = Number(v);
+    if (!Number.isFinite(n) || n < 0) throw new Error(`${name} must be a non-negative number`);
+    return String(n);
+  };
+  try {
+    const e = numField(defaultExpectedRate, "defaultExpectedRate");
+    const mi = numField(defaultMinRate, "defaultMinRate");
+    const ma = numField(defaultMaxRate, "defaultMaxRate");
+    if (e !== undefined) patch.defaultExpectedRate = e;
+    if (mi !== undefined) patch.defaultMinRate = mi;
+    if (ma !== undefined) patch.defaultMaxRate = ma;
+  } catch (e: any) { res.status(400).json({ error: e.message }); return; }
+  if (status !== undefined) {
+    if (!["active", "inactive"].includes(status)) { res.status(400).json({ error: "status must be active|inactive" }); return; }
+    patch.status = status;
+  }
+  const [updated] = await db.update(processesTable).set(patch).where(eq(processesTable.id, processId)).returning();
+  await audit("process", updated.id, "process.update", req.authedUser, existing, updated);
+  res.json(updated);
+});
+
+router.delete("/processes/:processId", requirePermission("commodities.write"), async (req: AuthedRequest, res) => {
+  const { processId } = req.params;
+  if (!isUuid(processId)) { res.status(400).json({ error: "Invalid processId" }); return; }
+  const [existing] = await db.select().from(processesTable).where(eq(processesTable.id, processId));
+  if (!existing) { res.status(404).json({ error: "Process not found" }); return; }
+  await db.delete(processesTable).where(eq(processesTable.id, processId));
+  await audit("process", processId, "process.delete", req.authedUser, existing, null);
   res.status(204).end();
 });
 

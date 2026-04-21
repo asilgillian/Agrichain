@@ -362,14 +362,35 @@ function ConversionsPanel({ type, siblings }: { type: CommodityType; siblings: C
     queryKey: [`/api/commodity-types/${type.id}/conversions`],
     queryFn: () => api(`/api/commodity-types/${type.id}/conversions`),
   });
+  const { data: processes } = useQuery<any[]>({
+    queryKey: ["/api/processes?status=active"],
+    queryFn: () => api("/api/processes?status=active"),
+  });
   const today = new Date().toISOString().slice(0, 10);
   const otherTypes = siblings.filter(s => s.id !== type.id);
   const [form, setForm] = useState({
     direction: "from" as "from" | "to", // current type is the "from" or the "to"
     otherTypeId: "",
     expectedRate: "", minRate: "", maxRate: "",
-    processType: "", effectiveDate: today, notes: "",
+    processId: "__none__", processType: "", effectiveDate: today, notes: "",
   });
+
+  const onProcessChange = (v: string) => {
+    if (v === "__none__") {
+      setForm(f => ({ ...f, processId: "__none__", processType: "" }));
+      return;
+    }
+    const p = (processes ?? []).find((x: any) => x.id === v);
+    if (!p) { setForm(f => ({ ...f, processId: v })); return; }
+    setForm(f => ({
+      ...f,
+      processId: v,
+      processType: p.name,
+      expectedRate: f.expectedRate || (p.defaultExpectedRate ? String(Number(p.defaultExpectedRate)) : ""),
+      minRate: f.minRate || (p.defaultMinRate ? String(Number(p.defaultMinRate)) : ""),
+      maxRate: f.maxRate || (p.defaultMaxRate ? String(Number(p.defaultMaxRate)) : ""),
+    }));
+  };
   const typeName = (id: string) => siblings.find(s => s.id === id)?.name ?? id.slice(0, 8);
   const create = useMutation({
     mutationFn: (b: any) => api("/api/commodity-conversions", { method: "POST", body: JSON.stringify(b) }),
@@ -394,10 +415,21 @@ function ConversionsPanel({ type, siblings }: { type: CommodityType; siblings: C
       minRate: form.minRate ? Number(form.minRate) : undefined,
       maxRate: form.maxRate ? Number(form.maxRate) : undefined,
       processType: form.processType || undefined,
+      processId: form.processId !== "__none__" ? form.processId : undefined,
       effectiveDate: form.effectiveDate,
       notes: form.notes || undefined,
     });
   };
+
+  // Filter processes by destination type's stage (process produces the "to" stage).
+  const targetType = form.direction === "from"
+    ? otherTypes.find(t => t.id === form.otherTypeId)
+    : type;
+  const availableProcesses = (processes ?? []).filter((p: any) => {
+    if (!p.allowedStages || p.allowedStages.length === 0) return true;
+    if (!targetType) return true;
+    return p.allowedStages.includes(targetType.stage);
+  });
 
   return (
     <div className="space-y-4 mt-3">
@@ -435,7 +467,24 @@ function ConversionsPanel({ type, siblings }: { type: CommodityType; siblings: C
       )}
       {otherTypes.length > 0 && (
         <div className="grid grid-cols-3 gap-2">
-          <div><Label>Process Type</Label><Input value={form.processType} onChange={e => setForm({ ...form, processType: e.target.value })} placeholder="Pulping / Drying / Hulling" /></div>
+          <div>
+            <Label>Process</Label>
+            <Select value={form.processId} onValueChange={onProcessChange}>
+              <SelectTrigger data-testid="select-process"><SelectValue placeholder="Pick a process" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__none__">— None —</SelectItem>
+                {availableProcesses.map((p: any) => (
+                  <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {availableProcesses.length === 0 && (processes ?? []).length > 0 && targetType && (
+              <p className="text-xs text-amber-600 mt-1">No processes allowed at "{targetType.stage}" stage.</p>
+            )}
+            {(processes ?? []).length === 0 && (
+              <p className="text-xs text-muted-foreground mt-1">No processes defined — add one in the Process Master.</p>
+            )}
+          </div>
           <div><Label>Effective Date</Label><Input type="date" value={form.effectiveDate} onChange={e => setForm({ ...form, effectiveDate: e.target.value })} /></div>
           <div><Label>Notes</Label><Input value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} /></div>
         </div>

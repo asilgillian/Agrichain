@@ -108,6 +108,10 @@ export const commodityConversionsTable = pgTable("commodity_conversions", {
   minRate: numeric("min_rate", { precision: 18, scale: 8 }),
   maxRate: numeric("max_rate", { precision: 18, scale: 8 }),
   processType: text("process_type"),
+  // Optional FK to the Processes Master row that authored this conversion. Kept nullable so
+  // legacy rows authored before the Process Master existed remain valid; new rows created
+  // through the UI always carry a processId.
+  processId: uuid("process_id"),
   effectiveDate: date("effective_date").notNull(),
   version: integer("version").notNull().default(1),
   notes: text("notes"),
@@ -115,6 +119,7 @@ export const commodityConversionsTable = pgTable("commodity_conversions", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
   index("commodity_conversions_from_idx").on(t.fromCommodityTypeId),
+  index("commodity_conversions_process_idx").on(t.processId),
   index("commodity_conversions_to_idx").on(t.toCommodityTypeId),
   // (from, to, effectiveDate, version) — allows multiple versions issued on the same effective date
   // (e.g. v1 superseded by v2 mid-day after a recalibration). Latest-version wins per pair+date.
@@ -204,4 +209,32 @@ export const samplingConfigsTable = pgTable("sampling_configs", {
   uniqueIndex("sampling_configs_type_stage_active_uniq")
     .on(t.commodityTypeId, t.stage)
     .where(sql`status = 'active'`),
+]);
+
+// =================================================================================================
+// Processes Master — defines transformation operations (Pulping, Drying, Hulling, Roasting,
+// Milling, Sorting, etc.). Each process declares which operational stages it is permitted at and
+// holds optional default conversion rates that pre-populate when authoring a Commodity Conversion
+// for a from→to type pair. The Conversions panel sources its "Process" dropdown from this master,
+// replacing the previous free-text field for consistency and auditability.
+// =================================================================================================
+export const processesTable = pgTable("processes", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  name: text("name").notNull(),
+  code: text("code").notNull(),
+  description: text("description"),
+  // jsonb array of stage codes: field|pre_offload|post_offload|warehouse|processing|export
+  // Empty / null means the process is allowed at any stage.
+  allowedStages: jsonb("allowed_stages"),
+  // Optional default expected/min/max conversion rates (output kg per 1 kg input). Used as
+  // pre-fill suggestions when creating a Commodity Conversion that uses this process.
+  defaultExpectedRate: numeric("default_expected_rate", { precision: 18, scale: 8 }),
+  defaultMinRate: numeric("default_min_rate", { precision: 18, scale: 8 }),
+  defaultMaxRate: numeric("default_max_rate", { precision: 18, scale: 8 }),
+  // 'active' | 'inactive'
+  status: text("status").notNull().default("active"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex("processes_code_uniq").on(t.code),
 ]);
