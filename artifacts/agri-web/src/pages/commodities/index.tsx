@@ -48,6 +48,7 @@ export default function CommoditiesPage() {
   const { toast } = useToast();
   const qc = useQueryClient();
   const [selectedTypeId, setSelectedTypeId] = useState<string | null>(null);
+  const [editType, setEditType] = useState<CommodityType | null>(null);
 
   const { data: commodities, isLoading } = useQuery<Commodity[]>({
     queryKey: ["/api/commodities"],
@@ -233,16 +234,38 @@ export default function CommoditiesPage() {
                     <TableCell className="font-medium">{t.commodityName}</TableCell>
                     <TableCell>{t.name} <span className="text-muted-foreground text-xs">{t.code}</span></TableCell>
                     <TableCell><Badge variant={stageBadge[t.stage] ?? "outline"}>{t.stage}</Badge></TableCell>
-                    <TableCell>{t.isTradable ? "Yes" : "No"}</TableCell>
+                    <TableCell>
+                      <div className="flex gap-1">
+                        {t.isPurchasable && <Badge variant="outline" className="text-xs">Buy</Badge>}
+                        {t.isSellable && <Badge variant="outline" className="text-xs">Sell</Badge>}
+                        {!t.isPurchasable && !t.isSellable && <span className="text-muted-foreground text-xs">—</span>}
+                      </div>
+                    </TableCell>
                     <TableCell>{t.defaultMoistureMin || t.defaultMoistureMax ? `${t.defaultMoistureMin ?? "—"}–${t.defaultMoistureMax ?? "—"}%` : "—"}</TableCell>
                     <TableCell><Badge variant={t.status === "active" ? "default" : "secondary"}>{t.status}</Badge></TableCell>
-                    <TableCell><Button size="sm" variant="ghost" onClick={() => setSelectedTypeId(t.id)} data-testid={`btn-manage-${t.code}`}>Manage</Button></TableCell>
+                    <TableCell className="flex gap-1">
+                      <Button size="sm" variant="ghost" onClick={() => setEditType(t)} data-testid={`btn-edit-${t.code}`}>Edit</Button>
+                      <Button size="sm" variant="ghost" onClick={() => setSelectedTypeId(t.id)} data-testid={`btn-manage-${t.code}`}>Manage</Button>
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
             </Table>
           </CardContent>
         </Card>
+      )}
+
+      {editType && (
+        <EditTypeDialog
+          type={editType}
+          onClose={() => setEditType(null)}
+          onSaved={() => {
+            qc.invalidateQueries({ queryKey: ["/api/commodities"] });
+            setEditType(null);
+            toast({ title: "Variety updated" });
+          }}
+          onError={(msg) => toast({ title: "Failed", description: msg, variant: "destructive" })}
+        />
       )}
 
       <Dialog open={!!selectedType} onOpenChange={(o) => !o && setSelectedTypeId(null)}>
@@ -645,5 +668,95 @@ function SeasonsPanel({ type }: { type: CommodityType }) {
         </TableBody>
       </Table>
     </div>
+  );
+}
+
+function EditTypeDialog({
+  type, onClose, onSaved, onError,
+}: {
+  type: CommodityType;
+  onClose: () => void;
+  onSaved: () => void;
+  onError: (msg: string) => void;
+}) {
+  const [form, setForm] = useState({
+    name: type.name,
+    stage: type.stage,
+    isPurchasable: type.isPurchasable,
+    isSellable: type.isSellable,
+    defaultUnit: type.defaultUnit,
+    defaultMoistureMin: type.defaultMoistureMin ?? "",
+    defaultMoistureMax: type.defaultMoistureMax ?? "",
+    status: type.status,
+  });
+  const update = useMutation({
+    mutationFn: (b: any) => api(`/api/commodity-types/${type.id}`, {
+      method: "PATCH",
+      body: JSON.stringify({
+        ...b,
+        defaultMoistureMin: b.defaultMoistureMin === "" ? null : b.defaultMoistureMin,
+        defaultMoistureMax: b.defaultMoistureMax === "" ? null : b.defaultMoistureMax,
+      }),
+    }),
+    onSuccess: () => onSaved(),
+    onError: (e: any) => onError(e.message),
+  });
+
+  return (
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Edit Variety <span className="text-muted-foreground text-base font-normal">{type.code}</span></DialogTitle>
+        </DialogHeader>
+        <div className="space-y-3">
+          <div className="grid grid-cols-2 gap-3">
+            <div><Label>Name</Label><Input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} data-testid="input-edit-name" /></div>
+            <div><Label>Code (read-only)</Label><Input value={type.code} disabled /></div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div><Label>Stage</Label>
+              <Select value={form.stage} onValueChange={(v: any) => setForm({ ...form, stage: v })}>
+                <SelectTrigger data-testid="select-edit-stage"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="raw">Raw</SelectItem>
+                  <SelectItem value="intermediate">Intermediate</SelectItem>
+                  <SelectItem value="finished">Finished</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div><Label>Status</Label>
+              <Select value={form.status} onValueChange={(v) => setForm({ ...form, status: v })}>
+                <SelectTrigger data-testid="select-edit-status"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="active">Active</SelectItem>
+                  <SelectItem value="inactive">Inactive</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <div className="grid grid-cols-3 gap-3">
+            <div><Label>Default Unit</Label><Input value={form.defaultUnit} onChange={e => setForm({ ...form, defaultUnit: e.target.value })} /></div>
+            <div><Label>Moisture Min %</Label><Input type="number" step="0.1" value={form.defaultMoistureMin} onChange={e => setForm({ ...form, defaultMoistureMin: e.target.value })} /></div>
+            <div><Label>Moisture Max %</Label><Input type="number" step="0.1" value={form.defaultMoistureMax} onChange={e => setForm({ ...form, defaultMoistureMax: e.target.value })} /></div>
+          </div>
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <input id="edit-isPurchasable" type="checkbox" checked={form.isPurchasable} onChange={e => setForm({ ...form, isPurchasable: e.target.checked })} />
+              <Label htmlFor="edit-isPurchasable" className="cursor-pointer">Purchasable (can be bought from farmers)</Label>
+            </div>
+            <div className="flex items-center gap-2">
+              <input id="edit-isSellable" type="checkbox" checked={form.isSellable} onChange={e => setForm({ ...form, isSellable: e.target.checked })} />
+              <Label htmlFor="edit-isSellable" className="cursor-pointer">Sellable (can be sold to buyers)</Label>
+            </div>
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>Cancel</Button>
+          <Button onClick={() => update.mutate(form)} disabled={!form.name || update.isPending} data-testid="btn-save-edit">
+            {update.isPending ? "Saving..." : "Save"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
