@@ -4,7 +4,9 @@ import {
   useCreateProcurementContract,
   useUpdateProcurementContract,
   useListGroups,
+  customFetch,
 } from "@workspace/api-client-react";
+import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
@@ -27,6 +29,11 @@ export default function ProcurementContractsPage() {
   const { data: contracts, isLoading, refetch } = useListProcurementContracts({});
   const { data: groupsData } = useListGroups({});
   const groups = Array.isArray(groupsData) ? groupsData : [];
+  const { data: commoditiesData } = useQuery<any[]>({
+    queryKey: ["/api/commodities"],
+    queryFn: () => customFetch<any[]>(`${API_BASE}/api/commodities`),
+  });
+  const commodities = Array.isArray(commoditiesData) ? commoditiesData : [];
   const createMut = useCreateProcurementContract();
   const updateMut = useUpdateProcurementContract();
   const { toast } = useToast();
@@ -117,7 +124,14 @@ export default function ProcurementContractsPage() {
               </div>
               <div>
                 <Label>Commodity</Label>
-                <Input value={form.commodityType} onChange={e => setForm({ ...form, commodityType: e.target.value })} placeholder="e.g. coffee_arabica" data-testid="contract-commodity-input" />
+                <Select value={form.commodityType} onValueChange={v => setForm({ ...form, commodityType: v })}>
+                  <SelectTrigger data-testid="contract-commodity-select"><SelectValue placeholder={commodities.length ? "Select commodity" : "No commodities — add one in Commodity Master"} /></SelectTrigger>
+                  <SelectContent>
+                    {commodities.map((c: any) => (
+                      <SelectItem key={c.id} value={c.code}>{c.name} ({c.code})</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div><Label>Season start</Label><Input type="date" value={form.seasonStart} onChange={e => setForm({ ...form, seasonStart: e.target.value })} data-testid="contract-start-input" /></div>

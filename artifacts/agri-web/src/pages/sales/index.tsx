@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { customFetch } from "@workspace/api-client-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -46,32 +47,39 @@ export default function SalesPage() {
 
   const { data: contracts, isLoading: contractsLoading } = useQuery({
     queryKey: ["/api/sales/contracts", status, page],
-    queryFn: () => fetch(`${API_BASE}/api/sales/contracts?${params}`).then(r => r.json()),
+    queryFn: () => customFetch(`${API_BASE}/api/sales/contracts?${params}`),
     enabled: tab === "contracts",
   });
 
   const { data: dispatches, isLoading: dispatchesLoading } = useQuery({
     queryKey: ["/api/dispatches"],
-    queryFn: () => fetch(`${API_BASE}/api/dispatches?limit=20&page=${page}`).then(r => r.json()),
+    queryFn: () => customFetch(`${API_BASE}/api/dispatches?limit=20&page=${page}`),
     enabled: tab === "dispatches",
   });
 
   const { data: invoices, isLoading: invoicesLoading } = useQuery({
     queryKey: ["/api/invoices"],
-    queryFn: () => fetch(`${API_BASE}/api/invoices?limit=20&page=${page}`).then(r => r.json()),
+    queryFn: () => customFetch(`${API_BASE}/api/invoices?limit=20&page=${page}`),
     enabled: tab === "invoices",
   });
 
-  const { data: buyersData } = useQuery({
+  const { data: buyersData } = useQuery<any>({
     queryKey: ["/api/buyers", "for-contract"],
-    queryFn: () => fetch(`${API_BASE}/api/buyers?limit=200`).then(r => r.json()),
+    queryFn: () => customFetch(`${API_BASE}/api/buyers?limit=200`),
     enabled: open,
   });
 
+  const { data: commoditiesData } = useQuery<any[]>({
+    queryKey: ["/api/commodities"],
+    queryFn: () => customFetch<any[]>(`${API_BASE}/api/commodities`),
+    enabled: open,
+  });
+  const commodities = Array.isArray(commoditiesData) ? commoditiesData : [];
+
   const createMutation = useMutation({
-    mutationFn: (body: any) => fetch(`${API_BASE}/api/sales/contracts`, {
+    mutationFn: (body: any) => customFetch(`${API_BASE}/api/sales/contracts`, {
       method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
-    }).then(async r => { if (!r.ok) throw new Error((await r.json()).error ?? "Failed"); return r.json(); }),
+    }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/sales/contracts"] });
       toast({ title: "Contract created" });
@@ -145,7 +153,17 @@ export default function SalesPage() {
                     </SelectContent>
                   </Select>
                 </div>
-                <div><Label>Commodity</Label><Input value={form.commodityType} onChange={e => setForm({ ...form, commodityType: e.target.value })} placeholder="Coffee, Cocoa..." data-testid="input-commodity" /></div>
+                <div>
+                  <Label>Commodity</Label>
+                  <Select value={form.commodityType} onValueChange={v => setForm({ ...form, commodityType: v })}>
+                    <SelectTrigger data-testid="input-commodity"><SelectValue placeholder={commodities.length ? "Select commodity" : "No commodities — add one in Commodity Master"} /></SelectTrigger>
+                    <SelectContent>
+                      {commodities.map((c: any) => (
+                        <SelectItem key={c.id} value={c.code}>{c.name} ({c.code})</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div><Label>Grade</Label><Input value={form.grade} onChange={e => setForm({ ...form, grade: e.target.value })} placeholder="AA, Premium..." data-testid="input-grade" /></div>
