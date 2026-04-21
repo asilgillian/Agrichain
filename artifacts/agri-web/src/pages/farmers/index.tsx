@@ -121,7 +121,7 @@ export default function FarmersList() {
                 <Select value={form.regionId} onValueChange={v => setForm({ ...form, regionId: v })}>
                   <SelectTrigger data-testid="input-region"><SelectValue placeholder="Select region" /></SelectTrigger>
                   <SelectContent>
-                    {regions?.map(r => <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>)}
+                    {Array.isArray(regions) && regions.map(r => <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
