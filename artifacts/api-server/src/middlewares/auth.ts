@@ -1,6 +1,6 @@
 import type { Request, Response, NextFunction } from "express";
 import { getAuth, clerkClient } from "@clerk/express";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { db, usersTable, rolesTable } from "@workspace/db";
 
 export interface AuthedRequest extends Request {
@@ -31,12 +31,17 @@ async function loadOrCreateUser(clerkUserId: string) {
     return updated;
   }
 
+  const [{ count }] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(usersTable);
+  const isFirstUser = Number(count) === 0;
+
   const [created] = await db.insert(usersTable).values({
     firstName: firstName || email.split("@")[0],
     lastName: lastName || "",
     email,
     clerkUserId,
-    role: "Pending",
+    role: isFirstUser ? "SystemAdministrator" : "Pending",
     status: "active",
   }).returning();
   return created;
