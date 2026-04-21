@@ -160,7 +160,17 @@ export default function PlotsMapPage() {
         method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(patch),
       });
       const j = await r.json().catch(() => ({}));
-      if (!r.ok) throw new Error(j.error ?? `HTTP ${r.status}`);
+      if (!r.ok) {
+        // Surface field errors and overlap conflicts in the toast description
+        const detail = Array.isArray(j.fieldErrors) && j.fieldErrors.length > 0
+          ? j.fieldErrors.map((e: any) => `• ${e.message}`).join("\n")
+          : Array.isArray(j.conflictingPlotIds) && j.conflictingPlotIds.length > 0
+            ? `Overlaps ${j.conflictingPlotIds.length} other plot(s)`
+            : undefined;
+        const err: any = new Error(j.error ?? `HTTP ${r.status}`);
+        err.detail = detail;
+        throw err;
+      }
       return j;
     },
     onSuccess: () => {
@@ -170,7 +180,7 @@ export default function PlotsMapPage() {
       setEditingProps(null);
       setEditingGeometry(null);
     },
-    onError: (e: any) => toast({ title: "Update failed", description: e.message, variant: "destructive" }),
+    onError: (e: any) => toast({ title: "Update failed", description: e.detail ?? e.message, variant: "destructive" }),
   });
 
   const handleExport = (format: "geojson" | "csv" | "kml") => {

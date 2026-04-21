@@ -2,6 +2,7 @@ import { Router, type IRouter } from "express";
 import { eq, and, sql, inArray, type SQL } from "drizzle-orm";
 import { db, plotsTable, farmersTable, groupsTable, regionsTable } from "@workspace/db";
 import { CreatePlotBody, ListPlotsQueryParams } from "@workspace/api-zod";
+import { validatePlotGeometry, findOverlaps, polygonAreaHectares, type PlotGeometry, type PolygonGeometry } from "../lib/plot-validation";
 
 const router: IRouter = Router();
 
@@ -36,8 +37,46 @@ router.post("/plots", async (req, res): Promise<void> => {
     res.status(400).json({ error: parsed.error.message });
     return;
   }
-  const [plot] = await db.insert(plotsTable).values(parsed.data).returning();
+  // Field-capture validation (EUDR + CBI). The codegen stripped `polygon` from
+  // CreatePlotBody, so read it from req.body alongside the parsed fields.
+  // We strictly accept Point or Polygon — MultiPolygon and others are rejected so
+  // every accepted geometry goes through the same validators (no escape hatch).
+  const geometry = (req.body.polygon ?? null) as PlotGeometry | null;
+  if (geometry && geometry.type !== "Point" && geometry.type !== "Polygon") {
+    res.status(400).json({ error: "polygon must be a GeoJSON Point or Polygon" }); return;
+  }
+  const errors = validatePlotGeometry({ geometry, areaHectares: parsed.data.areaHectares as number });
+  if (errors.length > 0) { res.status(400).json({ error: "Plot validation failed", fieldErrors: errors }); return; }
+  if (geometry?.type === "Polygon") {
+    const others = await db.select({ id: plotsTable.id, polygon: plotsTable.polygon }).from(plotsTable);
+    const overlapping = findOverlaps(geometry, others.map(o => ({ id: o.id, polygon: o.polygon as PlotGeometry | null })));
+    if (overlapping.length > 0) {
+      res.status(409).json({ error: "Polygon overlaps existing registered plot(s)", code: "POLYGON_OVERLAP", conflictingPlotIds: overlapping });
+      return;
+    }
+  }
+  const [plot] = await db.insert(plotsTable).values({ ...parsed.data, polygon: geometry as any }).returning();
   res.status(201).json({ ...plot, areaHectares: parseFloat(plot.areaHectares ?? "0") });
+});
+
+// ---------- POST /plots/validate ----------
+// Stateless dry-run: returns field errors + overlap conflicts without saving.
+// Field clients (mobile/web) call this to surface inline validation before submit.
+router.post("/plots/validate", async (req, res): Promise<void> => {
+  const geometry = (req.body?.polygon ?? null) as PlotGeometry | null;
+  const areaHectares = typeof req.body?.areaHectares === "number" ? req.body.areaHectares : undefined;
+  const excludeId = typeof req.body?.excludePlotId === "string" ? req.body.excludePlotId : undefined;
+  const errors = validatePlotGeometry({ geometry, areaHectares });
+  let conflictingPlotIds: string[] = [];
+  let computedAreaHectares: number | null = null;
+  if (geometry?.type === "Polygon") {
+    computedAreaHectares = polygonAreaHectares(geometry as PolygonGeometry);
+    if (errors.every(e => e.code !== "SELF_INTERSECTING" && e.code !== "RING_NOT_CLOSED" && e.code !== "INSUFFICIENT_VERTICES" && e.code !== "POLYGON_EMPTY")) {
+      const others = await db.select({ id: plotsTable.id, polygon: plotsTable.polygon }).from(plotsTable);
+      conflictingPlotIds = findOverlaps(geometry as PolygonGeometry, others.map(o => ({ id: o.id, polygon: o.polygon as PlotGeometry | null })), excludeId);
+    }
+  }
+  res.json({ valid: errors.length === 0 && conflictingPlotIds.length === 0, fieldErrors: errors, conflictingPlotIds, computedAreaHectares });
 });
 
 // ---------- GET /plots/geojson ----------
@@ -155,11 +194,29 @@ router.patch("/plots/:plotId", async (req, res): Promise<void> => {
     if (body.polygon === null) patch.polygon = null;
     else if (typeof body.polygon === "object" && body.polygon !== null) {
       const poly: any = body.polygon;
-      if (poly.type !== "Polygon" && poly.type !== "MultiPolygon") {
-        res.status(400).json({ error: "polygon must be a GeoJSON Polygon or MultiPolygon" }); return;
+      // Strictly Point or Polygon — every accepted geometry must pass the same validators.
+      if (poly.type !== "Polygon" && poly.type !== "Point") {
+        res.status(400).json({ error: "polygon must be a GeoJSON Point or Polygon" }); return;
       }
       if (!Array.isArray(poly.coordinates)) {
         res.status(400).json({ error: "polygon.coordinates required" }); return;
+      }
+      // Determine effective area for the CBI ≥ 4 ha rule: prefer the patch value,
+      // else fall back to current row, else compute from the polygon itself.
+      const [current] = await db.select().from(plotsTable).where(eq(plotsTable.id, plotId));
+      const effectiveArea = patch.areaHectares != null
+        ? Number(patch.areaHectares)
+        : current?.areaHectares != null ? parseFloat(current.areaHectares)
+        : (poly.type === "Polygon" ? polygonAreaHectares(poly as PolygonGeometry) : 0);
+      const errors = validatePlotGeometry({ geometry: poly as PlotGeometry, areaHectares: effectiveArea });
+      if (errors.length > 0) { res.status(400).json({ error: "Plot validation failed", fieldErrors: errors }); return; }
+      if (poly.type === "Polygon") {
+        const others = await db.select({ id: plotsTable.id, polygon: plotsTable.polygon }).from(plotsTable);
+        const overlapping = findOverlaps(poly as PolygonGeometry, others.map(o => ({ id: o.id, polygon: o.polygon as PlotGeometry | null })), plotId);
+        if (overlapping.length > 0) {
+          res.status(409).json({ error: "Polygon overlaps existing registered plot(s)", code: "POLYGON_OVERLAP", conflictingPlotIds: overlapping });
+          return;
+        }
       }
       patch.polygon = poly;
     } else { res.status(400).json({ error: "polygon must be an object or null" }); return; }
