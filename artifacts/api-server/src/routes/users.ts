@@ -46,12 +46,23 @@ router.get("/users/:userId", requirePermission("users.read"), async (req, res): 
 
 router.patch("/users/:userId", requirePermission("users.write"), async (req, res): Promise<void> => {
   const { userId } = req.params;
-  const parsed = UpdateUserBody.safeParse(req.body);
+  const raw = (req.body ?? {}) as Record<string, unknown>;
+  const nullable: Record<string, null> = {};
+  const stripped: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(raw)) {
+    if (v === null && (k === "managerId" || k === "regionId" || k === "phoneNumber")) {
+      nullable[k] = null;
+    } else {
+      stripped[k] = v;
+    }
+  }
+  const parsed = UpdateUserBody.safeParse(stripped);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
     return;
   }
-  const [user] = await db.update(usersTable).set({ ...parsed.data, updatedAt: new Date() }).where(eq(usersTable.id, userId as string)).returning();
+  const updateValues = { ...parsed.data, ...nullable, updatedAt: new Date() };
+  const [user] = await db.update(usersTable).set(updateValues).where(eq(usersTable.id, userId as string)).returning();
   if (!user) {
     res.status(404).json({ error: "User not found" });
     return;
