@@ -100,6 +100,33 @@ export default function AdminPage() {
   const [editRole, setEditRole] = useState<Role | null>(null);
   const [editPerms, setEditPerms] = useState<Set<string>>(new Set());
 
+  const [regionOpen, setRegionOpen] = useState(false);
+  const [regionForm, setRegionForm] = useState({ name: "", level: "1", countryCode: "UG", parentId: "" });
+
+  const createRegionMut = useMutation({
+    mutationFn: (body: any) => fetch(`${API_BASE}/api/admin/regions`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) })
+      .then(async r => { if (!r.ok) throw new Error((await r.json()).error ?? "Failed"); return r.json(); }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["/api/admin/regions"] });
+      qc.invalidateQueries({ queryKey: ["listRegions"] });
+      toast({ title: "Region created" });
+      setRegionOpen(false);
+      setRegionForm({ name: "", level: "1", countryCode: "UG", parentId: "" });
+    },
+    onError: (e: any) => toast({ title: "Failed to create region", description: e.message, variant: "destructive" }),
+  });
+
+  const submitRegion = () => {
+    const name = regionForm.name.trim();
+    const level = parseInt(regionForm.level, 10);
+    if (!name) { toast({ title: "Region name required", variant: "destructive" }); return; }
+    if (!Number.isFinite(level) || level < 1) { toast({ title: "Level must be a positive number", variant: "destructive" }); return; }
+    const body: any = { name, level };
+    if (regionForm.countryCode.trim()) body.countryCode = regionForm.countryCode.trim().toUpperCase();
+    if (regionForm.parentId.trim()) body.parentId = regionForm.parentId.trim();
+    createRegionMut.mutate(body);
+  };
+
   const createMut = useMutation({
     mutationFn: (body: any) => fetch(`${API_BASE}/api/admin/roles`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) })
       .then(async r => { if (!r.ok) throw new Error((await r.json()).error ?? "Failed"); return r.json(); }),
@@ -168,9 +195,34 @@ export default function AdminPage() {
 
         <TabsContent value="regions" className="mt-4">
           <Card>
-            <CardHeader className="flex flex-row items-center gap-2">
-              <MapPin className="h-4 w-4 text-muted-foreground" />
-              <CardTitle>Regions</CardTitle>
+            <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0">
+              <div className="flex items-center gap-2">
+                <MapPin className="h-4 w-4 text-muted-foreground" />
+                <CardTitle>Regions</CardTitle>
+              </div>
+              <Dialog open={regionOpen} onOpenChange={(o) => { setRegionOpen(o); if (!o) setRegionForm({ name: "", level: "1", countryCode: "UG", parentId: "" }); }}>
+                <DialogTrigger asChild>
+                  <Button size="sm" className="gap-2" data-testid="new-region-btn"><Plus className="h-4 w-4" /> New Region</Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Create Region</DialogTitle>
+                    <DialogDescription>Regions are administrative units (e.g. district, sub-county). Use level 1 for top-level (district), 2 for sub-county, etc.</DialogDescription>
+                  </DialogHeader>
+                  <div className="space-y-3">
+                    <div><Label>Name *</Label><Input value={regionForm.name} onChange={e => setRegionForm({ ...regionForm, name: e.target.value })} placeholder="e.g. Mbale" data-testid="input-region-name" /></div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div><Label>Level *</Label><Input type="number" min="1" value={regionForm.level} onChange={e => setRegionForm({ ...regionForm, level: e.target.value })} data-testid="input-region-level" /></div>
+                      <div><Label>Country code</Label><Input value={regionForm.countryCode} onChange={e => setRegionForm({ ...regionForm, countryCode: e.target.value })} placeholder="UG" data-testid="input-region-country" /></div>
+                    </div>
+                    <div><Label>Parent region ID (optional)</Label><Input value={regionForm.parentId} onChange={e => setRegionForm({ ...regionForm, parentId: e.target.value })} placeholder="parent region UUID" data-testid="input-region-parent" /></div>
+                  </div>
+                  <DialogFooter>
+                    <Button variant="outline" onClick={() => setRegionOpen(false)}>Cancel</Button>
+                    <Button onClick={submitRegion} disabled={createRegionMut.isPending} data-testid="submit-region-btn">{createRegionMut.isPending ? "Creating..." : "Create"}</Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
             </CardHeader>
             <CardContent className="p-0">
               <Table>
