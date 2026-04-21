@@ -152,3 +152,4 @@ pnpm run typecheck                                 # Full typecheck
 - API uses structured pino logging — never `console.log`
 - Orval config uses `indexFiles: false` for zod target to avoid barrel file conflicts
 - `lib/api-zod/src/index.ts` must only export from `./generated/api` (not types)
+- All 8 module list pages have wired Create/Action dialogs (Farmers, Groups, Procurement, Activity Funds, Assets, Staff, Exports, Compliance) — direct `fetch` POST + react-query invalidation; payloads omit empty optional fields and validate numbers/dates client-side; staff role enum uses capitalized values (Agronomist, Manager, etc.)

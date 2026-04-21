@@ -1,27 +1,26 @@
+import { useState } from "react";
 import { useListDeliveries } from "@workspace/api-client-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Link } from "wouter";
-import { ChevronRight, CheckCircle, Circle, XCircle } from "lucide-react";
+import { ChevronRight, CheckCircle, Circle, Plus } from "lucide-react";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useToast } from "@/hooks/use-toast";
+
+const API_BASE = import.meta.env.BASE_URL?.replace(/\/$/, "");
 
 const statusColors: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
-  pending_weight: "secondary",
-  pending_qc: "secondary",
-  pending_pricing: "outline",
-  pending_approval: "outline",
-  approved: "default",
-  rejected: "destructive",
+  pending_weight: "secondary", pending_qc: "secondary", pending_pricing: "outline", pending_approval: "outline", approved: "default", rejected: "destructive",
 };
-
 const statusLabels: Record<string, string> = {
-  pending_weight: "Awaiting Weight",
-  pending_qc: "Awaiting QC",
-  pending_pricing: "Awaiting Pricing",
-  pending_approval: "Awaiting Approval",
-  approved: "Approved",
-  rejected: "Rejected",
+  pending_weight: "Awaiting Weight", pending_qc: "Awaiting QC", pending_pricing: "Awaiting Pricing", pending_approval: "Awaiting Approval", approved: "Approved", rejected: "Rejected",
 };
 
 function Checkmark({ ok }: { ok: boolean }) {
@@ -30,6 +29,27 @@ function Checkmark({ ok }: { ok: boolean }) {
 
 export default function ProcurementHub() {
   const { data: deliveries, isLoading } = useListDeliveries({});
+  const [open, setOpen] = useState(false);
+  const [form, setForm] = useState({ batchTag: "", stationId: "" });
+  const { toast } = useToast();
+  const qc = useQueryClient();
+
+  const { data: stations } = useQuery<any[]>({
+    queryKey: ["/api/buying-stations"],
+    queryFn: () => fetch(`${API_BASE}/api/buying-stations`).then(r => r.json()),
+  });
+
+  const createMut = useMutation({
+    mutationFn: (body: any) => fetch(`${API_BASE}/api/procurement/deliveries`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) })
+      .then(async r => { if (!r.ok) throw new Error((await r.json()).error ?? "Failed"); return r.json(); }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["/api/procurement/deliveries"] });
+      toast({ title: "Delivery logged" });
+      setOpen(false);
+      setForm({ batchTag: "", stationId: "" });
+    },
+    onError: (e: any) => toast({ title: "Failed", description: e.message, variant: "destructive" }),
+  });
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-12">
@@ -38,7 +58,36 @@ export default function ProcurementHub() {
           <h1 className="text-3xl font-bold tracking-tight">Procurement Hub</h1>
           <p className="text-muted-foreground mt-1">Inbound deliveries — weight, QC, pricing, and approval workflow</p>
         </div>
-        <Badge variant="secondary">{isLoading ? "..." : (deliveries?.length ?? 0)} deliveries</Badge>
+        <div className="flex items-center gap-3">
+          <Badge variant="secondary">{isLoading ? "..." : (deliveries?.length ?? 0)} deliveries</Badge>
+          <Dialog open={open} onOpenChange={setOpen}>
+            <DialogTrigger asChild>
+              <Button className="gap-2" data-testid="new-delivery-btn"><Plus className="h-4 w-4" /> New Delivery</Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Log New Delivery</DialogTitle>
+                <DialogDescription>Open a new delivery record at a buying station to begin the weight, QC, and pricing workflow.</DialogDescription>
+              </DialogHeader>
+              <div className="space-y-3">
+                <div><Label>Batch Tag *</Label><Input value={form.batchTag} onChange={e => setForm({ ...form, batchTag: e.target.value })} placeholder="e.g. BATCH-2026-001" data-testid="input-batch-tag" /></div>
+                <div>
+                  <Label>Buying Station *</Label>
+                  <Select value={form.stationId} onValueChange={v => setForm({ ...form, stationId: v })}>
+                    <SelectTrigger data-testid="input-station"><SelectValue placeholder="Select station" /></SelectTrigger>
+                    <SelectContent>
+                      {stations?.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
+                <Button onClick={() => { const tag = form.batchTag.trim(); if (!tag || !form.stationId) { toast({ title: "Batch tag and station required", variant: "destructive" }); return; } createMut.mutate({ batchTag: tag, stationId: form.stationId }); }} disabled={createMut.isPending} data-testid="submit-delivery">{createMut.isPending ? "Saving..." : "Create"}</Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        </div>
       </div>
 
       {isLoading ? (

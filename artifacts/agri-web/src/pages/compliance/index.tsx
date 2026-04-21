@@ -1,15 +1,44 @@
-import { useGetEudrCompliance, useListGapAssessments, useListTrainingSessions } from "@workspace/api-client-react";
+import { useState } from "react";
+import { useGetEudrCompliance, useListGapAssessments, useListTrainingSessions, useListUsers } from "@workspace/api-client-react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { ShieldCheck, AlertTriangle } from "lucide-react";
+import { ShieldCheck, AlertTriangle, Plus } from "lucide-react";
 import { format } from "date-fns";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useToast } from "@/hooks/use-toast";
+
+const API_BASE = import.meta.env.BASE_URL?.replace(/\/$/, "");
+
+const emptyTraining = { title: "", type: "GAP", scheduledDate: new Date().toISOString().slice(0, 10), location: "", facilitatorId: "" };
 
 export default function CompliancePage() {
   const { data: eudr, isLoading: isLoadingEudr } = useGetEudrCompliance();
   const { data: gaps, isLoading: isLoadingGaps } = useListGapAssessments({});
   const { data: trainings, isLoading: isLoadingTrainings } = useListTrainingSessions();
+  const { data: users } = useListUsers({});
+  const [open, setOpen] = useState(false);
+  const [form, setForm] = useState(emptyTraining);
+  const { toast } = useToast();
+  const qc = useQueryClient();
+
+  const createMut = useMutation({
+    mutationFn: (body: any) => fetch(`${API_BASE}/api/compliance/training-sessions`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) })
+      .then(async r => { if (!r.ok) throw new Error((await r.json()).error ?? "Failed"); return r.json(); }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["/api/compliance/training-sessions"] });
+      toast({ title: "Training session scheduled" });
+      setOpen(false);
+      setForm(emptyTraining);
+    },
+    onError: (e: any) => toast({ title: "Failed", description: e.message, variant: "destructive" }),
+  });
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-12">
@@ -94,7 +123,62 @@ export default function CompliancePage() {
         <CardHeader>
           <div className="flex items-center justify-between">
             <CardTitle>Training Sessions</CardTitle>
-            <Badge variant="secondary">{isLoadingTrainings ? "..." : (trainings?.length ?? 0)}</Badge>
+            <div className="flex items-center gap-3">
+              <Badge variant="secondary">{isLoadingTrainings ? "..." : (trainings?.length ?? 0)}</Badge>
+              <Dialog open={open} onOpenChange={setOpen}>
+                <DialogTrigger asChild>
+                  <Button size="sm" className="gap-2" data-testid="new-training-btn"><Plus className="h-4 w-4" /> Schedule</Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Schedule Training Session</DialogTitle>
+                    <DialogDescription>Plan a farmer training session for GAP, EUDR, or other compliance topics.</DialogDescription>
+                  </DialogHeader>
+                  <div className="space-y-3">
+                    <div><Label>Title *</Label><Input value={form.title} onChange={e => setForm({ ...form, title: e.target.value })} placeholder="e.g. EUDR Compliance Briefing" data-testid="input-title" /></div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <Label>Type *</Label>
+                        <Select value={form.type} onValueChange={v => setForm({ ...form, type: v })}>
+                          <SelectTrigger data-testid="input-type"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="GAP">GAP</SelectItem>
+                            <SelectItem value="EUDR">EUDR</SelectItem>
+                            <SelectItem value="Rainforest Alliance">Rainforest Alliance</SelectItem>
+                            <SelectItem value="Post-harvest">Post-harvest</SelectItem>
+                            <SelectItem value="Financial Literacy">Financial Literacy</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div><Label>Date *</Label><Input type="date" value={form.scheduledDate} onChange={e => setForm({ ...form, scheduledDate: e.target.value })} data-testid="input-date" /></div>
+                    </div>
+                    <div><Label>Location</Label><Input value={form.location} onChange={e => setForm({ ...form, location: e.target.value })} placeholder="e.g. Kibaale Coop Hall" data-testid="input-location" /></div>
+                    <div>
+                      <Label>Facilitator *</Label>
+                      <Select value={form.facilitatorId} onValueChange={v => setForm({ ...form, facilitatorId: v })}>
+                        <SelectTrigger data-testid="input-facilitator"><SelectValue placeholder="Select facilitator" /></SelectTrigger>
+                        <SelectContent>
+                          {users?.map(u => <SelectItem key={u.id} value={u.id}>{u.firstName} {u.lastName}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  <DialogFooter>
+                    <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
+                    <Button onClick={() => {
+                      const title = form.title.trim();
+                      if (!title || !form.type || !form.scheduledDate || !form.facilitatorId) {
+                        toast({ title: "Title, type, date and facilitator required", variant: "destructive" });
+                        return;
+                      }
+                      const body: any = { title, type: form.type, scheduledDate: form.scheduledDate, facilitatorId: form.facilitatorId };
+                      if (form.location.trim()) body.location = form.location.trim();
+                      createMut.mutate(body);
+                    }} disabled={createMut.isPending} data-testid="submit-training">{createMut.isPending ? "Saving..." : "Schedule"}</Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+            </div>
           </div>
         </CardHeader>
         <CardContent className="p-0">

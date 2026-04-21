@@ -1,24 +1,64 @@
+import { useState } from "react";
 import { useListUsers } from "@workspace/api-client-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Link } from "wouter";
-import { ChevronRight } from "lucide-react";
+import { ChevronRight, Plus } from "lucide-react";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useToast } from "@/hooks/use-toast";
+import { DEFAULT_PHONE_CODE } from "@/lib/currency";
+
+const API_BASE = import.meta.env.BASE_URL?.replace(/\/$/, "");
 
 const roleLabels: Record<string, string> = {
-  agronomist: "Field Agent",
-  manager: "Manager",
-  supervisor: "Supervisor",
-  procurement_head: "Procurement Head",
-  finance: "Finance Officer",
-  system_admin: "System Admin",
-  warehouse_manager: "Warehouse Manager",
-  compliance_officer: "Compliance Officer",
+  Agronomist: "Field Agent (Agronomist)",
+  Farmer: "Farmer",
+  Manager: "Manager",
+  Supervisor: "Supervisor",
+  GroupLeader: "Group Leader",
+  BuyingStationAgent: "Buying Station Agent",
+  QualityInspector: "Quality Inspector",
+  TradeDesk: "Trade Desk",
+  ProcurementHead: "Procurement Head",
+  FinanceOfficer: "Finance Officer",
+  SystemAdministrator: "System Administrator",
+  WarehouseManager: "Warehouse Manager",
+  LogisticsOfficer: "Logistics Officer",
+  ComplianceOfficer: "Compliance Officer",
 };
+
+const emptyForm = { firstName: "", lastName: "", email: "", phoneNumber: DEFAULT_PHONE_CODE, role: "Agronomist", regionId: "" };
 
 export default function StaffPage() {
   const { data: users, isLoading } = useListUsers({});
+  const [open, setOpen] = useState(false);
+  const [form, setForm] = useState(emptyForm);
+  const { toast } = useToast();
+  const qc = useQueryClient();
+
+  const { data: regions } = useQuery<any[]>({
+    queryKey: ["/api/admin/regions"],
+    queryFn: () => fetch(`${API_BASE}/api/admin/regions`).then(r => r.json()),
+  });
+
+  const createMut = useMutation({
+    mutationFn: (body: any) => fetch(`${API_BASE}/api/users`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) })
+      .then(async r => { if (!r.ok) throw new Error((await r.json()).error ?? "Failed"); return r.json(); }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["/api/users"] });
+      toast({ title: "Staff member added" });
+      setOpen(false);
+      setForm(emptyForm);
+    },
+    onError: (e: any) => toast({ title: "Failed", description: e.message, variant: "destructive" }),
+  });
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-12">
@@ -27,7 +67,59 @@ export default function StaffPage() {
           <h1 className="text-3xl font-bold tracking-tight">Staff Management</h1>
           <p className="text-muted-foreground mt-1">User accounts, roles, and regional assignments</p>
         </div>
-        <Badge variant="secondary">{isLoading ? "..." : (users?.length ?? 0)} staff</Badge>
+        <div className="flex items-center gap-3">
+          <Badge variant="secondary">{isLoading ? "..." : (users?.length ?? 0)} staff</Badge>
+          <Dialog open={open} onOpenChange={setOpen}>
+            <DialogTrigger asChild>
+              <Button className="gap-2" data-testid="add-staff-btn"><Plus className="h-4 w-4" /> Add Staff</Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Add Staff Member</DialogTitle>
+                <DialogDescription>Create a new user account with a defined role and region.</DialogDescription>
+              </DialogHeader>
+              <div className="space-y-3">
+                <div className="grid grid-cols-2 gap-3">
+                  <div><Label>First Name *</Label><Input value={form.firstName} onChange={e => setForm({ ...form, firstName: e.target.value })} data-testid="input-first-name" /></div>
+                  <div><Label>Last Name *</Label><Input value={form.lastName} onChange={e => setForm({ ...form, lastName: e.target.value })} data-testid="input-last-name" /></div>
+                </div>
+                <div><Label>Email *</Label><Input type="email" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} data-testid="input-email" /></div>
+                <div><Label>Phone</Label><Input value={form.phoneNumber} onChange={e => setForm({ ...form, phoneNumber: e.target.value })} data-testid="input-phone" /></div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label>Role *</Label>
+                    <Select value={form.role} onValueChange={v => setForm({ ...form, role: v })}>
+                      <SelectTrigger data-testid="input-role"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {Object.entries(roleLabels).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label>Region</Label>
+                    <Select value={form.regionId} onValueChange={v => setForm({ ...form, regionId: v })}>
+                      <SelectTrigger data-testid="input-region"><SelectValue placeholder="Select region" /></SelectTrigger>
+                      <SelectContent>
+                        {regions?.map(r => <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
+                <Button onClick={() => {
+                  const fn = form.firstName.trim(); const ln = form.lastName.trim(); const em = form.email.trim(); const ph = form.phoneNumber.trim();
+                  if (!fn || !ln || !em || !form.role) { toast({ title: "Name, email and role required", variant: "destructive" }); return; }
+                  const body: any = { firstName: fn, lastName: ln, email: em, role: form.role };
+                  if (ph && ph !== DEFAULT_PHONE_CODE) body.phoneNumber = ph;
+                  if (form.regionId) body.regionId = form.regionId;
+                  createMut.mutate(body);
+                }} disabled={createMut.isPending} data-testid="submit-staff">{createMut.isPending ? "Saving..." : "Add"}</Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        </div>
       </div>
 
       <Card>
