@@ -12,6 +12,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { Leaf, Plus, Tag, Coins, ArrowRightLeft, CalendarRange, FlaskConical } from "lucide-react";
+import { customFetch } from "@workspace/api-client-react";
 
 const API_BASE = import.meta.env.BASE_URL?.replace(/\/$/, "");
 
@@ -32,7 +33,7 @@ type CommodityType = {
 };
 
 async function api<T>(path: string, init?: RequestInit): Promise<T> {
-  const r = await fetch(`${API_BASE}${path}`, {
+  const r = await customFetch(`${API_BASE}${path}`, {
     ...init,
     headers: { "Content-Type": "application/json", ...(init?.headers ?? {}) },
   });
