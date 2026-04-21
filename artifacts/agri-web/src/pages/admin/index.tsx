@@ -15,6 +15,8 @@ import { Settings, RefreshCw, MapPin, Plus, Pencil, Trash2, Upload, FileSpreadsh
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
+import { RegionsManager } from "@/components/admin/RegionsManager";
+import { RegionsMap } from "@/components/admin/RegionsMap";
 
 const API_BASE = import.meta.env.BASE_URL?.replace(/\/$/, "");
 
@@ -295,6 +297,7 @@ export default function AdminPage() {
       <Tabs defaultValue="roles">
         <TabsList>
           <TabsTrigger value="regions">Regions</TabsTrigger>
+          <TabsTrigger value="map">Map</TabsTrigger>
           <TabsTrigger value="hierarchy">Country Hierarchy</TabsTrigger>
           <TabsTrigger value="roles">Roles &amp; Permissions</TabsTrigger>
           <TabsTrigger value="bulk">Bulk Upload</TabsTrigger>
@@ -302,61 +305,11 @@ export default function AdminPage() {
         </TabsList>
 
         <TabsContent value="regions" className="mt-4">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0">
-              <div className="flex items-center gap-2">
-                <MapPin className="h-4 w-4 text-muted-foreground" />
-                <CardTitle>Regions</CardTitle>
-              </div>
-              <Dialog open={regionOpen} onOpenChange={(o) => { setRegionOpen(o); if (!o) setRegionForm({ name: "", level: "1", countryCode: "UG", parentId: "" }); }}>
-                <DialogTrigger asChild>
-                  <Button size="sm" className="gap-2" data-testid="new-region-btn"><Plus className="h-4 w-4" /> New Region</Button>
-                </DialogTrigger>
-                <DialogContent>
-                  <DialogHeader>
-                    <DialogTitle>Create Region</DialogTitle>
-                    <DialogDescription>Regions are administrative units (e.g. district, sub-county). Use level 1 for top-level (district), 2 for sub-county, etc.</DialogDescription>
-                  </DialogHeader>
-                  <div className="space-y-3">
-                    <div><Label>Name *</Label><Input value={regionForm.name} onChange={e => setRegionForm({ ...regionForm, name: e.target.value })} placeholder="e.g. Mbale" data-testid="input-region-name" /></div>
-                    <div className="grid grid-cols-2 gap-3">
-                      <div><Label>Level *</Label><Input type="number" min="1" value={regionForm.level} onChange={e => setRegionForm({ ...regionForm, level: e.target.value })} data-testid="input-region-level" /></div>
-                      <div><Label>Country code</Label><Input value={regionForm.countryCode} onChange={e => setRegionForm({ ...regionForm, countryCode: e.target.value })} placeholder="UG" data-testid="input-region-country" /></div>
-                    </div>
-                    <div><Label>Parent region ID (optional)</Label><Input value={regionForm.parentId} onChange={e => setRegionForm({ ...regionForm, parentId: e.target.value })} placeholder="parent region UUID" data-testid="input-region-parent" /></div>
-                  </div>
-                  <DialogFooter>
-                    <Button variant="outline" onClick={() => setRegionOpen(false)}>Cancel</Button>
-                    <Button onClick={submitRegion} disabled={createRegionMut.isPending} data-testid="submit-region-btn">{createRegionMut.isPending ? "Creating..." : "Create"}</Button>
-                  </DialogFooter>
-                </DialogContent>
-              </Dialog>
-            </CardHeader>
-            <CardContent className="p-0">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Name</TableHead>
-                    <TableHead>Level</TableHead>
-                    <TableHead>Country</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {isLoadingRegions ? (
-                    [1, 2].map(i => <TableRow key={i}><TableCell colSpan={3}><Skeleton className="h-10 w-full" /></TableCell></TableRow>)
-                  ) : regions && regions.length > 0 ? regions.map((r: any) => (
-                    <TableRow key={r.id} data-testid={`region-row-${r.id}`}>
-                      <TableCell className="font-medium">{r.name}</TableCell>
-                      <TableCell>{r.level}</TableCell>
-                      <TableCell>{r.countryCode}</TableCell>
-                    </TableRow>
-                  )) : (
-                    <TableRow><TableCell colSpan={3} className="py-8 text-center text-muted-foreground">No regions configured</TableCell></TableRow>
-                  )}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
+          <RegionsManager />
+        </TabsContent>
+
+        <TabsContent value="map" className="mt-4">
+          <RegionsMap />
         </TabsContent>
 
         <TabsContent value="hierarchy" className="mt-4">

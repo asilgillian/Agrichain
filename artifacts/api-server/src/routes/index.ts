@@ -24,6 +24,7 @@ import assetsRouter from "./assets";
 import activityFundsRouter from "./activity-funds";
 import auditRouter from "./audit";
 import adminRouter from "./admin";
+import regionsRouter from "./regions";
 
 const router: IRouter = Router();
 
@@ -54,5 +55,6 @@ router.use(assetsRouter);
 router.use(activityFundsRouter);
 router.use(auditRouter);
 router.use(adminRouter);
+router.use(regionsRouter);
 
 export default router;
