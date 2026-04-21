@@ -25,7 +25,8 @@ type CommodityType = {
   id: string; commodityId: string; name: string; code: string;
   stage: "raw" | "intermediate" | "finished";
   parentCommodityTypeId: string | null;
-  isTradable: boolean;
+  isPurchasable: boolean;
+  isSellable: boolean;
   defaultUnit: string;
   defaultMoistureMin: string | null;
   defaultMoistureMax: string | null;
@@ -86,7 +87,7 @@ export default function CommoditiesPage() {
   const [tOpen, setTOpen] = useState(false);
   const initialTForm = {
     commodityId: "", name: "", code: "", stage: "raw" as const,
-    parentCommodityTypeId: "__none__", isTradable: true, defaultUnit: "kg",
+    parentCommodityTypeId: "__none__", isPurchasable: true, isSellable: true, defaultUnit: "kg",
     defaultMoistureMin: "", defaultMoistureMax: "",
   };
   const [tForm, setTForm] = useState(initialTForm);
@@ -188,9 +189,15 @@ export default function CommoditiesPage() {
                   <div><Label>Moisture Min %</Label><Input type="number" step="0.1" value={tForm.defaultMoistureMin} onChange={e => setTForm({ ...tForm, defaultMoistureMin: e.target.value })} /></div>
                   <div><Label>Moisture Max %</Label><Input type="number" step="0.1" value={tForm.defaultMoistureMax} onChange={e => setTForm({ ...tForm, defaultMoistureMax: e.target.value })} /></div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <input id="isTradable" type="checkbox" checked={tForm.isTradable} onChange={e => setTForm({ ...tForm, isTradable: e.target.checked })} />
-                  <Label htmlFor="isTradable" className="cursor-pointer">Tradable (can be bought/sold directly)</Label>
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <input id="isPurchasable" type="checkbox" checked={tForm.isPurchasable} onChange={e => setTForm({ ...tForm, isPurchasable: e.target.checked })} />
+                    <Label htmlFor="isPurchasable" className="cursor-pointer">Purchasable (can be bought from farmers)</Label>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <input id="isSellable" type="checkbox" checked={tForm.isSellable} onChange={e => setTForm({ ...tForm, isSellable: e.target.checked })} />
+                    <Label htmlFor="isSellable" className="cursor-pointer">Sellable (can be sold to buyers)</Label>
+                  </div>
                 </div>
               </div>
               <DialogFooter>
@@ -211,7 +218,7 @@ export default function CommoditiesPage() {
                   <TableHead>Commodity</TableHead>
                   <TableHead>Variety / Stage</TableHead>
                   <TableHead>Stage</TableHead>
-                  <TableHead>Tradable</TableHead>
+                  <TableHead>Buy / Sell</TableHead>
                   <TableHead>Moisture</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead />

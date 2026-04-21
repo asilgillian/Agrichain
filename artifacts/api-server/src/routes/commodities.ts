@@ -112,7 +112,7 @@ router.post("/commodities/:commodityId/types", requirePermission("commodities.wr
   const [parent] = await db.select().from(commoditiesTable).where(eq(commoditiesTable.id, commodityId));
   if (!parent) { res.status(404).json({ error: "Commodity not found" }); return; }
 
-  const { name, code, stage, parentCommodityTypeId, isTradable, defaultUnit, defaultMoistureMin, defaultMoistureMax, status } = req.body ?? {};
+  const { name, code, stage, parentCommodityTypeId, isPurchasable, isSellable, defaultUnit, defaultMoistureMin, defaultMoistureMax, status } = req.body ?? {};
   if (typeof name !== "string" || !name.trim()) { res.status(400).json({ error: "name required" }); return; }
   if (typeof code !== "string" || !code.trim()) { res.status(400).json({ error: "code required" }); return; }
   const normCode = code.trim().toLowerCase();
@@ -145,7 +145,8 @@ router.post("/commodities/:commodityId/types", requirePermission("commodities.wr
     code: normCode,
     stage: stg,
     parentCommodityTypeId: parentCommodityTypeId ?? null,
-    isTradable: isTradable === false ? false : true,
+    isPurchasable: isPurchasable === false ? false : true,
+    isSellable: isSellable === false ? false : true,
     defaultUnit: defaultUnit?.toString().trim() || parent.defaultUnit || "kg",
     defaultMoistureMin: defaultMoistureMin != null && defaultMoistureMin !== "" ? Number(defaultMoistureMin).toString() : null,
     defaultMoistureMax: defaultMoistureMax != null && defaultMoistureMax !== "" ? Number(defaultMoistureMax).toString() : null,
@@ -162,7 +163,7 @@ router.patch("/commodity-types/:typeId", requirePermission("commodities.write"),
   if (!existing) { res.status(404).json({ error: "Type not found" }); return; }
 
   const patch: any = { updatedAt: new Date() };
-  const { name, stage, parentCommodityTypeId, isTradable, defaultUnit, defaultMoistureMin, defaultMoistureMax, status } = req.body ?? {};
+  const { name, stage, parentCommodityTypeId, isPurchasable, isSellable, defaultUnit, defaultMoistureMin, defaultMoistureMax, status } = req.body ?? {};
   if (typeof name === "string" && name.trim()) patch.name = name.trim();
   if (stage !== undefined) {
     const stg = stage.toString().toLowerCase();
@@ -181,7 +182,8 @@ router.patch("/commodity-types/:typeId", requirePermission("commodities.write"),
       patch.parentCommodityTypeId = parentCommodityTypeId;
     }
   }
-  if (isTradable !== undefined) patch.isTradable = !!isTradable;
+  if (isPurchasable !== undefined) patch.isPurchasable = !!isPurchasable;
+  if (isSellable !== undefined) patch.isSellable = !!isSellable;
   if (defaultUnit !== undefined && defaultUnit?.toString().trim()) patch.defaultUnit = defaultUnit.toString().trim();
   const validMoist = (m: any) => m == null || m === "" || (Number.isFinite(Number(m)) && Number(m) >= 0 && Number(m) <= 100);
   if (defaultMoistureMin !== undefined) {

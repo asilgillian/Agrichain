@@ -32,7 +32,8 @@ export const commodityTypesTable = pgTable("commodity_types", {
   // 'raw' | 'intermediate' | 'finished'
   stage: text("stage").notNull().default("raw"),
   parentCommodityTypeId: uuid("parent_commodity_type_id").references((): any => commodityTypesTable.id, { onDelete: "set null" }),
-  isTradable: boolean("is_tradable").notNull().default(true),
+  isPurchasable: boolean("is_purchasable").notNull().default(true),
+  isSellable: boolean("is_sellable").notNull().default(true),
   defaultUnit: text("default_unit").notNull().default("kg"),
   defaultMoistureMin: numeric("default_moisture_min", { precision: 5, scale: 2 }),
   defaultMoistureMax: numeric("default_moisture_max", { precision: 5, scale: 2 }),
