@@ -23,3 +23,4 @@ export * from "./warehouse-extended";
 export * from "./assets";
 export * from "./activity-funds";
 export * from "./audit";
+export * from "./commodities";

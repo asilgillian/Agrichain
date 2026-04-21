@@ -181,3 +181,26 @@ Farmer registration enforcement (`artifacts/api-server/src/routes/farmers.ts`): 
 UI (`artifacts/agri-web/src/pages/groups/detail.tsx`): full rewrite with KPI cards, hierarchy breadcrumb, leadership table with appoint/end-term, member checkbox-multiselect with single+bulk transfer dialog, archive dialog (with required redistribution target when members exist), CSV report download, transfer history.
 
 Audit invariants: every state change (group create/update/archive, leader appoint/end, farmer group transfer) writes to `audit_logs`. Inserts that span multiple tables (transfer, archive, leader appointment) are wrapped in `db.transaction` so audit + state updates commit atomically.
+
+## Commodity Management Module
+
+Schema (`lib/db/src/schema/commodities.ts`):
+- `commoditiesTable` — master catalog (Coffee, Maize, Beans, Cocoa…). Unique `code`.
+- `commodityTypesTable` — varieties per commodity (Robusta, Arabica, Yellow Maize…) with `defaultUnit`, `defaultForm`, `harvestSeasonStartMonth`/`harvestSeasonEndMonth` (1–12; may wrap year-end). Unique `(commodityId, code)`.
+- `commodityPricesTable` — append-only daily price per kg, scoped by `(commodityTypeId, regionId|null, form|null, currency, effectiveDate)`. Unique index on that scope (NULL coalesced) prevents duplicate-day races; conflicts return 409.
+- `commodityConversionsTable` — ratio between two forms of the same type (e.g. cherry → green_bean = 0.2). Ratio semantics: `ratio = toForm units / fromForm units`. Unique `(typeId, fromForm, toForm)`.
+
+API (`artifacts/api-server/src/routes/commodities.ts`):
+- `GET/POST /api/commodities`, `PATCH /api/commodities/:id` — master CRUD.
+- `GET/POST /api/commodities/:commodityId/types`, `PATCH /api/commodity-types/:typeId` — varieties with month-range validation.
+- `GET /api/commodity-types/:typeId/prices` — full history (limit ≤ 500).
+- `GET /api/commodity-types/:typeId/prices/current?regionId=&form=` — resolves the latest `effectiveDate ≤ today` row; tries region-specific first then falls back to national (`regionId IS NULL`). Invalid regionId rejected (400).
+- `POST /api/commodity-types/:typeId/prices` — calendar-validated date, normalized lowercase form, unique-constraint enforced.
+- `GET/POST /api/commodity-types/:typeId/conversions`, `PATCH/DELETE /api/commodity-conversions/:id` — conversion CRUD.
+- `GET /api/commodity-types/:typeId/convert?fromForm=&toForm=&quantity=` — calculator; uses direct ratio if defined, else inverse ratio.
+
+Permissions added to catalog: `commodities.read`, `commodities.write`, `commodities.prices.write`.
+
+UI (`artifacts/agri-web/src/pages/commodities/index.tsx`): single-page catalog with create-commodity / create-variety dialogs, varieties table with harvest-season display, and a per-variety Manage panel (tabbed: Prices history + setter, Conversions list + add/remove). Nav entry added under Operations.
+
+Audit: every create/update/delete on commodities, types, prices, and conversions writes to `audit_logs`.
