@@ -1929,14 +1929,44 @@ export const CreateRegionBody = zod.object({
 });
 
 /**
+ * @summary List the catalog of available permission keys
+ */
+export const ListPermissionCatalogResponseItem = zod.object({
+  key: zod.string(),
+  module: zod.string(),
+  description: zod.string(),
+});
+export const ListPermissionCatalogResponse = zod.array(
+  ListPermissionCatalogResponseItem,
+);
+
+/**
  * @summary List system roles and permissions
  */
 export const ListRolesResponseItem = zod.object({
   id: zod.string(),
   name: zod.string(),
+  description: zod.string().optional(),
   permissions: zod.array(zod.string()),
+  isSystem: zod.boolean().optional(),
 });
 export const ListRolesResponse = zod.array(ListRolesResponseItem);
+
+/**
+ * @summary Create a new role
+ */
+export const CreateRoleBody = zod.object({
+  name: zod.string(),
+  description: zod.string().optional(),
+  permissions: zod.array(zod.string()),
+});
+
+/**
+ * @summary Delete a non-system role
+ */
+export const DeleteRoleParams = zod.object({
+  roleId: zod.coerce.string(),
+});
 
 /**
  * @summary Update permissions for a role
@@ -1952,7 +1982,9 @@ export const UpdateRolePermissionsBody = zod.object({
 export const UpdateRolePermissionsResponse = zod.object({
   id: zod.string(),
   name: zod.string(),
+  description: zod.string().optional(),
   permissions: zod.array(zod.string()),
+  isSystem: zod.boolean().optional(),
 });
 
 /**

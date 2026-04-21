@@ -1,4 +1,5 @@
 export * from "./regions";
+export * from "./roles";
 export * from "./users";
 export * from "./groups";
 export * from "./farmers";

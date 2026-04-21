@@ -1,15 +1,153 @@
+import { useState, useMemo } from "react";
 import { useListRegions, useListRoles, useListSyncQueue } from "@workspace/api-client-react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Settings, RefreshCw, MapPin } from "lucide-react";
+import { Settings, RefreshCw, MapPin, Plus, Pencil, Trash2 } from "lucide-react";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { useToast } from "@/hooks/use-toast";
+
+const API_BASE = import.meta.env.BASE_URL?.replace(/\/$/, "");
+
+type Permission = { key: string; module: string; description: string };
+type Role = { id: string; name: string; description?: string; permissions: string[]; isSystem?: boolean };
+
+function PermissionPicker({
+  catalog,
+  selected,
+  onChange,
+}: {
+  catalog: Permission[];
+  selected: Set<string>;
+  onChange: (next: Set<string>) => void;
+}) {
+  const grouped = useMemo(() => {
+    const map = new Map<string, Permission[]>();
+    for (const p of catalog) {
+      if (!map.has(p.module)) map.set(p.module, []);
+      map.get(p.module)!.push(p);
+    }
+    return Array.from(map.entries()).sort(([a], [b]) => a.localeCompare(b));
+  }, [catalog]);
+
+  const toggle = (key: string) => {
+    const next = new Set(selected);
+    if (next.has(key)) next.delete(key);
+    else next.add(key);
+    onChange(next);
+  };
+
+  return (
+    <div className="max-h-[50vh] overflow-y-auto space-y-4 border rounded-md p-3">
+      {grouped.map(([module, perms]) => (
+        <div key={module}>
+          <p className="text-xs font-semibold uppercase text-muted-foreground mb-2">{module}</p>
+          <div className="grid grid-cols-1 gap-2">
+            {perms.map(p => (
+              <div
+                key={p.key}
+                role="checkbox"
+                aria-checked={selected.has(p.key)}
+                aria-label={p.key}
+                tabIndex={0}
+                onClick={() => toggle(p.key)}
+                onKeyDown={(e) => { if (e.key === " " || e.key === "Enter") { e.preventDefault(); toggle(p.key); } }}
+                className="flex items-start gap-2 text-sm cursor-pointer hover-elevate p-2 rounded"
+                data-testid={`perm-${p.key}`}
+              >
+                <Checkbox checked={selected.has(p.key)} className="mt-0.5 pointer-events-none" tabIndex={-1} aria-hidden="true" />
+                <div className="flex-1">
+                  <code className="text-xs font-mono">{p.key}</code>
+                  <p className="text-xs text-muted-foreground">{p.description}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
 
 export default function AdminPage() {
   const { data: regions, isLoading: isLoadingRegions } = useListRegions();
   const { data: roles, isLoading: isLoadingRoles } = useListRoles();
   const { data: syncQueue, isLoading: isLoadingSyncQueue } = useListSyncQueue();
+  const { data: permissions } = useQuery<Permission[]>({
+    queryKey: ["/api/admin/permissions"],
+    queryFn: async () => {
+      const r = await fetch(`${API_BASE}/api/admin/permissions`);
+      if (!r.ok) throw new Error(`Failed to load permissions (${r.status})`);
+      return r.json();
+    },
+  });
+
+  const { toast } = useToast();
+  const qc = useQueryClient();
+
+  const [createOpen, setCreateOpen] = useState(false);
+  const [createForm, setCreateForm] = useState({ name: "", description: "" });
+  const [createPerms, setCreatePerms] = useState<Set<string>>(new Set());
+
+  const [editRole, setEditRole] = useState<Role | null>(null);
+  const [editPerms, setEditPerms] = useState<Set<string>>(new Set());
+
+  const createMut = useMutation({
+    mutationFn: (body: any) => fetch(`${API_BASE}/api/admin/roles`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) })
+      .then(async r => { if (!r.ok) throw new Error((await r.json()).error ?? "Failed"); return r.json(); }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["/api/admin/roles"] });
+      toast({ title: "Role created" });
+      setCreateOpen(false);
+      setCreateForm({ name: "", description: "" });
+      setCreatePerms(new Set());
+    },
+    onError: (e: any) => toast({ title: "Failed", description: e.message, variant: "destructive" }),
+  });
+
+  const editMut = useMutation({
+    mutationFn: ({ id, permissions }: { id: string; permissions: string[] }) =>
+      fetch(`${API_BASE}/api/admin/roles/${id}/permissions`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ permissions }) })
+        .then(async r => { if (!r.ok) throw new Error((await r.json()).error ?? "Failed"); return r.json(); }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["/api/admin/roles"] });
+      toast({ title: "Permissions updated" });
+      setEditRole(null);
+    },
+    onError: (e: any) => toast({ title: "Failed", description: e.message, variant: "destructive" }),
+  });
+
+  const deleteMut = useMutation({
+    mutationFn: (id: string) => fetch(`${API_BASE}/api/admin/roles/${id}`, { method: "DELETE" })
+      .then(async r => { if (!r.ok) throw new Error((await r.json()).error ?? "Failed"); }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["/api/admin/roles"] });
+      toast({ title: "Role deleted" });
+    },
+    onError: (e: any) => toast({ title: "Failed", description: e.message, variant: "destructive" }),
+  });
+
+  const submitCreate = () => {
+    const name = createForm.name.trim();
+    if (!name) { toast({ title: "Name required", variant: "destructive" }); return; }
+    if (createPerms.size === 0) { toast({ title: "Select at least one permission", variant: "destructive" }); return; }
+    const body: any = { name, permissions: Array.from(createPerms) };
+    if (createForm.description.trim()) body.description = createForm.description.trim();
+    createMut.mutate(body);
+  };
+
+  const openEdit = (role: Role) => {
+    setEditRole(role);
+    setEditPerms(new Set(role.permissions ?? []));
+  };
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-12">
@@ -21,7 +159,7 @@ export default function AdminPage() {
         </div>
       </div>
 
-      <Tabs defaultValue="regions">
+      <Tabs defaultValue="roles">
         <TabsList>
           <TabsTrigger value="regions">Regions</TabsTrigger>
           <TabsTrigger value="roles">Roles &amp; Permissions</TabsTrigger>
@@ -63,19 +201,62 @@ export default function AdminPage() {
 
         <TabsContent value="roles" className="mt-4">
           <Card>
-            <CardHeader><CardTitle>Role Permissions</CardTitle></CardHeader>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <CardTitle>Role Permissions</CardTitle>
+                <Dialog open={createOpen} onOpenChange={(o) => {
+                  setCreateOpen(o);
+                  if (!o) { setCreateForm({ name: "", description: "" }); setCreatePerms(new Set()); }
+                }}>
+                  <DialogTrigger asChild>
+                    <Button size="sm" className="gap-2" data-testid="new-role-btn"><Plus className="h-4 w-4" /> New Role</Button>
+                  </DialogTrigger>
+                  <DialogContent className="max-w-2xl">
+                    <DialogHeader>
+                      <DialogTitle>Create New Role</DialogTitle>
+                      <DialogDescription>Define a new role and pick the permissions it should grant.</DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-3">
+                      <div><Label>Role Name *</Label><Input value={createForm.name} onChange={e => setCreateForm({ ...createForm, name: e.target.value })} placeholder="e.g. RegionalAuditor" data-testid="input-role-name" /></div>
+                      <div><Label>Description</Label><Textarea value={createForm.description} onChange={e => setCreateForm({ ...createForm, description: e.target.value })} rows={2} placeholder="Short description of what this role does" data-testid="input-role-description" /></div>
+                      <div>
+                        <div className="flex items-center justify-between mb-2">
+                          <Label>Permissions *</Label>
+                          <span className="text-xs text-muted-foreground">{createPerms.size} selected</span>
+                        </div>
+                        {permissions ? <PermissionPicker catalog={permissions} selected={createPerms} onChange={setCreatePerms} /> : <Skeleton className="h-40 w-full" />}
+                      </div>
+                    </div>
+                    <DialogFooter>
+                      <Button variant="outline" onClick={() => setCreateOpen(false)}>Cancel</Button>
+                      <Button onClick={submitCreate} disabled={createMut.isPending} data-testid="submit-role">{createMut.isPending ? "Saving..." : "Create Role"}</Button>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
+              </div>
+            </CardHeader>
             <CardContent>
               {isLoadingRoles ? <Skeleton className="h-40 w-full" /> : (
-                <div className="space-y-4">
-                  {roles && roles.map((role: any) => (
+                <div className="space-y-3">
+                  {roles && (roles as Role[]).map((role) => (
                     <div key={role.id} className="p-4 border rounded-lg" data-testid={`role-row-${role.id}`}>
                       <div className="flex items-center justify-between mb-2">
-                        <span className="font-semibold">{role.name}</span>
-                        <Badge variant="outline">{role.permissions?.length ?? 0} permissions</Badge>
+                        <div className="flex items-center gap-2">
+                          <span className="font-semibold">{role.name}</span>
+                          {role.isSystem && <Badge variant="outline" className="text-xs">System</Badge>}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Badge variant="outline">{role.permissions?.length ?? 0} permissions</Badge>
+                          <Button size="sm" variant="ghost" onClick={() => openEdit(role)} data-testid={`edit-${role.id}`} title="Edit permissions"><Pencil className="h-4 w-4" /></Button>
+                          {!role.isSystem && (
+                            <Button size="sm" variant="ghost" onClick={() => { if (confirm(`Delete role "${role.name}"?`)) deleteMut.mutate(role.id); }} data-testid={`delete-${role.id}`} title="Delete role"><Trash2 className="h-4 w-4 text-red-600" /></Button>
+                          )}
+                        </div>
                       </div>
+                      {role.description && <p className="text-sm text-muted-foreground mb-2">{role.description}</p>}
                       <div className="flex flex-wrap gap-1">
-                        {role.permissions?.map((p: string) => (
-                          <Badge key={p} variant="secondary" className="text-xs">{p}</Badge>
+                        {role.permissions?.map((p) => (
+                          <Badge key={p} variant="secondary" className="text-xs font-mono">{p}</Badge>
                         ))}
                       </div>
                     </div>
@@ -104,6 +285,23 @@ export default function AdminPage() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      <Dialog open={!!editRole} onOpenChange={(o) => !o && setEditRole(null)}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Edit Permissions — {editRole?.name}</DialogTitle>
+            <DialogDescription>Toggle the permissions this role grants. {editRole?.isSystem ? "This is a system role; changes are still allowed." : ""}</DialogDescription>
+          </DialogHeader>
+          <div className="flex items-center justify-between">
+            <span className="text-sm text-muted-foreground">{editPerms.size} selected</span>
+          </div>
+          {permissions ? <PermissionPicker catalog={permissions} selected={editPerms} onChange={setEditPerms} /> : <Skeleton className="h-40 w-full" />}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditRole(null)}>Cancel</Button>
+            <Button onClick={() => editRole && editMut.mutate({ id: editRole.id, permissions: Array.from(editPerms) })} disabled={editMut.isPending} data-testid="submit-edit-role">{editMut.isPending ? "Saving..." : "Save"}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -1114,7 +1114,9 @@ export interface CreateRegionBody {
 export interface Role {
   id: string;
   name: string;
+  description?: string;
   permissions: string[];
+  isSystem?: boolean;
 }
 
 export interface UpdateRolePermissionsBody {
@@ -1336,4 +1338,16 @@ export type ListAuditLogsParams = {
   dateTo?: string;
   page?: number;
   limit?: number;
+};
+
+export type ListPermissionCatalog200Item = {
+  key: string;
+  module: string;
+  description: string;
+};
+
+export type CreateRoleBody = {
+  name: string;
+  description?: string;
+  permissions: string[];
 };

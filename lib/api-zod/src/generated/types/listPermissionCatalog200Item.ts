@@ -6,10 +6,8 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export interface Role {
-  id: string;
-  name: string;
-  description?: string;
-  permissions: string[];
-  isSystem?: boolean;
-}
+export type ListPermissionCatalog200Item = {
+  key: string;
+  module: string;
+  description: string;
+};

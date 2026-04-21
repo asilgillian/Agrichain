@@ -1586,6 +1586,26 @@ paths:
               schema:
                 $ref: "#/components/schemas/Region"
 
+  /admin/permissions:
+    get:
+      operationId: listPermissionCatalog
+      tags: [admin]
+      summary: List the catalog of available permission keys
+      responses:
+        "200":
+          description: Permission catalog
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    key: { type: string }
+                    module: { type: string }
+                    description: { type: string }
+                  required: [key, module, description]
+
   /admin/roles:
     get:
       operationId: listRoles
@@ -1600,6 +1620,45 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/Role"
+    post:
+      operationId: createRole
+      tags: [admin]
+      summary: Create a new role
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, permissions]
+              properties:
+                name: { type: string }
+                description: { type: string }
+                permissions:
+                  type: array
+                  items: { type: string }
+      responses:
+        "201":
+          description: Role created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Role"
+
+  /admin/roles/{roleId}:
+    delete:
+      operationId: deleteRole
+      tags: [admin]
+      summary: Delete a non-system role
+      parameters:
+        - in: path
+          name: roleId
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Role deleted
 
   /admin/roles/{roleId}/permissions:
     patch:
@@ -3190,10 +3249,14 @@ components:
           type: string
         name:
           type: string
+        description:
+          type: string
         permissions:
           type: array
           items:
             type: string
+        isSystem:
+          type: boolean
       required: [id, name, permissions]
 
     UpdateRolePermissionsBody:

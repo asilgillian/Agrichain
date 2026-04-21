@@ -6,10 +6,8 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export interface Role {
-  id: string;
+export type CreateRoleBody = {
   name: string;
   description?: string;
   permissions: string[];
-  isSystem?: boolean;
-}
+};

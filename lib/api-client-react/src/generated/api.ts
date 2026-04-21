@@ -38,6 +38,7 @@ import type {
   CreateGroupBody,
   CreatePlotBody,
   CreateRegionBody,
+  CreateRoleBody,
   CreateSurveyTemplateBody,
   CreateTrainingSessionBody,
   CreateUserBody,
@@ -68,6 +69,7 @@ import type {
   ListGroupsParams,
   ListLotsParams,
   ListPaymentsParams,
+  ListPermissionCatalog200Item,
   ListPlotsParams,
   ListSurveySubmissionsParams,
   ListUsersParams,
@@ -6215,6 +6217,84 @@ export const useCreateRegion = <
 };
 
 /**
+ * @summary List the catalog of available permission keys
+ */
+export const getListPermissionCatalogUrl = () => {
+  return `/api/admin/permissions`;
+};
+
+export const listPermissionCatalog = async (
+  options?: RequestInit,
+): Promise<ListPermissionCatalog200Item[]> => {
+  return customFetch<ListPermissionCatalog200Item[]>(
+    getListPermissionCatalogUrl(),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getListPermissionCatalogQueryKey = () => {
+  return [`/api/admin/permissions`] as const;
+};
+
+export const getListPermissionCatalogQueryOptions = <
+  TData = Awaited<ReturnType<typeof listPermissionCatalog>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listPermissionCatalog>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getListPermissionCatalogQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listPermissionCatalog>>
+  > = ({ signal }) => listPermissionCatalog({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listPermissionCatalog>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListPermissionCatalogQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listPermissionCatalog>>
+>;
+export type ListPermissionCatalogQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List the catalog of available permission keys
+ */
+
+export function useListPermissionCatalog<
+  TData = Awaited<ReturnType<typeof listPermissionCatalog>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listPermissionCatalog>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListPermissionCatalogQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
  * @summary List system roles and permissions
  */
 export const getListRolesUrl = () => {
@@ -6278,6 +6358,176 @@ export function useListRoles<
 
   return { ...query, queryKey: queryOptions.queryKey };
 }
+
+/**
+ * @summary Create a new role
+ */
+export const getCreateRoleUrl = () => {
+  return `/api/admin/roles`;
+};
+
+export const createRole = async (
+  createRoleBody: CreateRoleBody,
+  options?: RequestInit,
+): Promise<Role> => {
+  return customFetch<Role>(getCreateRoleUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(createRoleBody),
+  });
+};
+
+export const getCreateRoleMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createRole>>,
+    TError,
+    { data: BodyType<CreateRoleBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createRole>>,
+  TError,
+  { data: BodyType<CreateRoleBody> },
+  TContext
+> => {
+  const mutationKey = ["createRole"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createRole>>,
+    { data: BodyType<CreateRoleBody> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return createRole(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateRoleMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createRole>>
+>;
+export type CreateRoleMutationBody = BodyType<CreateRoleBody>;
+export type CreateRoleMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Create a new role
+ */
+export const useCreateRole = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createRole>>,
+    TError,
+    { data: BodyType<CreateRoleBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createRole>>,
+  TError,
+  { data: BodyType<CreateRoleBody> },
+  TContext
+> => {
+  return useMutation(getCreateRoleMutationOptions(options));
+};
+
+/**
+ * @summary Delete a non-system role
+ */
+export const getDeleteRoleUrl = (roleId: string) => {
+  return `/api/admin/roles/${roleId}`;
+};
+
+export const deleteRole = async (
+  roleId: string,
+  options?: RequestInit,
+): Promise<void> => {
+  return customFetch<void>(getDeleteRoleUrl(roleId), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getDeleteRoleMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteRole>>,
+    TError,
+    { roleId: string },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof deleteRole>>,
+  TError,
+  { roleId: string },
+  TContext
+> => {
+  const mutationKey = ["deleteRole"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof deleteRole>>,
+    { roleId: string }
+  > = (props) => {
+    const { roleId } = props ?? {};
+
+    return deleteRole(roleId, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DeleteRoleMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deleteRole>>
+>;
+
+export type DeleteRoleMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Delete a non-system role
+ */
+export const useDeleteRole = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteRole>>,
+    TError,
+    { roleId: string },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof deleteRole>>,
+  TError,
+  { roleId: string },
+  TContext
+> => {
+  return useMutation(getDeleteRoleMutationOptions(options));
+};
 
 /**
  * @summary Update permissions for a role
