@@ -3,8 +3,8 @@ import {
   useListProcurementContracts,
   useCreateProcurementContract,
   useUpdateProcurementContract,
+  useListGroups,
 } from "@workspace/api-client-react";
-import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
@@ -25,10 +25,8 @@ const statusVariants: Record<string, "default" | "secondary" | "destructive" | "
 
 export default function ProcurementContractsPage() {
   const { data: contracts, isLoading, refetch } = useListProcurementContracts({});
-  const { data: groups } = useQuery<any[]>({
-    queryKey: ["/api/groups"],
-    queryFn: () => fetch(`${API_BASE}/api/groups`).then(r => r.json()),
-  });
+  const { data: groupsData } = useListGroups({});
+  const groups = Array.isArray(groupsData) ? groupsData : [];
   const createMut = useCreateProcurementContract();
   const updateMut = useUpdateProcurementContract();
   const { toast } = useToast();
@@ -113,7 +111,7 @@ export default function ProcurementContractsPage() {
                 <Select value={form.groupId} onValueChange={v => setForm({ ...form, groupId: v })}>
                   <SelectTrigger data-testid="contract-group-select"><SelectValue placeholder="Select group" /></SelectTrigger>
                   <SelectContent>
-                    {groups?.map(g => <SelectItem key={g.id} value={g.id}>{g.name}</SelectItem>)}
+                    {groups.map((g: any) => <SelectItem key={g.id} value={g.id}>{g.name}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
