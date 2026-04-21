@@ -6,6 +6,7 @@ export const batchesTable = pgTable("batches", {
   id: uuid("id").primaryKey().defaultRandom(),
   batchTag: text("batch_tag").notNull().unique(),
   agentId: uuid("agent_id").notNull(),
+  groupId: uuid("group_id"),
   cropType: text("crop_type").notNull(),
   totalWeightKg: numeric("total_weight_kg", { precision: 12, scale: 3 }).notNull().default("0"),
   farmerCount: integer("farmer_count").notNull().default(0),

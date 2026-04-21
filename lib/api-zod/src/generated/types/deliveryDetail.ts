@@ -8,8 +8,10 @@
 import type { AuditLogEntry } from "./auditLogEntry";
 import type { Batch } from "./batch";
 import type { Delivery } from "./delivery";
+import type { ProcurementContract } from "./procurementContract";
 
 export type DeliveryDetail = Delivery & {
   batch?: Batch;
+  contract?: ProcurementContract;
   auditTrail?: AuditLogEntry[];
 };

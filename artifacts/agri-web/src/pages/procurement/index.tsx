@@ -17,10 +17,26 @@ import { useToast } from "@/hooks/use-toast";
 const API_BASE = import.meta.env.BASE_URL?.replace(/\/$/, "");
 
 const statusColors: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
-  pending_weight: "secondary", pending_qc: "secondary", pending_pricing: "outline", pending_approval: "outline", approved: "default", rejected: "destructive",
+  pending_weight_submit: "secondary", pending_weight_approve: "secondary",
+  pending_qc_submit: "secondary", pending_qc_approve: "secondary",
+  pending_pricing_propose: "outline", pending_pricing_approve: "outline",
+  approved: "default",
+  rejected_correction: "outline", partial_rejection: "outline",
+  rejected_commodity: "destructive", rejected_escalate: "destructive", suspended: "destructive",
 };
 const statusLabels: Record<string, string> = {
-  pending_weight: "Awaiting Weight", pending_qc: "Awaiting QC", pending_pricing: "Awaiting Pricing", pending_approval: "Awaiting Approval", approved: "Approved", rejected: "Rejected",
+  pending_weight_submit: "Awaiting weight",
+  pending_weight_approve: "Awaiting weight approval",
+  pending_qc_submit: "Awaiting QC",
+  pending_qc_approve: "Awaiting QC approval",
+  pending_pricing_propose: "Awaiting price",
+  pending_pricing_approve: "Awaiting price approval",
+  approved: "Approved",
+  rejected_correction: "Correction needed",
+  rejected_commodity: "Rejected — commodity",
+  rejected_escalate: "Escalated",
+  partial_rejection: "Partial rejection",
+  suspended: "Suspended",
 };
 
 function Checkmark({ ok }: { ok: boolean }) {

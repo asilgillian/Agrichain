@@ -50,6 +50,7 @@ const operationsItems = [
   { title: "Farmers", icon: Users, href: "/farmers" },
   { title: "Groups", icon: UsersRound, href: "/groups" },
   { title: "Procurement", icon: Tractor, href: "/procurement" },
+  { title: "Procurement Contracts", icon: Tractor, href: "/procurement/contracts" },
   { title: "Warehouse", icon: Warehouse, href: "/warehouse" },
   { title: "Payments", icon: CreditCard, href: "/payments" },
   { title: "Compliance", icon: ShieldCheck, href: "/compliance" },

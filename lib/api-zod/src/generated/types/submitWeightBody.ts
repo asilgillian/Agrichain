@@ -6,7 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export type SubmitPricingBodyDeductionsItem = {
-  type: string;
-  percentage: number;
-};
+export interface SubmitWeightBody {
+  grossWeightKg: number;
+  tareWeightKg: number;
+}

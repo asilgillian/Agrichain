@@ -10,10 +10,16 @@ export type ListDeliveriesStatus =
   (typeof ListDeliveriesStatus)[keyof typeof ListDeliveriesStatus];
 
 export const ListDeliveriesStatus = {
-  pending_weight: "pending_weight",
-  pending_qc: "pending_qc",
-  pending_pricing: "pending_pricing",
-  pending_approval: "pending_approval",
+  pending_weight_submit: "pending_weight_submit",
+  pending_weight_approve: "pending_weight_approve",
+  pending_qc_submit: "pending_qc_submit",
+  pending_qc_approve: "pending_qc_approve",
+  pending_pricing_propose: "pending_pricing_propose",
+  pending_pricing_approve: "pending_pricing_approve",
   approved: "approved",
-  rejected: "rejected",
+  rejected_correction: "rejected_correction",
+  rejected_commodity: "rejected_commodity",
+  rejected_escalate: "rejected_escalate",
+  partial_rejection: "partial_rejection",
+  suspended: "suspended",
 } as const;

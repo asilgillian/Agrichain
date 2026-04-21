@@ -16,6 +16,7 @@ export * from "./compliance";
 export * from "./exports";
 export * from "./loans";
 export * from "./sales";
+export * from "./procurement-contracts";
 export * from "./buying-stations";
 export * from "./warehouse-extended";
 export * from "./assets";

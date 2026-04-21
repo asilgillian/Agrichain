@@ -508,16 +508,55 @@ export interface CreateBatchBody {
   harvestDate: string;
 }
 
+export type DeliveryPricingDeductionsItem = {
+  type?: string;
+  percentage?: number;
+  reason?: string;
+};
+
+export type DeliveryPricingIncentivesItem = {
+  type?: string;
+  percentage?: number;
+  reason?: string;
+};
+
 export type DeliveryStatus =
   (typeof DeliveryStatus)[keyof typeof DeliveryStatus];
 
 export const DeliveryStatus = {
-  pending_weight: "pending_weight",
-  pending_qc: "pending_qc",
-  pending_pricing: "pending_pricing",
-  pending_approval: "pending_approval",
+  pending_weight_submit: "pending_weight_submit",
+  pending_weight_approve: "pending_weight_approve",
+  pending_qc_submit: "pending_qc_submit",
+  pending_qc_approve: "pending_qc_approve",
+  pending_pricing_propose: "pending_pricing_propose",
+  pending_pricing_approve: "pending_pricing_approve",
   approved: "approved",
-  rejected: "rejected",
+  rejected_correction: "rejected_correction",
+  rejected_commodity: "rejected_commodity",
+  rejected_escalate: "rejected_escalate",
+  partial_rejection: "partial_rejection",
+  suspended: "suspended",
+} as const;
+
+export type DeliveryRejectionType =
+  (typeof DeliveryRejectionType)[keyof typeof DeliveryRejectionType];
+
+export const DeliveryRejectionType = {
+  CORRECTION: "CORRECTION",
+  COMMODITY: "COMMODITY",
+  ESCALATE: "ESCALATE",
+  PARTIAL: "PARTIAL",
+  SUSPEND: "SUSPEND",
+} as const;
+
+export type DeliveryRejectionStage =
+  (typeof DeliveryRejectionStage)[keyof typeof DeliveryRejectionStage];
+
+export const DeliveryRejectionStage = {
+  weight: "weight",
+  qc: "qc",
+  pricing: "pricing",
+  final: "final",
 } as const;
 
 export interface Delivery {
@@ -526,22 +565,84 @@ export interface Delivery {
   batchId: string;
   batchTag?: string;
   stationId?: string;
+  truckPlate?: string;
+  driverName?: string;
   grossWeightKg?: number;
   tareWeightKg?: number;
   netWeightKg?: number;
   weightVarianceKg?: number;
+  weightSubmittedById?: string;
+  weightSubmittedByName?: string;
+  weightSubmittedAt?: string;
+  weightApprovedById?: string;
+  weightApprovedByName?: string;
+  weightApprovedAt?: string;
+  weightApproved?: boolean;
   moistureContent?: number;
   defectCount?: number;
   cupScore?: number;
   grade?: string;
+  qcSubmittedById?: string;
+  qcSubmittedByName?: string;
+  qcSubmittedAt?: string;
+  qcApprovedById?: string;
+  qcApprovedByName?: string;
+  qcApprovedAt?: string;
+  qcApproved?: boolean;
   pricePerKg?: number;
   totalValue?: number;
+  floorPricePerKg?: number;
+  contractId?: string;
+  pricingProposedById?: string;
+  pricingProposedByName?: string;
+  pricingProposedAt?: string;
+  pricingApprovedById?: string;
+  pricingApprovedByName?: string;
+  pricingApprovedAt?: string;
+  pricingDeductions?: DeliveryPricingDeductionsItem[];
+  pricingIncentives?: DeliveryPricingIncentivesItem[];
   qualifyingStreams?: string[];
-  weightApproved?: boolean;
-  qcApproved?: boolean;
   status: DeliveryStatus;
-  rejectionType?: string;
+  rejectionType?: DeliveryRejectionType;
+  rejectionStage?: DeliveryRejectionStage;
   rejectionReason?: string;
+  rejectionByName?: string;
+  rejectionAt?: string;
+  preOffloadSampleTaken?: boolean;
+  createdAt: string;
+}
+
+export type ProcurementContractContractType =
+  (typeof ProcurementContractContractType)[keyof typeof ProcurementContractContractType];
+
+export const ProcurementContractContractType = {
+  PRE_SEASON: "PRE_SEASON",
+  PER_DELIVERY: "PER_DELIVERY",
+} as const;
+
+export type ProcurementContractStatus =
+  (typeof ProcurementContractStatus)[keyof typeof ProcurementContractStatus];
+
+export const ProcurementContractStatus = {
+  DRAFT: "DRAFT",
+  ACTIVE: "ACTIVE",
+  EXPIRED: "EXPIRED",
+  SUSPENDED: "SUSPENDED",
+} as const;
+
+export interface ProcurementContract {
+  id: string;
+  contractNumber: string;
+  contractType: ProcurementContractContractType;
+  groupId: string;
+  groupName?: string;
+  commodityType: string;
+  seasonStart?: string;
+  seasonEnd?: string;
+  floorPricePerKg?: number;
+  currency: string;
+  notes?: string;
+  status: ProcurementContractStatus;
   createdAt: string;
 }
 
@@ -565,40 +666,90 @@ export interface AuditLogEntry {
 
 export type DeliveryDetail = Delivery & {
   batch?: Batch;
+  contract?: ProcurementContract;
   auditTrail?: AuditLogEntry[];
 };
 
 export interface CreateDeliveryBody {
   batchTag: string;
   stationId: string;
+  truckPlate?: string;
+  driverName?: string;
+  preOffloadSampleTaken?: boolean;
 }
 
-export interface RecordWeightBody {
+export interface SubmitWeightBody {
   grossWeightKg: number;
   tareWeightKg: number;
 }
 
-export interface RecordQCBody {
+export interface SubmitQcBody {
   moistureContent: number;
   defectCount: number;
   cupScore?: number;
   photoUrl?: string;
 }
 
-export type SubmitPricingBodyDeductionsItem = {
+export type ProposePricingBodyDeductionsItem = {
   type: string;
   percentage: number;
+  reason?: string;
 };
 
-export type SubmitPricingBodyIncentivesItem = {
+export type ProposePricingBodyIncentivesItem = {
   type: string;
-  amount: number;
+  percentage: number;
+  reason?: string;
 };
 
-export interface SubmitPricingBody {
+export interface ProposePricingBody {
   pricePerKg: number;
-  deductions?: SubmitPricingBodyDeductionsItem[];
-  incentives?: SubmitPricingBodyIncentivesItem[];
+  deductions?: ProposePricingBodyDeductionsItem[];
+  incentives?: ProposePricingBodyIncentivesItem[];
+}
+
+export type RejectDeliveryBodyRejectionType =
+  (typeof RejectDeliveryBodyRejectionType)[keyof typeof RejectDeliveryBodyRejectionType];
+
+export const RejectDeliveryBodyRejectionType = {
+  CORRECTION: "CORRECTION",
+  COMMODITY: "COMMODITY",
+  ESCALATE: "ESCALATE",
+  PARTIAL: "PARTIAL",
+  SUSPEND: "SUSPEND",
+} as const;
+
+export interface RejectDeliveryBody {
+  rejectionType: RejectDeliveryBodyRejectionType;
+  reason: string;
+}
+
+export type CreateProcurementContractBodyContractType =
+  (typeof CreateProcurementContractBodyContractType)[keyof typeof CreateProcurementContractBodyContractType];
+
+export const CreateProcurementContractBodyContractType = {
+  PRE_SEASON: "PRE_SEASON",
+  PER_DELIVERY: "PER_DELIVERY",
+} as const;
+
+export type CreateProcurementContractBodyStatus =
+  (typeof CreateProcurementContractBodyStatus)[keyof typeof CreateProcurementContractBodyStatus];
+
+export const CreateProcurementContractBodyStatus = {
+  DRAFT: "DRAFT",
+  ACTIVE: "ACTIVE",
+} as const;
+
+export interface CreateProcurementContractBody {
+  contractType: CreateProcurementContractBodyContractType;
+  groupId: string;
+  commodityType: string;
+  seasonStart?: string;
+  seasonEnd?: string;
+  floorPricePerKg?: number;
+  currency?: string;
+  notes?: string;
+  status?: CreateProcurementContractBodyStatus;
 }
 
 export type ApprovalBodyDecision =
@@ -612,6 +763,24 @@ export const ApprovalBodyDecision = {
 export interface ApprovalBody {
   decision: ApprovalBodyDecision;
   comment: string;
+}
+
+export type UpdateProcurementContractBodyStatus =
+  (typeof UpdateProcurementContractBodyStatus)[keyof typeof UpdateProcurementContractBodyStatus];
+
+export const UpdateProcurementContractBodyStatus = {
+  DRAFT: "DRAFT",
+  ACTIVE: "ACTIVE",
+  EXPIRED: "EXPIRED",
+  SUSPENDED: "SUSPENDED",
+} as const;
+
+export interface UpdateProcurementContractBody {
+  floorPricePerKg?: number;
+  seasonStart?: string;
+  seasonEnd?: string;
+  notes?: string;
+  status?: UpdateProcurementContractBodyStatus;
 }
 
 export type LotStatus = (typeof LotStatus)[keyof typeof LotStatus];
@@ -1239,12 +1408,33 @@ export type ListDeliveriesStatus =
   (typeof ListDeliveriesStatus)[keyof typeof ListDeliveriesStatus];
 
 export const ListDeliveriesStatus = {
-  pending_weight: "pending_weight",
-  pending_qc: "pending_qc",
-  pending_pricing: "pending_pricing",
-  pending_approval: "pending_approval",
+  pending_weight_submit: "pending_weight_submit",
+  pending_weight_approve: "pending_weight_approve",
+  pending_qc_submit: "pending_qc_submit",
+  pending_qc_approve: "pending_qc_approve",
+  pending_pricing_propose: "pending_pricing_propose",
+  pending_pricing_approve: "pending_pricing_approve",
   approved: "approved",
-  rejected: "rejected",
+  rejected_correction: "rejected_correction",
+  rejected_commodity: "rejected_commodity",
+  rejected_escalate: "rejected_escalate",
+  partial_rejection: "partial_rejection",
+  suspended: "suspended",
+} as const;
+
+export type ListProcurementContractsParams = {
+  groupId?: string;
+  status?: ListProcurementContractsStatus;
+};
+
+export type ListProcurementContractsStatus =
+  (typeof ListProcurementContractsStatus)[keyof typeof ListProcurementContractsStatus];
+
+export const ListProcurementContractsStatus = {
+  DRAFT: "DRAFT",
+  ACTIVE: "ACTIVE",
+  EXPIRED: "EXPIRED",
+  SUSPENDED: "SUSPENDED",
 } as const;
 
 export type ListLotsParams = {

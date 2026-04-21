@@ -9,4 +9,7 @@
 export interface CreateDeliveryBody {
   batchTag: string;
   stationId: string;
+  truckPlate?: string;
+  driverName?: string;
+  preOffloadSampleTaken?: boolean;
 }

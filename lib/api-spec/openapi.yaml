@@ -759,7 +759,7 @@ paths:
           name: status
           schema:
             type: string
-            enum: [pending_weight, pending_qc, pending_pricing, pending_approval, approved, rejected]
+            enum: [pending_weight_submit, pending_weight_approve, pending_qc_submit, pending_qc_approve, pending_pricing_propose, pending_pricing_approve, approved, rejected_correction, rejected_commodity, rejected_escalate, partial_rejection, suspended]
         - in: query
           name: stationId
           schema:
@@ -816,105 +816,210 @@ paths:
               schema:
                 $ref: "#/components/schemas/DeliveryDetail"
 
-  /procurement/deliveries/{deliveryId}/weight:
+  /procurement/deliveries/{deliveryId}/weight/submit:
     post:
-      operationId: recordDeliveryWeight
+      operationId: submitDeliveryWeight
       tags: [procurement]
-      summary: Record gross/tare weight for delivery
+      summary: Submit gross/tare weight (submitter step)
       parameters:
         - in: path
           name: deliveryId
           required: true
-          schema:
-            type: string
+          schema: { type: string }
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/RecordWeightBody"
+              $ref: "#/components/schemas/SubmitWeightBody"
       responses:
         "200":
-          description: Weight recorded
+          description: Weight submitted, awaiting approval
           content:
             application/json:
-              schema:
-                $ref: "#/components/schemas/Delivery"
+              schema: { $ref: "#/components/schemas/Delivery" }
 
-  /procurement/deliveries/{deliveryId}/qc:
+  /procurement/deliveries/{deliveryId}/weight/approve:
     post:
-      operationId: recordDeliveryQC
+      operationId: approveDeliveryWeight
       tags: [procurement]
-      summary: Record quality control assessment
+      summary: Approve submitted weight (approver must differ from submitter)
       parameters:
         - in: path
           name: deliveryId
           required: true
-          schema:
-            type: string
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/RecordQCBody"
+          schema: { type: string }
       responses:
         "200":
-          description: QC recorded
+          description: Weight approved
           content:
             application/json:
-              schema:
-                $ref: "#/components/schemas/Delivery"
+              schema: { $ref: "#/components/schemas/Delivery" }
 
-  /procurement/deliveries/{deliveryId}/pricing:
+  /procurement/deliveries/{deliveryId}/qc/submit:
     post:
-      operationId: submitDeliveryPricing
+      operationId: submitDeliveryQc
       tags: [procurement]
-      summary: Submit pricing for delivery
+      summary: Submit QC assessment (submitter step)
       parameters:
         - in: path
           name: deliveryId
           required: true
-          schema:
-            type: string
+          schema: { type: string }
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/SubmitPricingBody"
+              $ref: "#/components/schemas/SubmitQcBody"
       responses:
         "200":
-          description: Pricing submitted
+          description: QC submitted, awaiting approval
           content:
             application/json:
-              schema:
-                $ref: "#/components/schemas/Delivery"
+              schema: { $ref: "#/components/schemas/Delivery" }
 
-  /procurement/deliveries/{deliveryId}/approve:
+  /procurement/deliveries/{deliveryId}/qc/approve:
     post:
-      operationId: approveDelivery
+      operationId: approveDeliveryQc
       tags: [procurement]
-      summary: Approve or reject delivery pricing
+      summary: Approve QC assessment (approver must differ from submitter)
       parameters:
         - in: path
           name: deliveryId
           required: true
-          schema:
-            type: string
+          schema: { type: string }
+      responses:
+        "200":
+          description: QC approved, trade desk unlocked
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Delivery" }
+
+  /procurement/deliveries/{deliveryId}/pricing/propose:
+    post:
+      operationId: proposeDeliveryPricing
+      tags: [procurement]
+      summary: Trade desk proposes pricing (locked behind both approvals)
+      parameters:
+        - in: path
+          name: deliveryId
+          required: true
+          schema: { type: string }
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/ApprovalBody"
+              $ref: "#/components/schemas/ProposePricingBody"
       responses:
         "200":
-          description: Approval decision recorded
+          description: Pricing proposed
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Delivery" }
+
+  /procurement/deliveries/{deliveryId}/pricing/approve:
+    post:
+      operationId: approveDeliveryPricing
+      tags: [procurement]
+      summary: Procurement head approves pricing (different person than proposer)
+      parameters:
+        - in: path
+          name: deliveryId
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Pricing approved, ready for finance
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Delivery" }
+
+  /procurement/deliveries/{deliveryId}/reject:
+    post:
+      operationId: rejectDelivery
+      tags: [procurement]
+      summary: Reject the delivery at any stage with one of 5 rejection types
+      parameters:
+        - in: path
+          name: deliveryId
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RejectDeliveryBody"
+      responses:
+        "200":
+          description: Rejection recorded
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Delivery" }
+
+  /procurement/contracts:
+    get:
+      operationId: listProcurementContracts
+      tags: [procurement]
+      summary: List pre-season / per-delivery procurement contracts
+      parameters:
+        - in: query
+          name: groupId
+          schema: { type: string }
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum: [DRAFT, ACTIVE, EXPIRED, SUSPENDED]
+      responses:
+        "200":
+          description: Contracts
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Delivery"
+                type: array
+                items: { $ref: "#/components/schemas/ProcurementContract" }
+    post:
+      operationId: createProcurementContract
+      tags: [procurement]
+      summary: Create a procurement contract
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateProcurementContractBody"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ProcurementContract" }
+
+  /procurement/contracts/{contractId}:
+    patch:
+      operationId: updateProcurementContract
+      tags: [procurement]
+      summary: Update a procurement contract (e.g. activate or suspend)
+      parameters:
+        - in: path
+          name: contractId
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateProcurementContractBody"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ProcurementContract" }
 
   # ============================================================
   # WAREHOUSE
@@ -2396,54 +2501,78 @@ components:
     Delivery:
       type: object
       properties:
-        id:
-          type: string
-        lotTag:
-          type: string
-        batchId:
-          type: string
-        batchTag:
-          type: string
-        stationId:
-          type: string
-        grossWeightKg:
-          type: number
-        tareWeightKg:
-          type: number
-        netWeightKg:
-          type: number
-        weightVarianceKg:
-          type: number
-        moistureContent:
-          type: number
-        defectCount:
-          type: number
-        cupScore:
-          type: number
-        grade:
-          type: string
-        pricePerKg:
-          type: number
-        totalValue:
-          type: number
-        qualifyingStreams:
+        id: { type: string }
+        lotTag: { type: string }
+        batchId: { type: string }
+        batchTag: { type: string }
+        stationId: { type: string }
+        truckPlate: { type: string }
+        driverName: { type: string }
+        grossWeightKg: { type: number }
+        tareWeightKg: { type: number }
+        netWeightKg: { type: number }
+        weightVarianceKg: { type: number }
+        weightSubmittedById: { type: string }
+        weightSubmittedByName: { type: string }
+        weightSubmittedAt: { type: string, format: date-time }
+        weightApprovedById: { type: string }
+        weightApprovedByName: { type: string }
+        weightApprovedAt: { type: string, format: date-time }
+        weightApproved: { type: boolean }
+        moistureContent: { type: number }
+        defectCount: { type: number }
+        cupScore: { type: number }
+        grade: { type: string }
+        qcSubmittedById: { type: string }
+        qcSubmittedByName: { type: string }
+        qcSubmittedAt: { type: string, format: date-time }
+        qcApprovedById: { type: string }
+        qcApprovedByName: { type: string }
+        qcApprovedAt: { type: string, format: date-time }
+        qcApproved: { type: boolean }
+        pricePerKg: { type: number }
+        totalValue: { type: number }
+        floorPricePerKg: { type: number }
+        contractId: { type: string }
+        pricingProposedById: { type: string }
+        pricingProposedByName: { type: string }
+        pricingProposedAt: { type: string, format: date-time }
+        pricingApprovedById: { type: string }
+        pricingApprovedByName: { type: string }
+        pricingApprovedAt: { type: string, format: date-time }
+        pricingDeductions:
           type: array
           items:
-            type: string
-        weightApproved:
-          type: boolean
-        qcApproved:
-          type: boolean
+            type: object
+            properties:
+              type: { type: string }
+              percentage: { type: number }
+              reason: { type: string }
+        pricingIncentives:
+          type: array
+          items:
+            type: object
+            properties:
+              type: { type: string }
+              percentage: { type: number }
+              reason: { type: string }
+        qualifyingStreams:
+          type: array
+          items: { type: string }
         status:
           type: string
-          enum: [pending_weight, pending_qc, pending_pricing, pending_approval, approved, rejected]
+          enum: [pending_weight_submit, pending_weight_approve, pending_qc_submit, pending_qc_approve, pending_pricing_propose, pending_pricing_approve, approved, rejected_correction, rejected_commodity, rejected_escalate, partial_rejection, suspended]
         rejectionType:
           type: string
-        rejectionReason:
+          enum: [CORRECTION, COMMODITY, ESCALATE, PARTIAL, SUSPEND]
+        rejectionStage:
           type: string
-        createdAt:
-          type: string
-          format: date-time
+          enum: [weight, qc, pricing, final]
+        rejectionReason: { type: string }
+        rejectionByName: { type: string }
+        rejectionAt: { type: string, format: date-time }
+        preOffloadSampleTaken: { type: boolean }
+        createdAt: { type: string, format: date-time }
       required: [id, lotTag, batchId, status, createdAt]
 
     DeliveryDetail:
@@ -2453,6 +2582,8 @@ components:
           properties:
             batch:
               $ref: "#/components/schemas/Batch"
+            contract:
+              $ref: "#/components/schemas/ProcurementContract"
             auditTrail:
               type: array
               items:
@@ -2461,60 +2592,101 @@ components:
     CreateDeliveryBody:
       type: object
       properties:
-        batchTag:
-          type: string
-        stationId:
-          type: string
+        batchTag: { type: string }
+        stationId: { type: string }
+        truckPlate: { type: string }
+        driverName: { type: string }
+        preOffloadSampleTaken: { type: boolean }
       required: [batchTag, stationId]
 
-    RecordWeightBody:
+    SubmitWeightBody:
       type: object
       properties:
-        grossWeightKg:
-          type: number
-        tareWeightKg:
-          type: number
+        grossWeightKg: { type: number }
+        tareWeightKg: { type: number }
       required: [grossWeightKg, tareWeightKg]
 
-    RecordQCBody:
+    SubmitQcBody:
       type: object
       properties:
-        moistureContent:
-          type: number
-        defectCount:
-          type: number
-        cupScore:
-          type: number
-        photoUrl:
-          type: string
+        moistureContent: { type: number }
+        defectCount: { type: number }
+        cupScore: { type: number }
+        photoUrl: { type: string }
       required: [moistureContent, defectCount]
 
-    SubmitPricingBody:
+    ProposePricingBody:
       type: object
       properties:
-        pricePerKg:
-          type: number
+        pricePerKg: { type: number }
         deductions:
           type: array
           items:
             type: object
             properties:
-              type:
-                type: string
-              percentage:
-                type: number
+              type: { type: string }
+              percentage: { type: number }
+              reason: { type: string }
             required: [type, percentage]
         incentives:
           type: array
           items:
             type: object
             properties:
-              type:
-                type: string
-              amount:
-                type: number
-            required: [type, amount]
+              type: { type: string }
+              percentage: { type: number }
+              reason: { type: string }
+            required: [type, percentage]
       required: [pricePerKg]
+
+    RejectDeliveryBody:
+      type: object
+      properties:
+        rejectionType:
+          type: string
+          enum: [CORRECTION, COMMODITY, ESCALATE, PARTIAL, SUSPEND]
+        reason: { type: string }
+      required: [rejectionType, reason]
+
+    ProcurementContract:
+      type: object
+      properties:
+        id: { type: string }
+        contractNumber: { type: string }
+        contractType:
+          type: string
+          enum: [PRE_SEASON, PER_DELIVERY]
+        groupId: { type: string }
+        groupName: { type: string }
+        commodityType: { type: string }
+        seasonStart: { type: string, format: date }
+        seasonEnd: { type: string, format: date }
+        floorPricePerKg: { type: number }
+        currency: { type: string }
+        notes: { type: string }
+        status:
+          type: string
+          enum: [DRAFT, ACTIVE, EXPIRED, SUSPENDED]
+        createdAt: { type: string, format: date-time }
+      required: [id, contractNumber, contractType, groupId, commodityType, currency, status, createdAt]
+
+    CreateProcurementContractBody:
+      type: object
+      properties:
+        contractType:
+          type: string
+          enum: [PRE_SEASON, PER_DELIVERY]
+        groupId: { type: string }
+        commodityType: { type: string }
+        seasonStart: { type: string, format: date }
+        seasonEnd: { type: string, format: date }
+        floorPricePerKg: { type: number }
+        currency: { type: string }
+        notes: { type: string }
+        status:
+          type: string
+          enum: [DRAFT, ACTIVE]
+      required: [contractType, groupId, commodityType]
 
     ApprovalBody:
       type: object
@@ -2525,6 +2697,17 @@ components:
         comment:
           type: string
       required: [decision, comment]
+
+    UpdateProcurementContractBody:
+      type: object
+      properties:
+        floorPricePerKg: { type: number }
+        seasonStart: { type: string, format: date }
+        seasonEnd: { type: string, format: date }
+        notes: { type: string }
+        status:
+          type: string
+          enum: [DRAFT, ACTIVE, EXPIRED, SUSPENDED]
 
     # ============================================================
     # WAREHOUSE

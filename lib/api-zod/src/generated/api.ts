@@ -814,12 +814,18 @@ export const LockBatchResponse = zod.object({
 export const ListDeliveriesQueryParams = zod.object({
   status: zod
     .enum([
-      "pending_weight",
-      "pending_qc",
-      "pending_pricing",
-      "pending_approval",
+      "pending_weight_submit",
+      "pending_weight_approve",
+      "pending_qc_submit",
+      "pending_qc_approve",
+      "pending_pricing_propose",
+      "pending_pricing_approve",
       "approved",
-      "rejected",
+      "rejected_correction",
+      "rejected_commodity",
+      "rejected_escalate",
+      "partial_rejection",
+      "suspended",
     ])
     .optional(),
   stationId: zod.coerce.string().optional(),
@@ -832,29 +838,81 @@ export const ListDeliveriesResponseItem = zod.object({
   batchId: zod.string(),
   batchTag: zod.string().optional(),
   stationId: zod.string().optional(),
+  truckPlate: zod.string().optional(),
+  driverName: zod.string().optional(),
   grossWeightKg: zod.number().optional(),
   tareWeightKg: zod.number().optional(),
   netWeightKg: zod.number().optional(),
   weightVarianceKg: zod.number().optional(),
+  weightSubmittedById: zod.string().optional(),
+  weightSubmittedByName: zod.string().optional(),
+  weightSubmittedAt: zod.coerce.date().optional(),
+  weightApprovedById: zod.string().optional(),
+  weightApprovedByName: zod.string().optional(),
+  weightApprovedAt: zod.coerce.date().optional(),
+  weightApproved: zod.boolean().optional(),
   moistureContent: zod.number().optional(),
   defectCount: zod.number().optional(),
   cupScore: zod.number().optional(),
   grade: zod.string().optional(),
+  qcSubmittedById: zod.string().optional(),
+  qcSubmittedByName: zod.string().optional(),
+  qcSubmittedAt: zod.coerce.date().optional(),
+  qcApprovedById: zod.string().optional(),
+  qcApprovedByName: zod.string().optional(),
+  qcApprovedAt: zod.coerce.date().optional(),
+  qcApproved: zod.boolean().optional(),
   pricePerKg: zod.number().optional(),
   totalValue: zod.number().optional(),
+  floorPricePerKg: zod.number().optional(),
+  contractId: zod.string().optional(),
+  pricingProposedById: zod.string().optional(),
+  pricingProposedByName: zod.string().optional(),
+  pricingProposedAt: zod.coerce.date().optional(),
+  pricingApprovedById: zod.string().optional(),
+  pricingApprovedByName: zod.string().optional(),
+  pricingApprovedAt: zod.coerce.date().optional(),
+  pricingDeductions: zod
+    .array(
+      zod.object({
+        type: zod.string().optional(),
+        percentage: zod.number().optional(),
+        reason: zod.string().optional(),
+      }),
+    )
+    .optional(),
+  pricingIncentives: zod
+    .array(
+      zod.object({
+        type: zod.string().optional(),
+        percentage: zod.number().optional(),
+        reason: zod.string().optional(),
+      }),
+    )
+    .optional(),
   qualifyingStreams: zod.array(zod.string()).optional(),
-  weightApproved: zod.boolean().optional(),
-  qcApproved: zod.boolean().optional(),
   status: zod.enum([
-    "pending_weight",
-    "pending_qc",
-    "pending_pricing",
-    "pending_approval",
+    "pending_weight_submit",
+    "pending_weight_approve",
+    "pending_qc_submit",
+    "pending_qc_approve",
+    "pending_pricing_propose",
+    "pending_pricing_approve",
     "approved",
-    "rejected",
+    "rejected_correction",
+    "rejected_commodity",
+    "rejected_escalate",
+    "partial_rejection",
+    "suspended",
   ]),
-  rejectionType: zod.string().optional(),
+  rejectionType: zod
+    .enum(["CORRECTION", "COMMODITY", "ESCALATE", "PARTIAL", "SUSPEND"])
+    .optional(),
+  rejectionStage: zod.enum(["weight", "qc", "pricing", "final"]).optional(),
   rejectionReason: zod.string().optional(),
+  rejectionByName: zod.string().optional(),
+  rejectionAt: zod.coerce.date().optional(),
+  preOffloadSampleTaken: zod.boolean().optional(),
   createdAt: zod.coerce.date(),
 });
 export const ListDeliveriesResponse = zod.array(ListDeliveriesResponseItem);
@@ -865,6 +923,9 @@ export const ListDeliveriesResponse = zod.array(ListDeliveriesResponseItem);
 export const CreateDeliveryBody = zod.object({
   batchTag: zod.string(),
   stationId: zod.string(),
+  truckPlate: zod.string().optional(),
+  driverName: zod.string().optional(),
+  preOffloadSampleTaken: zod.boolean().optional(),
 });
 
 /**
@@ -881,29 +942,81 @@ export const GetDeliveryResponse = zod
     batchId: zod.string(),
     batchTag: zod.string().optional(),
     stationId: zod.string().optional(),
+    truckPlate: zod.string().optional(),
+    driverName: zod.string().optional(),
     grossWeightKg: zod.number().optional(),
     tareWeightKg: zod.number().optional(),
     netWeightKg: zod.number().optional(),
     weightVarianceKg: zod.number().optional(),
+    weightSubmittedById: zod.string().optional(),
+    weightSubmittedByName: zod.string().optional(),
+    weightSubmittedAt: zod.coerce.date().optional(),
+    weightApprovedById: zod.string().optional(),
+    weightApprovedByName: zod.string().optional(),
+    weightApprovedAt: zod.coerce.date().optional(),
+    weightApproved: zod.boolean().optional(),
     moistureContent: zod.number().optional(),
     defectCount: zod.number().optional(),
     cupScore: zod.number().optional(),
     grade: zod.string().optional(),
+    qcSubmittedById: zod.string().optional(),
+    qcSubmittedByName: zod.string().optional(),
+    qcSubmittedAt: zod.coerce.date().optional(),
+    qcApprovedById: zod.string().optional(),
+    qcApprovedByName: zod.string().optional(),
+    qcApprovedAt: zod.coerce.date().optional(),
+    qcApproved: zod.boolean().optional(),
     pricePerKg: zod.number().optional(),
     totalValue: zod.number().optional(),
+    floorPricePerKg: zod.number().optional(),
+    contractId: zod.string().optional(),
+    pricingProposedById: zod.string().optional(),
+    pricingProposedByName: zod.string().optional(),
+    pricingProposedAt: zod.coerce.date().optional(),
+    pricingApprovedById: zod.string().optional(),
+    pricingApprovedByName: zod.string().optional(),
+    pricingApprovedAt: zod.coerce.date().optional(),
+    pricingDeductions: zod
+      .array(
+        zod.object({
+          type: zod.string().optional(),
+          percentage: zod.number().optional(),
+          reason: zod.string().optional(),
+        }),
+      )
+      .optional(),
+    pricingIncentives: zod
+      .array(
+        zod.object({
+          type: zod.string().optional(),
+          percentage: zod.number().optional(),
+          reason: zod.string().optional(),
+        }),
+      )
+      .optional(),
     qualifyingStreams: zod.array(zod.string()).optional(),
-    weightApproved: zod.boolean().optional(),
-    qcApproved: zod.boolean().optional(),
     status: zod.enum([
-      "pending_weight",
-      "pending_qc",
-      "pending_pricing",
-      "pending_approval",
+      "pending_weight_submit",
+      "pending_weight_approve",
+      "pending_qc_submit",
+      "pending_qc_approve",
+      "pending_pricing_propose",
+      "pending_pricing_approve",
       "approved",
-      "rejected",
+      "rejected_correction",
+      "rejected_commodity",
+      "rejected_escalate",
+      "partial_rejection",
+      "suspended",
     ]),
-    rejectionType: zod.string().optional(),
+    rejectionType: zod
+      .enum(["CORRECTION", "COMMODITY", "ESCALATE", "PARTIAL", "SUSPEND"])
+      .optional(),
+    rejectionStage: zod.enum(["weight", "qc", "pricing", "final"]).optional(),
     rejectionReason: zod.string().optional(),
+    rejectionByName: zod.string().optional(),
+    rejectionAt: zod.coerce.date().optional(),
+    preOffloadSampleTaken: zod.boolean().optional(),
     createdAt: zod.coerce.date(),
   })
   .and(
@@ -928,6 +1041,23 @@ export const GetDeliveryResponse = zod
           createdAt: zod.coerce.date(),
         })
         .optional(),
+      contract: zod
+        .object({
+          id: zod.string(),
+          contractNumber: zod.string(),
+          contractType: zod.enum(["PRE_SEASON", "PER_DELIVERY"]),
+          groupId: zod.string(),
+          groupName: zod.string().optional(),
+          commodityType: zod.string(),
+          seasonStart: zod.coerce.date().optional(),
+          seasonEnd: zod.coerce.date().optional(),
+          floorPricePerKg: zod.number().optional(),
+          currency: zod.string(),
+          notes: zod.string().optional(),
+          status: zod.enum(["DRAFT", "ACTIVE", "EXPIRED", "SUSPENDED"]),
+          createdAt: zod.coerce.date(),
+        })
+        .optional(),
       auditTrail: zod
         .array(
           zod.object({
@@ -949,109 +1079,396 @@ export const GetDeliveryResponse = zod
   );
 
 /**
- * @summary Record gross/tare weight for delivery
+ * @summary Submit gross/tare weight (submitter step)
  */
-export const RecordDeliveryWeightParams = zod.object({
+export const SubmitDeliveryWeightParams = zod.object({
   deliveryId: zod.coerce.string(),
 });
 
-export const RecordDeliveryWeightBody = zod.object({
+export const SubmitDeliveryWeightBody = zod.object({
   grossWeightKg: zod.number(),
   tareWeightKg: zod.number(),
 });
 
-export const RecordDeliveryWeightResponse = zod.object({
+export const SubmitDeliveryWeightResponse = zod.object({
   id: zod.string(),
   lotTag: zod.string(),
   batchId: zod.string(),
   batchTag: zod.string().optional(),
   stationId: zod.string().optional(),
+  truckPlate: zod.string().optional(),
+  driverName: zod.string().optional(),
   grossWeightKg: zod.number().optional(),
   tareWeightKg: zod.number().optional(),
   netWeightKg: zod.number().optional(),
   weightVarianceKg: zod.number().optional(),
+  weightSubmittedById: zod.string().optional(),
+  weightSubmittedByName: zod.string().optional(),
+  weightSubmittedAt: zod.coerce.date().optional(),
+  weightApprovedById: zod.string().optional(),
+  weightApprovedByName: zod.string().optional(),
+  weightApprovedAt: zod.coerce.date().optional(),
+  weightApproved: zod.boolean().optional(),
   moistureContent: zod.number().optional(),
   defectCount: zod.number().optional(),
   cupScore: zod.number().optional(),
   grade: zod.string().optional(),
+  qcSubmittedById: zod.string().optional(),
+  qcSubmittedByName: zod.string().optional(),
+  qcSubmittedAt: zod.coerce.date().optional(),
+  qcApprovedById: zod.string().optional(),
+  qcApprovedByName: zod.string().optional(),
+  qcApprovedAt: zod.coerce.date().optional(),
+  qcApproved: zod.boolean().optional(),
   pricePerKg: zod.number().optional(),
   totalValue: zod.number().optional(),
+  floorPricePerKg: zod.number().optional(),
+  contractId: zod.string().optional(),
+  pricingProposedById: zod.string().optional(),
+  pricingProposedByName: zod.string().optional(),
+  pricingProposedAt: zod.coerce.date().optional(),
+  pricingApprovedById: zod.string().optional(),
+  pricingApprovedByName: zod.string().optional(),
+  pricingApprovedAt: zod.coerce.date().optional(),
+  pricingDeductions: zod
+    .array(
+      zod.object({
+        type: zod.string().optional(),
+        percentage: zod.number().optional(),
+        reason: zod.string().optional(),
+      }),
+    )
+    .optional(),
+  pricingIncentives: zod
+    .array(
+      zod.object({
+        type: zod.string().optional(),
+        percentage: zod.number().optional(),
+        reason: zod.string().optional(),
+      }),
+    )
+    .optional(),
   qualifyingStreams: zod.array(zod.string()).optional(),
-  weightApproved: zod.boolean().optional(),
-  qcApproved: zod.boolean().optional(),
   status: zod.enum([
-    "pending_weight",
-    "pending_qc",
-    "pending_pricing",
-    "pending_approval",
+    "pending_weight_submit",
+    "pending_weight_approve",
+    "pending_qc_submit",
+    "pending_qc_approve",
+    "pending_pricing_propose",
+    "pending_pricing_approve",
     "approved",
-    "rejected",
+    "rejected_correction",
+    "rejected_commodity",
+    "rejected_escalate",
+    "partial_rejection",
+    "suspended",
   ]),
-  rejectionType: zod.string().optional(),
+  rejectionType: zod
+    .enum(["CORRECTION", "COMMODITY", "ESCALATE", "PARTIAL", "SUSPEND"])
+    .optional(),
+  rejectionStage: zod.enum(["weight", "qc", "pricing", "final"]).optional(),
   rejectionReason: zod.string().optional(),
+  rejectionByName: zod.string().optional(),
+  rejectionAt: zod.coerce.date().optional(),
+  preOffloadSampleTaken: zod.boolean().optional(),
   createdAt: zod.coerce.date(),
 });
 
 /**
- * @summary Record quality control assessment
+ * @summary Approve submitted weight (approver must differ from submitter)
  */
-export const RecordDeliveryQCParams = zod.object({
+export const ApproveDeliveryWeightParams = zod.object({
   deliveryId: zod.coerce.string(),
 });
 
-export const RecordDeliveryQCBody = zod.object({
+export const ApproveDeliveryWeightResponse = zod.object({
+  id: zod.string(),
+  lotTag: zod.string(),
+  batchId: zod.string(),
+  batchTag: zod.string().optional(),
+  stationId: zod.string().optional(),
+  truckPlate: zod.string().optional(),
+  driverName: zod.string().optional(),
+  grossWeightKg: zod.number().optional(),
+  tareWeightKg: zod.number().optional(),
+  netWeightKg: zod.number().optional(),
+  weightVarianceKg: zod.number().optional(),
+  weightSubmittedById: zod.string().optional(),
+  weightSubmittedByName: zod.string().optional(),
+  weightSubmittedAt: zod.coerce.date().optional(),
+  weightApprovedById: zod.string().optional(),
+  weightApprovedByName: zod.string().optional(),
+  weightApprovedAt: zod.coerce.date().optional(),
+  weightApproved: zod.boolean().optional(),
+  moistureContent: zod.number().optional(),
+  defectCount: zod.number().optional(),
+  cupScore: zod.number().optional(),
+  grade: zod.string().optional(),
+  qcSubmittedById: zod.string().optional(),
+  qcSubmittedByName: zod.string().optional(),
+  qcSubmittedAt: zod.coerce.date().optional(),
+  qcApprovedById: zod.string().optional(),
+  qcApprovedByName: zod.string().optional(),
+  qcApprovedAt: zod.coerce.date().optional(),
+  qcApproved: zod.boolean().optional(),
+  pricePerKg: zod.number().optional(),
+  totalValue: zod.number().optional(),
+  floorPricePerKg: zod.number().optional(),
+  contractId: zod.string().optional(),
+  pricingProposedById: zod.string().optional(),
+  pricingProposedByName: zod.string().optional(),
+  pricingProposedAt: zod.coerce.date().optional(),
+  pricingApprovedById: zod.string().optional(),
+  pricingApprovedByName: zod.string().optional(),
+  pricingApprovedAt: zod.coerce.date().optional(),
+  pricingDeductions: zod
+    .array(
+      zod.object({
+        type: zod.string().optional(),
+        percentage: zod.number().optional(),
+        reason: zod.string().optional(),
+      }),
+    )
+    .optional(),
+  pricingIncentives: zod
+    .array(
+      zod.object({
+        type: zod.string().optional(),
+        percentage: zod.number().optional(),
+        reason: zod.string().optional(),
+      }),
+    )
+    .optional(),
+  qualifyingStreams: zod.array(zod.string()).optional(),
+  status: zod.enum([
+    "pending_weight_submit",
+    "pending_weight_approve",
+    "pending_qc_submit",
+    "pending_qc_approve",
+    "pending_pricing_propose",
+    "pending_pricing_approve",
+    "approved",
+    "rejected_correction",
+    "rejected_commodity",
+    "rejected_escalate",
+    "partial_rejection",
+    "suspended",
+  ]),
+  rejectionType: zod
+    .enum(["CORRECTION", "COMMODITY", "ESCALATE", "PARTIAL", "SUSPEND"])
+    .optional(),
+  rejectionStage: zod.enum(["weight", "qc", "pricing", "final"]).optional(),
+  rejectionReason: zod.string().optional(),
+  rejectionByName: zod.string().optional(),
+  rejectionAt: zod.coerce.date().optional(),
+  preOffloadSampleTaken: zod.boolean().optional(),
+  createdAt: zod.coerce.date(),
+});
+
+/**
+ * @summary Submit QC assessment (submitter step)
+ */
+export const SubmitDeliveryQcParams = zod.object({
+  deliveryId: zod.coerce.string(),
+});
+
+export const SubmitDeliveryQcBody = zod.object({
   moistureContent: zod.number(),
   defectCount: zod.number(),
   cupScore: zod.number().optional(),
   photoUrl: zod.string().optional(),
 });
 
-export const RecordDeliveryQCResponse = zod.object({
+export const SubmitDeliveryQcResponse = zod.object({
   id: zod.string(),
   lotTag: zod.string(),
   batchId: zod.string(),
   batchTag: zod.string().optional(),
   stationId: zod.string().optional(),
+  truckPlate: zod.string().optional(),
+  driverName: zod.string().optional(),
   grossWeightKg: zod.number().optional(),
   tareWeightKg: zod.number().optional(),
   netWeightKg: zod.number().optional(),
   weightVarianceKg: zod.number().optional(),
+  weightSubmittedById: zod.string().optional(),
+  weightSubmittedByName: zod.string().optional(),
+  weightSubmittedAt: zod.coerce.date().optional(),
+  weightApprovedById: zod.string().optional(),
+  weightApprovedByName: zod.string().optional(),
+  weightApprovedAt: zod.coerce.date().optional(),
+  weightApproved: zod.boolean().optional(),
   moistureContent: zod.number().optional(),
   defectCount: zod.number().optional(),
   cupScore: zod.number().optional(),
   grade: zod.string().optional(),
+  qcSubmittedById: zod.string().optional(),
+  qcSubmittedByName: zod.string().optional(),
+  qcSubmittedAt: zod.coerce.date().optional(),
+  qcApprovedById: zod.string().optional(),
+  qcApprovedByName: zod.string().optional(),
+  qcApprovedAt: zod.coerce.date().optional(),
+  qcApproved: zod.boolean().optional(),
   pricePerKg: zod.number().optional(),
   totalValue: zod.number().optional(),
+  floorPricePerKg: zod.number().optional(),
+  contractId: zod.string().optional(),
+  pricingProposedById: zod.string().optional(),
+  pricingProposedByName: zod.string().optional(),
+  pricingProposedAt: zod.coerce.date().optional(),
+  pricingApprovedById: zod.string().optional(),
+  pricingApprovedByName: zod.string().optional(),
+  pricingApprovedAt: zod.coerce.date().optional(),
+  pricingDeductions: zod
+    .array(
+      zod.object({
+        type: zod.string().optional(),
+        percentage: zod.number().optional(),
+        reason: zod.string().optional(),
+      }),
+    )
+    .optional(),
+  pricingIncentives: zod
+    .array(
+      zod.object({
+        type: zod.string().optional(),
+        percentage: zod.number().optional(),
+        reason: zod.string().optional(),
+      }),
+    )
+    .optional(),
   qualifyingStreams: zod.array(zod.string()).optional(),
-  weightApproved: zod.boolean().optional(),
-  qcApproved: zod.boolean().optional(),
   status: zod.enum([
-    "pending_weight",
-    "pending_qc",
-    "pending_pricing",
-    "pending_approval",
+    "pending_weight_submit",
+    "pending_weight_approve",
+    "pending_qc_submit",
+    "pending_qc_approve",
+    "pending_pricing_propose",
+    "pending_pricing_approve",
     "approved",
-    "rejected",
+    "rejected_correction",
+    "rejected_commodity",
+    "rejected_escalate",
+    "partial_rejection",
+    "suspended",
   ]),
-  rejectionType: zod.string().optional(),
+  rejectionType: zod
+    .enum(["CORRECTION", "COMMODITY", "ESCALATE", "PARTIAL", "SUSPEND"])
+    .optional(),
+  rejectionStage: zod.enum(["weight", "qc", "pricing", "final"]).optional(),
   rejectionReason: zod.string().optional(),
+  rejectionByName: zod.string().optional(),
+  rejectionAt: zod.coerce.date().optional(),
+  preOffloadSampleTaken: zod.boolean().optional(),
   createdAt: zod.coerce.date(),
 });
 
 /**
- * @summary Submit pricing for delivery
+ * @summary Approve QC assessment (approver must differ from submitter)
  */
-export const SubmitDeliveryPricingParams = zod.object({
+export const ApproveDeliveryQcParams = zod.object({
   deliveryId: zod.coerce.string(),
 });
 
-export const SubmitDeliveryPricingBody = zod.object({
+export const ApproveDeliveryQcResponse = zod.object({
+  id: zod.string(),
+  lotTag: zod.string(),
+  batchId: zod.string(),
+  batchTag: zod.string().optional(),
+  stationId: zod.string().optional(),
+  truckPlate: zod.string().optional(),
+  driverName: zod.string().optional(),
+  grossWeightKg: zod.number().optional(),
+  tareWeightKg: zod.number().optional(),
+  netWeightKg: zod.number().optional(),
+  weightVarianceKg: zod.number().optional(),
+  weightSubmittedById: zod.string().optional(),
+  weightSubmittedByName: zod.string().optional(),
+  weightSubmittedAt: zod.coerce.date().optional(),
+  weightApprovedById: zod.string().optional(),
+  weightApprovedByName: zod.string().optional(),
+  weightApprovedAt: zod.coerce.date().optional(),
+  weightApproved: zod.boolean().optional(),
+  moistureContent: zod.number().optional(),
+  defectCount: zod.number().optional(),
+  cupScore: zod.number().optional(),
+  grade: zod.string().optional(),
+  qcSubmittedById: zod.string().optional(),
+  qcSubmittedByName: zod.string().optional(),
+  qcSubmittedAt: zod.coerce.date().optional(),
+  qcApprovedById: zod.string().optional(),
+  qcApprovedByName: zod.string().optional(),
+  qcApprovedAt: zod.coerce.date().optional(),
+  qcApproved: zod.boolean().optional(),
+  pricePerKg: zod.number().optional(),
+  totalValue: zod.number().optional(),
+  floorPricePerKg: zod.number().optional(),
+  contractId: zod.string().optional(),
+  pricingProposedById: zod.string().optional(),
+  pricingProposedByName: zod.string().optional(),
+  pricingProposedAt: zod.coerce.date().optional(),
+  pricingApprovedById: zod.string().optional(),
+  pricingApprovedByName: zod.string().optional(),
+  pricingApprovedAt: zod.coerce.date().optional(),
+  pricingDeductions: zod
+    .array(
+      zod.object({
+        type: zod.string().optional(),
+        percentage: zod.number().optional(),
+        reason: zod.string().optional(),
+      }),
+    )
+    .optional(),
+  pricingIncentives: zod
+    .array(
+      zod.object({
+        type: zod.string().optional(),
+        percentage: zod.number().optional(),
+        reason: zod.string().optional(),
+      }),
+    )
+    .optional(),
+  qualifyingStreams: zod.array(zod.string()).optional(),
+  status: zod.enum([
+    "pending_weight_submit",
+    "pending_weight_approve",
+    "pending_qc_submit",
+    "pending_qc_approve",
+    "pending_pricing_propose",
+    "pending_pricing_approve",
+    "approved",
+    "rejected_correction",
+    "rejected_commodity",
+    "rejected_escalate",
+    "partial_rejection",
+    "suspended",
+  ]),
+  rejectionType: zod
+    .enum(["CORRECTION", "COMMODITY", "ESCALATE", "PARTIAL", "SUSPEND"])
+    .optional(),
+  rejectionStage: zod.enum(["weight", "qc", "pricing", "final"]).optional(),
+  rejectionReason: zod.string().optional(),
+  rejectionByName: zod.string().optional(),
+  rejectionAt: zod.coerce.date().optional(),
+  preOffloadSampleTaken: zod.boolean().optional(),
+  createdAt: zod.coerce.date(),
+});
+
+/**
+ * @summary Trade desk proposes pricing (locked behind both approvals)
+ */
+export const ProposeDeliveryPricingParams = zod.object({
+  deliveryId: zod.coerce.string(),
+});
+
+export const ProposeDeliveryPricingBody = zod.object({
   pricePerKg: zod.number(),
   deductions: zod
     .array(
       zod.object({
         type: zod.string(),
         percentage: zod.number(),
+        reason: zod.string().optional(),
       }),
     )
     .optional(),
@@ -1059,85 +1476,360 @@ export const SubmitDeliveryPricingBody = zod.object({
     .array(
       zod.object({
         type: zod.string(),
-        amount: zod.number(),
+        percentage: zod.number(),
+        reason: zod.string().optional(),
       }),
     )
     .optional(),
 });
 
-export const SubmitDeliveryPricingResponse = zod.object({
+export const ProposeDeliveryPricingResponse = zod.object({
   id: zod.string(),
   lotTag: zod.string(),
   batchId: zod.string(),
   batchTag: zod.string().optional(),
   stationId: zod.string().optional(),
+  truckPlate: zod.string().optional(),
+  driverName: zod.string().optional(),
   grossWeightKg: zod.number().optional(),
   tareWeightKg: zod.number().optional(),
   netWeightKg: zod.number().optional(),
   weightVarianceKg: zod.number().optional(),
+  weightSubmittedById: zod.string().optional(),
+  weightSubmittedByName: zod.string().optional(),
+  weightSubmittedAt: zod.coerce.date().optional(),
+  weightApprovedById: zod.string().optional(),
+  weightApprovedByName: zod.string().optional(),
+  weightApprovedAt: zod.coerce.date().optional(),
+  weightApproved: zod.boolean().optional(),
   moistureContent: zod.number().optional(),
   defectCount: zod.number().optional(),
   cupScore: zod.number().optional(),
   grade: zod.string().optional(),
+  qcSubmittedById: zod.string().optional(),
+  qcSubmittedByName: zod.string().optional(),
+  qcSubmittedAt: zod.coerce.date().optional(),
+  qcApprovedById: zod.string().optional(),
+  qcApprovedByName: zod.string().optional(),
+  qcApprovedAt: zod.coerce.date().optional(),
+  qcApproved: zod.boolean().optional(),
   pricePerKg: zod.number().optional(),
   totalValue: zod.number().optional(),
+  floorPricePerKg: zod.number().optional(),
+  contractId: zod.string().optional(),
+  pricingProposedById: zod.string().optional(),
+  pricingProposedByName: zod.string().optional(),
+  pricingProposedAt: zod.coerce.date().optional(),
+  pricingApprovedById: zod.string().optional(),
+  pricingApprovedByName: zod.string().optional(),
+  pricingApprovedAt: zod.coerce.date().optional(),
+  pricingDeductions: zod
+    .array(
+      zod.object({
+        type: zod.string().optional(),
+        percentage: zod.number().optional(),
+        reason: zod.string().optional(),
+      }),
+    )
+    .optional(),
+  pricingIncentives: zod
+    .array(
+      zod.object({
+        type: zod.string().optional(),
+        percentage: zod.number().optional(),
+        reason: zod.string().optional(),
+      }),
+    )
+    .optional(),
   qualifyingStreams: zod.array(zod.string()).optional(),
-  weightApproved: zod.boolean().optional(),
-  qcApproved: zod.boolean().optional(),
   status: zod.enum([
-    "pending_weight",
-    "pending_qc",
-    "pending_pricing",
-    "pending_approval",
+    "pending_weight_submit",
+    "pending_weight_approve",
+    "pending_qc_submit",
+    "pending_qc_approve",
+    "pending_pricing_propose",
+    "pending_pricing_approve",
     "approved",
-    "rejected",
+    "rejected_correction",
+    "rejected_commodity",
+    "rejected_escalate",
+    "partial_rejection",
+    "suspended",
   ]),
-  rejectionType: zod.string().optional(),
+  rejectionType: zod
+    .enum(["CORRECTION", "COMMODITY", "ESCALATE", "PARTIAL", "SUSPEND"])
+    .optional(),
+  rejectionStage: zod.enum(["weight", "qc", "pricing", "final"]).optional(),
   rejectionReason: zod.string().optional(),
+  rejectionByName: zod.string().optional(),
+  rejectionAt: zod.coerce.date().optional(),
+  preOffloadSampleTaken: zod.boolean().optional(),
   createdAt: zod.coerce.date(),
 });
 
 /**
- * @summary Approve or reject delivery pricing
+ * @summary Procurement head approves pricing (different person than proposer)
  */
-export const ApproveDeliveryParams = zod.object({
+export const ApproveDeliveryPricingParams = zod.object({
   deliveryId: zod.coerce.string(),
 });
 
-export const ApproveDeliveryBody = zod.object({
-  decision: zod.enum(["approved", "rejected"]),
-  comment: zod.string(),
-});
-
-export const ApproveDeliveryResponse = zod.object({
+export const ApproveDeliveryPricingResponse = zod.object({
   id: zod.string(),
   lotTag: zod.string(),
   batchId: zod.string(),
   batchTag: zod.string().optional(),
   stationId: zod.string().optional(),
+  truckPlate: zod.string().optional(),
+  driverName: zod.string().optional(),
   grossWeightKg: zod.number().optional(),
   tareWeightKg: zod.number().optional(),
   netWeightKg: zod.number().optional(),
   weightVarianceKg: zod.number().optional(),
+  weightSubmittedById: zod.string().optional(),
+  weightSubmittedByName: zod.string().optional(),
+  weightSubmittedAt: zod.coerce.date().optional(),
+  weightApprovedById: zod.string().optional(),
+  weightApprovedByName: zod.string().optional(),
+  weightApprovedAt: zod.coerce.date().optional(),
+  weightApproved: zod.boolean().optional(),
   moistureContent: zod.number().optional(),
   defectCount: zod.number().optional(),
   cupScore: zod.number().optional(),
   grade: zod.string().optional(),
+  qcSubmittedById: zod.string().optional(),
+  qcSubmittedByName: zod.string().optional(),
+  qcSubmittedAt: zod.coerce.date().optional(),
+  qcApprovedById: zod.string().optional(),
+  qcApprovedByName: zod.string().optional(),
+  qcApprovedAt: zod.coerce.date().optional(),
+  qcApproved: zod.boolean().optional(),
   pricePerKg: zod.number().optional(),
   totalValue: zod.number().optional(),
+  floorPricePerKg: zod.number().optional(),
+  contractId: zod.string().optional(),
+  pricingProposedById: zod.string().optional(),
+  pricingProposedByName: zod.string().optional(),
+  pricingProposedAt: zod.coerce.date().optional(),
+  pricingApprovedById: zod.string().optional(),
+  pricingApprovedByName: zod.string().optional(),
+  pricingApprovedAt: zod.coerce.date().optional(),
+  pricingDeductions: zod
+    .array(
+      zod.object({
+        type: zod.string().optional(),
+        percentage: zod.number().optional(),
+        reason: zod.string().optional(),
+      }),
+    )
+    .optional(),
+  pricingIncentives: zod
+    .array(
+      zod.object({
+        type: zod.string().optional(),
+        percentage: zod.number().optional(),
+        reason: zod.string().optional(),
+      }),
+    )
+    .optional(),
   qualifyingStreams: zod.array(zod.string()).optional(),
-  weightApproved: zod.boolean().optional(),
-  qcApproved: zod.boolean().optional(),
   status: zod.enum([
-    "pending_weight",
-    "pending_qc",
-    "pending_pricing",
-    "pending_approval",
+    "pending_weight_submit",
+    "pending_weight_approve",
+    "pending_qc_submit",
+    "pending_qc_approve",
+    "pending_pricing_propose",
+    "pending_pricing_approve",
     "approved",
-    "rejected",
+    "rejected_correction",
+    "rejected_commodity",
+    "rejected_escalate",
+    "partial_rejection",
+    "suspended",
   ]),
-  rejectionType: zod.string().optional(),
+  rejectionType: zod
+    .enum(["CORRECTION", "COMMODITY", "ESCALATE", "PARTIAL", "SUSPEND"])
+    .optional(),
+  rejectionStage: zod.enum(["weight", "qc", "pricing", "final"]).optional(),
   rejectionReason: zod.string().optional(),
+  rejectionByName: zod.string().optional(),
+  rejectionAt: zod.coerce.date().optional(),
+  preOffloadSampleTaken: zod.boolean().optional(),
+  createdAt: zod.coerce.date(),
+});
+
+/**
+ * @summary Reject the delivery at any stage with one of 5 rejection types
+ */
+export const RejectDeliveryParams = zod.object({
+  deliveryId: zod.coerce.string(),
+});
+
+export const RejectDeliveryBody = zod.object({
+  rejectionType: zod.enum([
+    "CORRECTION",
+    "COMMODITY",
+    "ESCALATE",
+    "PARTIAL",
+    "SUSPEND",
+  ]),
+  reason: zod.string(),
+});
+
+export const RejectDeliveryResponse = zod.object({
+  id: zod.string(),
+  lotTag: zod.string(),
+  batchId: zod.string(),
+  batchTag: zod.string().optional(),
+  stationId: zod.string().optional(),
+  truckPlate: zod.string().optional(),
+  driverName: zod.string().optional(),
+  grossWeightKg: zod.number().optional(),
+  tareWeightKg: zod.number().optional(),
+  netWeightKg: zod.number().optional(),
+  weightVarianceKg: zod.number().optional(),
+  weightSubmittedById: zod.string().optional(),
+  weightSubmittedByName: zod.string().optional(),
+  weightSubmittedAt: zod.coerce.date().optional(),
+  weightApprovedById: zod.string().optional(),
+  weightApprovedByName: zod.string().optional(),
+  weightApprovedAt: zod.coerce.date().optional(),
+  weightApproved: zod.boolean().optional(),
+  moistureContent: zod.number().optional(),
+  defectCount: zod.number().optional(),
+  cupScore: zod.number().optional(),
+  grade: zod.string().optional(),
+  qcSubmittedById: zod.string().optional(),
+  qcSubmittedByName: zod.string().optional(),
+  qcSubmittedAt: zod.coerce.date().optional(),
+  qcApprovedById: zod.string().optional(),
+  qcApprovedByName: zod.string().optional(),
+  qcApprovedAt: zod.coerce.date().optional(),
+  qcApproved: zod.boolean().optional(),
+  pricePerKg: zod.number().optional(),
+  totalValue: zod.number().optional(),
+  floorPricePerKg: zod.number().optional(),
+  contractId: zod.string().optional(),
+  pricingProposedById: zod.string().optional(),
+  pricingProposedByName: zod.string().optional(),
+  pricingProposedAt: zod.coerce.date().optional(),
+  pricingApprovedById: zod.string().optional(),
+  pricingApprovedByName: zod.string().optional(),
+  pricingApprovedAt: zod.coerce.date().optional(),
+  pricingDeductions: zod
+    .array(
+      zod.object({
+        type: zod.string().optional(),
+        percentage: zod.number().optional(),
+        reason: zod.string().optional(),
+      }),
+    )
+    .optional(),
+  pricingIncentives: zod
+    .array(
+      zod.object({
+        type: zod.string().optional(),
+        percentage: zod.number().optional(),
+        reason: zod.string().optional(),
+      }),
+    )
+    .optional(),
+  qualifyingStreams: zod.array(zod.string()).optional(),
+  status: zod.enum([
+    "pending_weight_submit",
+    "pending_weight_approve",
+    "pending_qc_submit",
+    "pending_qc_approve",
+    "pending_pricing_propose",
+    "pending_pricing_approve",
+    "approved",
+    "rejected_correction",
+    "rejected_commodity",
+    "rejected_escalate",
+    "partial_rejection",
+    "suspended",
+  ]),
+  rejectionType: zod
+    .enum(["CORRECTION", "COMMODITY", "ESCALATE", "PARTIAL", "SUSPEND"])
+    .optional(),
+  rejectionStage: zod.enum(["weight", "qc", "pricing", "final"]).optional(),
+  rejectionReason: zod.string().optional(),
+  rejectionByName: zod.string().optional(),
+  rejectionAt: zod.coerce.date().optional(),
+  preOffloadSampleTaken: zod.boolean().optional(),
+  createdAt: zod.coerce.date(),
+});
+
+/**
+ * @summary List pre-season / per-delivery procurement contracts
+ */
+export const ListProcurementContractsQueryParams = zod.object({
+  groupId: zod.coerce.string().optional(),
+  status: zod.enum(["DRAFT", "ACTIVE", "EXPIRED", "SUSPENDED"]).optional(),
+});
+
+export const ListProcurementContractsResponseItem = zod.object({
+  id: zod.string(),
+  contractNumber: zod.string(),
+  contractType: zod.enum(["PRE_SEASON", "PER_DELIVERY"]),
+  groupId: zod.string(),
+  groupName: zod.string().optional(),
+  commodityType: zod.string(),
+  seasonStart: zod.coerce.date().optional(),
+  seasonEnd: zod.coerce.date().optional(),
+  floorPricePerKg: zod.number().optional(),
+  currency: zod.string(),
+  notes: zod.string().optional(),
+  status: zod.enum(["DRAFT", "ACTIVE", "EXPIRED", "SUSPENDED"]),
+  createdAt: zod.coerce.date(),
+});
+export const ListProcurementContractsResponse = zod.array(
+  ListProcurementContractsResponseItem,
+);
+
+/**
+ * @summary Create a procurement contract
+ */
+export const CreateProcurementContractBody = zod.object({
+  contractType: zod.enum(["PRE_SEASON", "PER_DELIVERY"]),
+  groupId: zod.string(),
+  commodityType: zod.string(),
+  seasonStart: zod.coerce.date().optional(),
+  seasonEnd: zod.coerce.date().optional(),
+  floorPricePerKg: zod.number().optional(),
+  currency: zod.string().optional(),
+  notes: zod.string().optional(),
+  status: zod.enum(["DRAFT", "ACTIVE"]).optional(),
+});
+
+/**
+ * @summary Update a procurement contract (e.g. activate or suspend)
+ */
+export const UpdateProcurementContractParams = zod.object({
+  contractId: zod.coerce.string(),
+});
+
+export const UpdateProcurementContractBody = zod.object({
+  floorPricePerKg: zod.number().optional(),
+  seasonStart: zod.coerce.date().optional(),
+  seasonEnd: zod.coerce.date().optional(),
+  notes: zod.string().optional(),
+  status: zod.enum(["DRAFT", "ACTIVE", "EXPIRED", "SUSPENDED"]).optional(),
+});
+
+export const UpdateProcurementContractResponse = zod.object({
+  id: zod.string(),
+  contractNumber: zod.string(),
+  contractType: zod.enum(["PRE_SEASON", "PER_DELIVERY"]),
+  groupId: zod.string(),
+  groupName: zod.string().optional(),
+  commodityType: zod.string(),
+  seasonStart: zod.coerce.date().optional(),
+  seasonEnd: zod.coerce.date().optional(),
+  floorPricePerKg: zod.number().optional(),
+  currency: zod.string(),
+  notes: zod.string().optional(),
+  status: zod.enum(["DRAFT", "ACTIVE", "EXPIRED", "SUSPENDED"]),
   createdAt: zod.coerce.date(),
 });
 

@@ -6,7 +6,8 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export type SubmitPricingBodyIncentivesItem = {
+export type ProposePricingBodyIncentivesItem = {
   type: string;
-  amount: number;
+  percentage: number;
+  reason?: string;
 };

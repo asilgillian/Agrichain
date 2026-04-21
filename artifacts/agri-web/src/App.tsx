@@ -17,6 +17,7 @@ import GroupsList from "@/pages/groups/index";
 import GroupDetail from "@/pages/groups/detail";
 import ProcurementHub from "@/pages/procurement/index";
 import DeliveryDetail from "@/pages/procurement/detail";
+import ProcurementContracts from "@/pages/procurement/contracts";
 import WarehousePage from "@/pages/warehouse/index";
 import LotDetail from "@/pages/warehouse/detail";
 import PaymentsPage from "@/pages/payments/index";
@@ -139,6 +140,7 @@ function ProtectedRoutes() {
             <Route path="/farmers" component={FarmersList} />
             <Route path="/groups/:id" component={GroupDetail} />
             <Route path="/groups" component={GroupsList} />
+            <Route path="/procurement/contracts" component={ProcurementContracts} />
             <Route path="/procurement/:id" component={DeliveryDetail} />
             <Route path="/procurement" component={ProcurementHub} />
             <Route path="/warehouse/:id" component={LotDetail} />

@@ -5,6 +5,10 @@
  * AgriChain Digital Agriculture Platform API
  * OpenAPI spec version: 0.1.0
  */
+import type { DeliveryPricingDeductionsItem } from "./deliveryPricingDeductionsItem";
+import type { DeliveryPricingIncentivesItem } from "./deliveryPricingIncentivesItem";
+import type { DeliveryRejectionStage } from "./deliveryRejectionStage";
+import type { DeliveryRejectionType } from "./deliveryRejectionType";
 import type { DeliveryStatus } from "./deliveryStatus";
 
 export interface Delivery {
@@ -13,21 +17,49 @@ export interface Delivery {
   batchId: string;
   batchTag?: string;
   stationId?: string;
+  truckPlate?: string;
+  driverName?: string;
   grossWeightKg?: number;
   tareWeightKg?: number;
   netWeightKg?: number;
   weightVarianceKg?: number;
+  weightSubmittedById?: string;
+  weightSubmittedByName?: string;
+  weightSubmittedAt?: Date;
+  weightApprovedById?: string;
+  weightApprovedByName?: string;
+  weightApprovedAt?: Date;
+  weightApproved?: boolean;
   moistureContent?: number;
   defectCount?: number;
   cupScore?: number;
   grade?: string;
+  qcSubmittedById?: string;
+  qcSubmittedByName?: string;
+  qcSubmittedAt?: Date;
+  qcApprovedById?: string;
+  qcApprovedByName?: string;
+  qcApprovedAt?: Date;
+  qcApproved?: boolean;
   pricePerKg?: number;
   totalValue?: number;
+  floorPricePerKg?: number;
+  contractId?: string;
+  pricingProposedById?: string;
+  pricingProposedByName?: string;
+  pricingProposedAt?: Date;
+  pricingApprovedById?: string;
+  pricingApprovedByName?: string;
+  pricingApprovedAt?: Date;
+  pricingDeductions?: DeliveryPricingDeductionsItem[];
+  pricingIncentives?: DeliveryPricingIncentivesItem[];
   qualifyingStreams?: string[];
-  weightApproved?: boolean;
-  qcApproved?: boolean;
   status: DeliveryStatus;
-  rejectionType?: string;
+  rejectionType?: DeliveryRejectionType;
+  rejectionStage?: DeliveryRejectionStage;
   rejectionReason?: string;
+  rejectionByName?: string;
+  rejectionAt?: Date;
+  preOffloadSampleTaken?: boolean;
   createdAt: Date;
 }

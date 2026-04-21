@@ -37,6 +37,7 @@ import type {
   CreateFarmerBody,
   CreateGroupBody,
   CreatePlotBody,
+  CreateProcurementContractBody,
   CreateRegionBody,
   CreateRoleBody,
   CreateSurveyTemplateBody,
@@ -71,6 +72,7 @@ import type {
   ListPaymentsParams,
   ListPermissionCatalog200Item,
   ListPlotsParams,
+  ListProcurementContractsParams,
   ListSurveySubmissionsParams,
   ListUsersParams,
   ListVisitsParams,
@@ -83,10 +85,11 @@ import type {
   Payment,
   PaymentSummary,
   Plot,
+  ProcurementContract,
   ProcurementStats,
-  RecordQCBody,
-  RecordWeightBody,
+  ProposePricingBody,
   Region,
+  RejectDeliveryBody,
   ReturnAssetBody,
   ReviewSubmissionBody,
   Role,
@@ -94,13 +97,15 @@ import type {
   Shipment,
   ShipmentDetail,
   SubmitGapAssessmentBody,
-  SubmitPricingBody,
+  SubmitQcBody,
   SubmitSurveyBody,
+  SubmitWeightBody,
   SurveySubmission,
   SurveyTemplate,
   SyncQueueStatus,
   TrainingSession,
   UpdateFarmerBody,
+  UpdateProcurementContractBody,
   UpdateRolePermissionsBody,
   UpdateUserBody,
   User,
@@ -3217,43 +3222,43 @@ export function useGetDelivery<
 }
 
 /**
- * @summary Record gross/tare weight for delivery
+ * @summary Submit gross/tare weight (submitter step)
  */
-export const getRecordDeliveryWeightUrl = (deliveryId: string) => {
-  return `/api/procurement/deliveries/${deliveryId}/weight`;
+export const getSubmitDeliveryWeightUrl = (deliveryId: string) => {
+  return `/api/procurement/deliveries/${deliveryId}/weight/submit`;
 };
 
-export const recordDeliveryWeight = async (
+export const submitDeliveryWeight = async (
   deliveryId: string,
-  recordWeightBody: RecordWeightBody,
+  submitWeightBody: SubmitWeightBody,
   options?: RequestInit,
 ): Promise<Delivery> => {
-  return customFetch<Delivery>(getRecordDeliveryWeightUrl(deliveryId), {
+  return customFetch<Delivery>(getSubmitDeliveryWeightUrl(deliveryId), {
     ...options,
     method: "POST",
     headers: { "Content-Type": "application/json", ...options?.headers },
-    body: JSON.stringify(recordWeightBody),
+    body: JSON.stringify(submitWeightBody),
   });
 };
 
-export const getRecordDeliveryWeightMutationOptions = <
+export const getSubmitDeliveryWeightMutationOptions = <
   TError = ErrorType<unknown>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof recordDeliveryWeight>>,
+    Awaited<ReturnType<typeof submitDeliveryWeight>>,
     TError,
-    { deliveryId: string; data: BodyType<RecordWeightBody> },
+    { deliveryId: string; data: BodyType<SubmitWeightBody> },
     TContext
   >;
   request?: SecondParameter<typeof customFetch>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof recordDeliveryWeight>>,
+  Awaited<ReturnType<typeof submitDeliveryWeight>>,
   TError,
-  { deliveryId: string; data: BodyType<RecordWeightBody> },
+  { deliveryId: string; data: BodyType<SubmitWeightBody> },
   TContext
 > => {
-  const mutationKey = ["recordDeliveryWeight"];
+  const mutationKey = ["submitDeliveryWeight"];
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation &&
       "mutationKey" in options.mutation &&
@@ -3263,84 +3268,81 @@ export const getRecordDeliveryWeightMutationOptions = <
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof recordDeliveryWeight>>,
-    { deliveryId: string; data: BodyType<RecordWeightBody> }
+    Awaited<ReturnType<typeof submitDeliveryWeight>>,
+    { deliveryId: string; data: BodyType<SubmitWeightBody> }
   > = (props) => {
     const { deliveryId, data } = props ?? {};
 
-    return recordDeliveryWeight(deliveryId, data, requestOptions);
+    return submitDeliveryWeight(deliveryId, data, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type RecordDeliveryWeightMutationResult = NonNullable<
-  Awaited<ReturnType<typeof recordDeliveryWeight>>
+export type SubmitDeliveryWeightMutationResult = NonNullable<
+  Awaited<ReturnType<typeof submitDeliveryWeight>>
 >;
-export type RecordDeliveryWeightMutationBody = BodyType<RecordWeightBody>;
-export type RecordDeliveryWeightMutationError = ErrorType<unknown>;
+export type SubmitDeliveryWeightMutationBody = BodyType<SubmitWeightBody>;
+export type SubmitDeliveryWeightMutationError = ErrorType<unknown>;
 
 /**
- * @summary Record gross/tare weight for delivery
+ * @summary Submit gross/tare weight (submitter step)
  */
-export const useRecordDeliveryWeight = <
+export const useSubmitDeliveryWeight = <
   TError = ErrorType<unknown>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof recordDeliveryWeight>>,
+    Awaited<ReturnType<typeof submitDeliveryWeight>>,
     TError,
-    { deliveryId: string; data: BodyType<RecordWeightBody> },
+    { deliveryId: string; data: BodyType<SubmitWeightBody> },
     TContext
   >;
   request?: SecondParameter<typeof customFetch>;
 }): UseMutationResult<
-  Awaited<ReturnType<typeof recordDeliveryWeight>>,
+  Awaited<ReturnType<typeof submitDeliveryWeight>>,
   TError,
-  { deliveryId: string; data: BodyType<RecordWeightBody> },
+  { deliveryId: string; data: BodyType<SubmitWeightBody> },
   TContext
 > => {
-  return useMutation(getRecordDeliveryWeightMutationOptions(options));
+  return useMutation(getSubmitDeliveryWeightMutationOptions(options));
 };
 
 /**
- * @summary Record quality control assessment
+ * @summary Approve submitted weight (approver must differ from submitter)
  */
-export const getRecordDeliveryQCUrl = (deliveryId: string) => {
-  return `/api/procurement/deliveries/${deliveryId}/qc`;
+export const getApproveDeliveryWeightUrl = (deliveryId: string) => {
+  return `/api/procurement/deliveries/${deliveryId}/weight/approve`;
 };
 
-export const recordDeliveryQC = async (
+export const approveDeliveryWeight = async (
   deliveryId: string,
-  recordQCBody: RecordQCBody,
   options?: RequestInit,
 ): Promise<Delivery> => {
-  return customFetch<Delivery>(getRecordDeliveryQCUrl(deliveryId), {
+  return customFetch<Delivery>(getApproveDeliveryWeightUrl(deliveryId), {
     ...options,
     method: "POST",
-    headers: { "Content-Type": "application/json", ...options?.headers },
-    body: JSON.stringify(recordQCBody),
   });
 };
 
-export const getRecordDeliveryQCMutationOptions = <
+export const getApproveDeliveryWeightMutationOptions = <
   TError = ErrorType<unknown>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof recordDeliveryQC>>,
+    Awaited<ReturnType<typeof approveDeliveryWeight>>,
     TError,
-    { deliveryId: string; data: BodyType<RecordQCBody> },
+    { deliveryId: string },
     TContext
   >;
   request?: SecondParameter<typeof customFetch>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof recordDeliveryQC>>,
+  Awaited<ReturnType<typeof approveDeliveryWeight>>,
   TError,
-  { deliveryId: string; data: BodyType<RecordQCBody> },
+  { deliveryId: string },
   TContext
 > => {
-  const mutationKey = ["recordDeliveryQC"];
+  const mutationKey = ["approveDeliveryWeight"];
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation &&
       "mutationKey" in options.mutation &&
@@ -3350,84 +3352,84 @@ export const getRecordDeliveryQCMutationOptions = <
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof recordDeliveryQC>>,
-    { deliveryId: string; data: BodyType<RecordQCBody> }
+    Awaited<ReturnType<typeof approveDeliveryWeight>>,
+    { deliveryId: string }
   > = (props) => {
-    const { deliveryId, data } = props ?? {};
+    const { deliveryId } = props ?? {};
 
-    return recordDeliveryQC(deliveryId, data, requestOptions);
+    return approveDeliveryWeight(deliveryId, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type RecordDeliveryQCMutationResult = NonNullable<
-  Awaited<ReturnType<typeof recordDeliveryQC>>
+export type ApproveDeliveryWeightMutationResult = NonNullable<
+  Awaited<ReturnType<typeof approveDeliveryWeight>>
 >;
-export type RecordDeliveryQCMutationBody = BodyType<RecordQCBody>;
-export type RecordDeliveryQCMutationError = ErrorType<unknown>;
+
+export type ApproveDeliveryWeightMutationError = ErrorType<unknown>;
 
 /**
- * @summary Record quality control assessment
+ * @summary Approve submitted weight (approver must differ from submitter)
  */
-export const useRecordDeliveryQC = <
+export const useApproveDeliveryWeight = <
   TError = ErrorType<unknown>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof recordDeliveryQC>>,
+    Awaited<ReturnType<typeof approveDeliveryWeight>>,
     TError,
-    { deliveryId: string; data: BodyType<RecordQCBody> },
+    { deliveryId: string },
     TContext
   >;
   request?: SecondParameter<typeof customFetch>;
 }): UseMutationResult<
-  Awaited<ReturnType<typeof recordDeliveryQC>>,
+  Awaited<ReturnType<typeof approveDeliveryWeight>>,
   TError,
-  { deliveryId: string; data: BodyType<RecordQCBody> },
+  { deliveryId: string },
   TContext
 > => {
-  return useMutation(getRecordDeliveryQCMutationOptions(options));
+  return useMutation(getApproveDeliveryWeightMutationOptions(options));
 };
 
 /**
- * @summary Submit pricing for delivery
+ * @summary Submit QC assessment (submitter step)
  */
-export const getSubmitDeliveryPricingUrl = (deliveryId: string) => {
-  return `/api/procurement/deliveries/${deliveryId}/pricing`;
+export const getSubmitDeliveryQcUrl = (deliveryId: string) => {
+  return `/api/procurement/deliveries/${deliveryId}/qc/submit`;
 };
 
-export const submitDeliveryPricing = async (
+export const submitDeliveryQc = async (
   deliveryId: string,
-  submitPricingBody: SubmitPricingBody,
+  submitQcBody: SubmitQcBody,
   options?: RequestInit,
 ): Promise<Delivery> => {
-  return customFetch<Delivery>(getSubmitDeliveryPricingUrl(deliveryId), {
+  return customFetch<Delivery>(getSubmitDeliveryQcUrl(deliveryId), {
     ...options,
     method: "POST",
     headers: { "Content-Type": "application/json", ...options?.headers },
-    body: JSON.stringify(submitPricingBody),
+    body: JSON.stringify(submitQcBody),
   });
 };
 
-export const getSubmitDeliveryPricingMutationOptions = <
+export const getSubmitDeliveryQcMutationOptions = <
   TError = ErrorType<unknown>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof submitDeliveryPricing>>,
+    Awaited<ReturnType<typeof submitDeliveryQc>>,
     TError,
-    { deliveryId: string; data: BodyType<SubmitPricingBody> },
+    { deliveryId: string; data: BodyType<SubmitQcBody> },
     TContext
   >;
   request?: SecondParameter<typeof customFetch>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof submitDeliveryPricing>>,
+  Awaited<ReturnType<typeof submitDeliveryQc>>,
   TError,
-  { deliveryId: string; data: BodyType<SubmitPricingBody> },
+  { deliveryId: string; data: BodyType<SubmitQcBody> },
   TContext
 > => {
-  const mutationKey = ["submitDeliveryPricing"];
+  const mutationKey = ["submitDeliveryQc"];
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation &&
       "mutationKey" in options.mutation &&
@@ -3437,84 +3439,81 @@ export const getSubmitDeliveryPricingMutationOptions = <
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof submitDeliveryPricing>>,
-    { deliveryId: string; data: BodyType<SubmitPricingBody> }
+    Awaited<ReturnType<typeof submitDeliveryQc>>,
+    { deliveryId: string; data: BodyType<SubmitQcBody> }
   > = (props) => {
     const { deliveryId, data } = props ?? {};
 
-    return submitDeliveryPricing(deliveryId, data, requestOptions);
+    return submitDeliveryQc(deliveryId, data, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type SubmitDeliveryPricingMutationResult = NonNullable<
-  Awaited<ReturnType<typeof submitDeliveryPricing>>
+export type SubmitDeliveryQcMutationResult = NonNullable<
+  Awaited<ReturnType<typeof submitDeliveryQc>>
 >;
-export type SubmitDeliveryPricingMutationBody = BodyType<SubmitPricingBody>;
-export type SubmitDeliveryPricingMutationError = ErrorType<unknown>;
+export type SubmitDeliveryQcMutationBody = BodyType<SubmitQcBody>;
+export type SubmitDeliveryQcMutationError = ErrorType<unknown>;
 
 /**
- * @summary Submit pricing for delivery
+ * @summary Submit QC assessment (submitter step)
  */
-export const useSubmitDeliveryPricing = <
+export const useSubmitDeliveryQc = <
   TError = ErrorType<unknown>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof submitDeliveryPricing>>,
+    Awaited<ReturnType<typeof submitDeliveryQc>>,
     TError,
-    { deliveryId: string; data: BodyType<SubmitPricingBody> },
+    { deliveryId: string; data: BodyType<SubmitQcBody> },
     TContext
   >;
   request?: SecondParameter<typeof customFetch>;
 }): UseMutationResult<
-  Awaited<ReturnType<typeof submitDeliveryPricing>>,
+  Awaited<ReturnType<typeof submitDeliveryQc>>,
   TError,
-  { deliveryId: string; data: BodyType<SubmitPricingBody> },
+  { deliveryId: string; data: BodyType<SubmitQcBody> },
   TContext
 > => {
-  return useMutation(getSubmitDeliveryPricingMutationOptions(options));
+  return useMutation(getSubmitDeliveryQcMutationOptions(options));
 };
 
 /**
- * @summary Approve or reject delivery pricing
+ * @summary Approve QC assessment (approver must differ from submitter)
  */
-export const getApproveDeliveryUrl = (deliveryId: string) => {
-  return `/api/procurement/deliveries/${deliveryId}/approve`;
+export const getApproveDeliveryQcUrl = (deliveryId: string) => {
+  return `/api/procurement/deliveries/${deliveryId}/qc/approve`;
 };
 
-export const approveDelivery = async (
+export const approveDeliveryQc = async (
   deliveryId: string,
-  approvalBody: ApprovalBody,
   options?: RequestInit,
 ): Promise<Delivery> => {
-  return customFetch<Delivery>(getApproveDeliveryUrl(deliveryId), {
+  return customFetch<Delivery>(getApproveDeliveryQcUrl(deliveryId), {
     ...options,
     method: "POST",
-    headers: { "Content-Type": "application/json", ...options?.headers },
-    body: JSON.stringify(approvalBody),
   });
 };
 
-export const getApproveDeliveryMutationOptions = <
+export const getApproveDeliveryQcMutationOptions = <
   TError = ErrorType<unknown>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof approveDelivery>>,
+    Awaited<ReturnType<typeof approveDeliveryQc>>,
     TError,
-    { deliveryId: string; data: BodyType<ApprovalBody> },
+    { deliveryId: string },
     TContext
   >;
   request?: SecondParameter<typeof customFetch>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof approveDelivery>>,
+  Awaited<ReturnType<typeof approveDeliveryQc>>,
   TError,
-  { deliveryId: string; data: BodyType<ApprovalBody> },
+  { deliveryId: string },
   TContext
 > => {
-  const mutationKey = ["approveDelivery"];
+  const mutationKey = ["approveDeliveryQc"];
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation &&
       "mutationKey" in options.mutation &&
@@ -3524,44 +3523,583 @@ export const getApproveDeliveryMutationOptions = <
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof approveDelivery>>,
-    { deliveryId: string; data: BodyType<ApprovalBody> }
+    Awaited<ReturnType<typeof approveDeliveryQc>>,
+    { deliveryId: string }
   > = (props) => {
-    const { deliveryId, data } = props ?? {};
+    const { deliveryId } = props ?? {};
 
-    return approveDelivery(deliveryId, data, requestOptions);
+    return approveDeliveryQc(deliveryId, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type ApproveDeliveryMutationResult = NonNullable<
-  Awaited<ReturnType<typeof approveDelivery>>
+export type ApproveDeliveryQcMutationResult = NonNullable<
+  Awaited<ReturnType<typeof approveDeliveryQc>>
 >;
-export type ApproveDeliveryMutationBody = BodyType<ApprovalBody>;
-export type ApproveDeliveryMutationError = ErrorType<unknown>;
+
+export type ApproveDeliveryQcMutationError = ErrorType<unknown>;
 
 /**
- * @summary Approve or reject delivery pricing
+ * @summary Approve QC assessment (approver must differ from submitter)
  */
-export const useApproveDelivery = <
+export const useApproveDeliveryQc = <
   TError = ErrorType<unknown>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof approveDelivery>>,
+    Awaited<ReturnType<typeof approveDeliveryQc>>,
     TError,
-    { deliveryId: string; data: BodyType<ApprovalBody> },
+    { deliveryId: string },
     TContext
   >;
   request?: SecondParameter<typeof customFetch>;
 }): UseMutationResult<
-  Awaited<ReturnType<typeof approveDelivery>>,
+  Awaited<ReturnType<typeof approveDeliveryQc>>,
   TError,
-  { deliveryId: string; data: BodyType<ApprovalBody> },
+  { deliveryId: string },
   TContext
 > => {
-  return useMutation(getApproveDeliveryMutationOptions(options));
+  return useMutation(getApproveDeliveryQcMutationOptions(options));
+};
+
+/**
+ * @summary Trade desk proposes pricing (locked behind both approvals)
+ */
+export const getProposeDeliveryPricingUrl = (deliveryId: string) => {
+  return `/api/procurement/deliveries/${deliveryId}/pricing/propose`;
+};
+
+export const proposeDeliveryPricing = async (
+  deliveryId: string,
+  proposePricingBody: ProposePricingBody,
+  options?: RequestInit,
+): Promise<Delivery> => {
+  return customFetch<Delivery>(getProposeDeliveryPricingUrl(deliveryId), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(proposePricingBody),
+  });
+};
+
+export const getProposeDeliveryPricingMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof proposeDeliveryPricing>>,
+    TError,
+    { deliveryId: string; data: BodyType<ProposePricingBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof proposeDeliveryPricing>>,
+  TError,
+  { deliveryId: string; data: BodyType<ProposePricingBody> },
+  TContext
+> => {
+  const mutationKey = ["proposeDeliveryPricing"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof proposeDeliveryPricing>>,
+    { deliveryId: string; data: BodyType<ProposePricingBody> }
+  > = (props) => {
+    const { deliveryId, data } = props ?? {};
+
+    return proposeDeliveryPricing(deliveryId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ProposeDeliveryPricingMutationResult = NonNullable<
+  Awaited<ReturnType<typeof proposeDeliveryPricing>>
+>;
+export type ProposeDeliveryPricingMutationBody = BodyType<ProposePricingBody>;
+export type ProposeDeliveryPricingMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Trade desk proposes pricing (locked behind both approvals)
+ */
+export const useProposeDeliveryPricing = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof proposeDeliveryPricing>>,
+    TError,
+    { deliveryId: string; data: BodyType<ProposePricingBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof proposeDeliveryPricing>>,
+  TError,
+  { deliveryId: string; data: BodyType<ProposePricingBody> },
+  TContext
+> => {
+  return useMutation(getProposeDeliveryPricingMutationOptions(options));
+};
+
+/**
+ * @summary Procurement head approves pricing (different person than proposer)
+ */
+export const getApproveDeliveryPricingUrl = (deliveryId: string) => {
+  return `/api/procurement/deliveries/${deliveryId}/pricing/approve`;
+};
+
+export const approveDeliveryPricing = async (
+  deliveryId: string,
+  options?: RequestInit,
+): Promise<Delivery> => {
+  return customFetch<Delivery>(getApproveDeliveryPricingUrl(deliveryId), {
+    ...options,
+    method: "POST",
+  });
+};
+
+export const getApproveDeliveryPricingMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof approveDeliveryPricing>>,
+    TError,
+    { deliveryId: string },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof approveDeliveryPricing>>,
+  TError,
+  { deliveryId: string },
+  TContext
+> => {
+  const mutationKey = ["approveDeliveryPricing"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof approveDeliveryPricing>>,
+    { deliveryId: string }
+  > = (props) => {
+    const { deliveryId } = props ?? {};
+
+    return approveDeliveryPricing(deliveryId, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ApproveDeliveryPricingMutationResult = NonNullable<
+  Awaited<ReturnType<typeof approveDeliveryPricing>>
+>;
+
+export type ApproveDeliveryPricingMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Procurement head approves pricing (different person than proposer)
+ */
+export const useApproveDeliveryPricing = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof approveDeliveryPricing>>,
+    TError,
+    { deliveryId: string },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof approveDeliveryPricing>>,
+  TError,
+  { deliveryId: string },
+  TContext
+> => {
+  return useMutation(getApproveDeliveryPricingMutationOptions(options));
+};
+
+/**
+ * @summary Reject the delivery at any stage with one of 5 rejection types
+ */
+export const getRejectDeliveryUrl = (deliveryId: string) => {
+  return `/api/procurement/deliveries/${deliveryId}/reject`;
+};
+
+export const rejectDelivery = async (
+  deliveryId: string,
+  rejectDeliveryBody: RejectDeliveryBody,
+  options?: RequestInit,
+): Promise<Delivery> => {
+  return customFetch<Delivery>(getRejectDeliveryUrl(deliveryId), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(rejectDeliveryBody),
+  });
+};
+
+export const getRejectDeliveryMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof rejectDelivery>>,
+    TError,
+    { deliveryId: string; data: BodyType<RejectDeliveryBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof rejectDelivery>>,
+  TError,
+  { deliveryId: string; data: BodyType<RejectDeliveryBody> },
+  TContext
+> => {
+  const mutationKey = ["rejectDelivery"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof rejectDelivery>>,
+    { deliveryId: string; data: BodyType<RejectDeliveryBody> }
+  > = (props) => {
+    const { deliveryId, data } = props ?? {};
+
+    return rejectDelivery(deliveryId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type RejectDeliveryMutationResult = NonNullable<
+  Awaited<ReturnType<typeof rejectDelivery>>
+>;
+export type RejectDeliveryMutationBody = BodyType<RejectDeliveryBody>;
+export type RejectDeliveryMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Reject the delivery at any stage with one of 5 rejection types
+ */
+export const useRejectDelivery = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof rejectDelivery>>,
+    TError,
+    { deliveryId: string; data: BodyType<RejectDeliveryBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof rejectDelivery>>,
+  TError,
+  { deliveryId: string; data: BodyType<RejectDeliveryBody> },
+  TContext
+> => {
+  return useMutation(getRejectDeliveryMutationOptions(options));
+};
+
+/**
+ * @summary List pre-season / per-delivery procurement contracts
+ */
+export const getListProcurementContractsUrl = (
+  params?: ListProcurementContractsParams,
+) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/procurement/contracts?${stringifiedParams}`
+    : `/api/procurement/contracts`;
+};
+
+export const listProcurementContracts = async (
+  params?: ListProcurementContractsParams,
+  options?: RequestInit,
+): Promise<ProcurementContract[]> => {
+  return customFetch<ProcurementContract[]>(
+    getListProcurementContractsUrl(params),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getListProcurementContractsQueryKey = (
+  params?: ListProcurementContractsParams,
+) => {
+  return [`/api/procurement/contracts`, ...(params ? [params] : [])] as const;
+};
+
+export const getListProcurementContractsQueryOptions = <
+  TData = Awaited<ReturnType<typeof listProcurementContracts>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: ListProcurementContractsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listProcurementContracts>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getListProcurementContractsQueryKey(params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listProcurementContracts>>
+  > = ({ signal }) =>
+    listProcurementContracts(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listProcurementContracts>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListProcurementContractsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listProcurementContracts>>
+>;
+export type ListProcurementContractsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List pre-season / per-delivery procurement contracts
+ */
+
+export function useListProcurementContracts<
+  TData = Awaited<ReturnType<typeof listProcurementContracts>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: ListProcurementContractsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listProcurementContracts>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListProcurementContractsQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Create a procurement contract
+ */
+export const getCreateProcurementContractUrl = () => {
+  return `/api/procurement/contracts`;
+};
+
+export const createProcurementContract = async (
+  createProcurementContractBody: CreateProcurementContractBody,
+  options?: RequestInit,
+): Promise<ProcurementContract> => {
+  return customFetch<ProcurementContract>(getCreateProcurementContractUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(createProcurementContractBody),
+  });
+};
+
+export const getCreateProcurementContractMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createProcurementContract>>,
+    TError,
+    { data: BodyType<CreateProcurementContractBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createProcurementContract>>,
+  TError,
+  { data: BodyType<CreateProcurementContractBody> },
+  TContext
+> => {
+  const mutationKey = ["createProcurementContract"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createProcurementContract>>,
+    { data: BodyType<CreateProcurementContractBody> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return createProcurementContract(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateProcurementContractMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createProcurementContract>>
+>;
+export type CreateProcurementContractMutationBody =
+  BodyType<CreateProcurementContractBody>;
+export type CreateProcurementContractMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Create a procurement contract
+ */
+export const useCreateProcurementContract = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createProcurementContract>>,
+    TError,
+    { data: BodyType<CreateProcurementContractBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createProcurementContract>>,
+  TError,
+  { data: BodyType<CreateProcurementContractBody> },
+  TContext
+> => {
+  return useMutation(getCreateProcurementContractMutationOptions(options));
+};
+
+/**
+ * @summary Update a procurement contract (e.g. activate or suspend)
+ */
+export const getUpdateProcurementContractUrl = (contractId: string) => {
+  return `/api/procurement/contracts/${contractId}`;
+};
+
+export const updateProcurementContract = async (
+  contractId: string,
+  updateProcurementContractBody: UpdateProcurementContractBody,
+  options?: RequestInit,
+): Promise<ProcurementContract> => {
+  return customFetch<ProcurementContract>(
+    getUpdateProcurementContractUrl(contractId),
+    {
+      ...options,
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(updateProcurementContractBody),
+    },
+  );
+};
+
+export const getUpdateProcurementContractMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateProcurementContract>>,
+    TError,
+    { contractId: string; data: BodyType<UpdateProcurementContractBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateProcurementContract>>,
+  TError,
+  { contractId: string; data: BodyType<UpdateProcurementContractBody> },
+  TContext
+> => {
+  const mutationKey = ["updateProcurementContract"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateProcurementContract>>,
+    { contractId: string; data: BodyType<UpdateProcurementContractBody> }
+  > = (props) => {
+    const { contractId, data } = props ?? {};
+
+    return updateProcurementContract(contractId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateProcurementContractMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateProcurementContract>>
+>;
+export type UpdateProcurementContractMutationBody =
+  BodyType<UpdateProcurementContractBody>;
+export type UpdateProcurementContractMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Update a procurement contract (e.g. activate or suspend)
+ */
+export const useUpdateProcurementContract = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateProcurementContract>>,
+    TError,
+    { contractId: string; data: BodyType<UpdateProcurementContractBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateProcurementContract>>,
+  TError,
+  { contractId: string; data: BodyType<UpdateProcurementContractBody> },
+  TContext
+> => {
+  return useMutation(getUpdateProcurementContractMutationOptions(options));
 };
 
 /**

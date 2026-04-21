@@ -6,7 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export interface RecordQCBody {
+export interface SubmitQcBody {
   moistureContent: number;
   defectCount: number;
   cupScore?: number;

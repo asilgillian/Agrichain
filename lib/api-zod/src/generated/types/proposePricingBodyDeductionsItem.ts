@@ -6,7 +6,8 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export interface RecordWeightBody {
-  grossWeightKg: number;
-  tareWeightKg: number;
-}
+export type ProposePricingBodyDeductionsItem = {
+  type: string;
+  percentage: number;
+  reason?: string;
+};
