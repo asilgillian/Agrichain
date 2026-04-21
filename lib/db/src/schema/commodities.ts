@@ -165,3 +165,43 @@ export const commodityQualitySpecsTable = pgTable("commodity_quality_specs", {
     t.commodityTypeId, t.parameterCode, t.effectiveDate, t.version,
   ),
 ]);
+
+// =================================================================================================
+// Sampling Configuration — the rule engine that sits between CommodityType and the operational
+// stages (Field, Pre-Offload, Post-Offload, Warehouse, Processing, Export). For each (type, stage)
+// pair it captures HOW samples must be drawn (method, frequency), HOW MANY samples are required,
+// whether lab tests are needed, and what to do when sampling is missing — auto-block the workflow
+// or allow a privileged user to override. This drives both the procurement and processing UI.
+// =================================================================================================
+export const samplingConfigsTable = pgTable("sampling_configs", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  commodityTypeId: uuid("commodity_type_id").notNull().references(() => commodityTypesTable.id, { onDelete: "cascade" }),
+  // 'field' | 'pre_offload' | 'post_offload' | 'warehouse' | 'processing' | 'export'
+  stage: text("stage").notNull(),
+  isMandatory: boolean("is_mandatory").notNull().default(true),
+  // 'grab' | 'composite' | 'incremental'
+  samplingMethod: text("sampling_method").notNull().default("grab"),
+  // 'per_batch' | 'per_kg' | 'per_truck'
+  frequencyRule: text("frequency_rule").notNull().default("per_batch"),
+  // Only meaningful when frequencyRule = 'per_kg'. e.g. one sample per 500 kg.
+  frequencyValue: numeric("frequency_value", { precision: 14, scale: 2 }),
+  minSamples: integer("min_samples").notNull().default(1),
+  maxSamples: integer("max_samples"),
+  requiresLabTest: boolean("requires_lab_test").notNull().default(false),
+  autoBlockIfMissing: boolean("auto_block_if_missing").notNull().default(true),
+  allowOverride: boolean("allow_override").notNull().default(false),
+  // 'active' | 'inactive' — inactive rows are kept for audit but not enforced.
+  status: text("status").notNull().default("active"),
+  notes: text("notes"),
+  createdById: uuid("created_by_id"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("sampling_configs_type_idx").on(t.commodityTypeId),
+  index("sampling_configs_type_stage_idx").on(t.commodityTypeId, t.stage),
+  // One active rule per (type, stage). Re-versioning is done by toggling status to inactive
+  // and inserting a new active row — no destructive update of historical rules.
+  uniqueIndex("sampling_configs_type_stage_active_uniq")
+    .on(t.commodityTypeId, t.stage)
+    .where(sql`status = 'active'`),
+]);

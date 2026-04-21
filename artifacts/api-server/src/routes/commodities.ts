@@ -8,6 +8,7 @@ import {
   commodityConversionsTable,
   commoditySeasonsTable,
   commodityQualitySpecsTable,
+  samplingConfigsTable,
   auditLogsTable,
 } from "@workspace/db";
 import { requirePermission, type AuthedRequest } from "../middlewares/auth";
@@ -733,6 +734,130 @@ router.get("/commodity-types/:typeId/quality-specs/:parameterCode/evaluate", req
     mandatory: spec.mandatory,
     specId: spec.id, specVersion: spec.version, specEffectiveDate: spec.effectiveDate,
   });
+});
+
+// =============== SAMPLING CONFIGURATIONS ===============
+
+const SAMPLING_METHODS = new Set(["grab", "composite", "incremental"]);
+const FREQUENCY_RULES = new Set(["per_batch", "per_kg", "per_truck"]);
+
+router.get("/commodity-types/:typeId/sampling-configs", requirePermission("commodities.read"), async (req, res) => {
+  const { typeId } = req.params;
+  if (!isUuid(typeId)) { res.status(400).json({ error: "Invalid typeId" }); return; }
+  const rows = await db.select().from(samplingConfigsTable)
+    .where(eq(samplingConfigsTable.commodityTypeId, typeId))
+    .orderBy(samplingConfigsTable.stage);
+  res.json(rows);
+});
+
+router.post("/commodity-types/:typeId/sampling-configs", requirePermission("commodities.write"), async (req: AuthedRequest, res) => {
+  const { typeId } = req.params;
+  if (!isUuid(typeId)) { res.status(400).json({ error: "Invalid typeId" }); return; }
+  const [type] = await db.select().from(commodityTypesTable).where(eq(commodityTypesTable.id, typeId));
+  if (!type) { res.status(404).json({ error: "Commodity type not found" }); return; }
+
+  const { stage, isMandatory, samplingMethod, frequencyRule, frequencyValue, minSamples, maxSamples, requiresLabTest, autoBlockIfMissing, allowOverride, notes } = req.body ?? {};
+  if (!SAMPLE_STAGES.has(stage)) { res.status(400).json({ error: `stage must be one of ${[...SAMPLE_STAGES].join("|")}` }); return; }
+  if (!SAMPLING_METHODS.has(samplingMethod)) { res.status(400).json({ error: `samplingMethod must be one of ${[...SAMPLING_METHODS].join("|")}` }); return; }
+  if (!FREQUENCY_RULES.has(frequencyRule)) { res.status(400).json({ error: `frequencyRule must be one of ${[...FREQUENCY_RULES].join("|")}` }); return; }
+  if (frequencyRule === "per_kg" && (frequencyValue == null || !Number.isFinite(Number(frequencyValue)) || Number(frequencyValue) <= 0)) {
+    res.status(400).json({ error: "frequencyValue (kg) is required and must be > 0 when frequencyRule = per_kg" }); return;
+  }
+  const minS = Number(minSamples ?? 1);
+  if (!Number.isInteger(minS) || minS < 1) { res.status(400).json({ error: "minSamples must be an integer >= 1" }); return; }
+  const maxS = maxSamples == null || maxSamples === "" ? null : Number(maxSamples);
+  if (maxS != null && (!Number.isInteger(maxS) || maxS < minS)) { res.status(400).json({ error: "maxSamples must be an integer >= minSamples" }); return; }
+
+  const [created] = await db.insert(samplingConfigsTable).values({
+    commodityTypeId: typeId,
+    stage,
+    isMandatory: !!isMandatory,
+    samplingMethod,
+    frequencyRule,
+    frequencyValue: frequencyRule === "per_kg" ? String(Number(frequencyValue)) : null,
+    minSamples: minS,
+    maxSamples: maxS,
+    requiresLabTest: !!requiresLabTest,
+    autoBlockIfMissing: !!autoBlockIfMissing,
+    allowOverride: !!allowOverride,
+    notes: notes ?? null,
+    createdById: req.authedUser?.id ?? null,
+  }).returning();
+  await audit("sampling_config", created.id, "sampling_config.create", req.authedUser, null, created);
+  res.status(201).json(created);
+});
+
+router.patch("/sampling-configs/:configId", requirePermission("commodities.write"), async (req: AuthedRequest, res) => {
+  const { configId } = req.params;
+  if (!isUuid(configId)) { res.status(400).json({ error: "Invalid configId" }); return; }
+  const [existing] = await db.select().from(samplingConfigsTable).where(eq(samplingConfigsTable.id, configId));
+  if (!existing) { res.status(404).json({ error: "Sampling config not found" }); return; }
+
+  const patch: any = { updatedAt: new Date() };
+  const { stage, isMandatory, samplingMethod, frequencyRule, frequencyValue, minSamples, maxSamples, requiresLabTest, autoBlockIfMissing, allowOverride, status, notes } = req.body ?? {};
+  if (stage !== undefined) {
+    if (!SAMPLE_STAGES.has(stage)) { res.status(400).json({ error: "Invalid stage" }); return; }
+    patch.stage = stage;
+  }
+  if (samplingMethod !== undefined) {
+    if (!SAMPLING_METHODS.has(samplingMethod)) { res.status(400).json({ error: "Invalid samplingMethod" }); return; }
+    patch.samplingMethod = samplingMethod;
+  }
+  if (frequencyRule !== undefined) {
+    if (!FREQUENCY_RULES.has(frequencyRule)) { res.status(400).json({ error: "Invalid frequencyRule" }); return; }
+    patch.frequencyRule = frequencyRule;
+  }
+  const effRule = patch.frequencyRule ?? existing.frequencyRule;
+  if (frequencyValue !== undefined) {
+    if (frequencyValue == null || frequencyValue === "") {
+      patch.frequencyValue = null;
+    } else {
+      const v = Number(frequencyValue);
+      if (!Number.isFinite(v) || v <= 0) { res.status(400).json({ error: "frequencyValue must be > 0" }); return; }
+      patch.frequencyValue = String(v);
+    }
+  }
+  if (effRule === "per_kg" && (patch.frequencyValue ?? existing.frequencyValue) == null) {
+    res.status(400).json({ error: "frequencyValue (kg) is required when frequencyRule = per_kg" }); return;
+  }
+  if (isMandatory !== undefined) patch.isMandatory = !!isMandatory;
+  if (requiresLabTest !== undefined) patch.requiresLabTest = !!requiresLabTest;
+  if (autoBlockIfMissing !== undefined) patch.autoBlockIfMissing = !!autoBlockIfMissing;
+  if (allowOverride !== undefined) patch.allowOverride = !!allowOverride;
+  if (minSamples !== undefined) {
+    const v = Number(minSamples);
+    if (!Number.isInteger(v) || v < 1) { res.status(400).json({ error: "minSamples must be an integer >= 1" }); return; }
+    patch.minSamples = v;
+  }
+  if (maxSamples !== undefined) {
+    if (maxSamples == null || maxSamples === "") {
+      patch.maxSamples = null;
+    } else {
+      const v = Number(maxSamples);
+      const minRef = patch.minSamples ?? existing.minSamples;
+      if (!Number.isInteger(v) || v < minRef) { res.status(400).json({ error: "maxSamples must be an integer >= minSamples" }); return; }
+      patch.maxSamples = v;
+    }
+  }
+  if (status !== undefined) {
+    if (!["active", "inactive"].includes(status)) { res.status(400).json({ error: "status must be active|inactive" }); return; }
+    patch.status = status;
+  }
+  if (notes !== undefined) patch.notes = notes ?? null;
+
+  const [updated] = await db.update(samplingConfigsTable).set(patch).where(eq(samplingConfigsTable.id, configId)).returning();
+  await audit("sampling_config", updated.id, "sampling_config.update", req.authedUser, existing, updated);
+  res.json(updated);
+});
+
+router.delete("/sampling-configs/:configId", requirePermission("commodities.write"), async (req: AuthedRequest, res) => {
+  const { configId } = req.params;
+  if (!isUuid(configId)) { res.status(400).json({ error: "Invalid configId" }); return; }
+  const [existing] = await db.select().from(samplingConfigsTable).where(eq(samplingConfigsTable.id, configId));
+  if (!existing) { res.status(404).json({ error: "Sampling config not found" }); return; }
+  await db.delete(samplingConfigsTable).where(eq(samplingConfigsTable.id, configId));
+  await audit("sampling_config", configId, "sampling_config.delete", req.authedUser, existing, null);
+  res.status(204).end();
 });
 
 export default router;

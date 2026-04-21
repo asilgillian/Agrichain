@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
-import { Leaf, Plus, Tag, Coins, ArrowRightLeft, CalendarRange, FlaskConical } from "lucide-react";
+import { Leaf, Plus, Tag, Coins, ArrowRightLeft, CalendarRange, FlaskConical, ClipboardList, Trash2 } from "lucide-react";
 import { customFetch } from "@workspace/api-client-react";
 
 const API_BASE = import.meta.env.BASE_URL?.replace(/\/$/, "");
@@ -293,11 +293,13 @@ function ManagePanel({ type, commodity, siblings }: { type: CommodityType; commo
         <TabsTrigger value="conversions"><ArrowRightLeft className="h-4 w-4 mr-1" /> Conversions</TabsTrigger>
         <TabsTrigger value="seasons"><CalendarRange className="h-4 w-4 mr-1" /> Seasons</TabsTrigger>
         <TabsTrigger value="quality"><FlaskConical className="h-4 w-4 mr-1" /> Quality Specs</TabsTrigger>
+        <TabsTrigger value="sampling"><ClipboardList className="h-4 w-4 mr-1" /> Sampling Rules</TabsTrigger>
       </TabsList>
       <TabsContent value="prices"><PricesPanel type={type} commodity={commodity} /></TabsContent>
       <TabsContent value="conversions"><ConversionsPanel type={type} siblings={siblings} /></TabsContent>
       <TabsContent value="seasons"><SeasonsPanel type={type} /></TabsContent>
       <TabsContent value="quality"><QualitySpecsPanel type={type} /></TabsContent>
+      <TabsContent value="sampling"><SamplingPanel type={type} /></TabsContent>
     </Tabs>
   );
 }
@@ -758,5 +760,209 @@ function EditTypeDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+const SAMPLE_STAGES = [
+  { value: "field", label: "Field" },
+  { value: "pre_offload", label: "Pre-Offload" },
+  { value: "post_offload", label: "Post-Offload" },
+  { value: "warehouse", label: "Warehouse" },
+  { value: "processing", label: "Processing" },
+  { value: "export", label: "Export" },
+] as const;
+const SAMPLING_METHODS = [
+  { value: "grab", label: "Grab" },
+  { value: "composite", label: "Composite" },
+  { value: "incremental", label: "Incremental" },
+] as const;
+const FREQUENCY_RULES = [
+  { value: "per_batch", label: "Per Batch" },
+  { value: "per_kg", label: "Per X kg" },
+  { value: "per_truck", label: "Per Truck" },
+] as const;
+
+const stageLabel = (v: string) => SAMPLE_STAGES.find(s => s.value === v)?.label ?? v;
+const methodLabel = (v: string) => SAMPLING_METHODS.find(s => s.value === v)?.label ?? v;
+const freqLabel = (v: string) => FREQUENCY_RULES.find(s => s.value === v)?.label ?? v;
+
+type SamplingConfig = {
+  id: string;
+  commodityTypeId: string;
+  stage: string;
+  isMandatory: boolean;
+  samplingMethod: string;
+  frequencyRule: string;
+  frequencyValue: string | null;
+  minSamples: number;
+  maxSamples: number | null;
+  requiresLabTest: boolean;
+  autoBlockIfMissing: boolean;
+  allowOverride: boolean;
+  status: string;
+  notes: string | null;
+};
+
+function SamplingPanel({ type }: { type: CommodityType }) {
+  const qc = useQueryClient();
+  const { toast } = useToast();
+  const { data: configs } = useQuery<SamplingConfig[]>({
+    queryKey: [`/api/commodity-types/${type.id}/sampling-configs`],
+    queryFn: () => api(`/api/commodity-types/${type.id}/sampling-configs`),
+  });
+
+  const initialForm = {
+    stage: "field",
+    isMandatory: true,
+    samplingMethod: "grab",
+    frequencyRule: "per_batch",
+    frequencyValue: "",
+    minSamples: "1",
+    maxSamples: "",
+    requiresLabTest: false,
+    autoBlockIfMissing: true,
+    allowOverride: false,
+    notes: "",
+  };
+  const [form, setForm] = useState(initialForm);
+
+  const create = useMutation({
+    mutationFn: (b: any) => api(`/api/commodity-types/${type.id}/sampling-configs`, {
+      method: "POST",
+      body: JSON.stringify({
+        ...b,
+        minSamples: Number(b.minSamples),
+        maxSamples: b.maxSamples === "" ? null : Number(b.maxSamples),
+        frequencyValue: b.frequencyRule === "per_kg" ? Number(b.frequencyValue) : null,
+        notes: b.notes || null,
+      }),
+    }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: [`/api/commodity-types/${type.id}/sampling-configs`] });
+      setForm(initialForm);
+      toast({ title: "Sampling rule added" });
+    },
+    onError: (e: any) => toast({ title: "Failed", description: e.message, variant: "destructive" }),
+  });
+
+  const remove = useMutation({
+    mutationFn: (id: string) => api(`/api/sampling-configs/${id}`, { method: "DELETE" }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: [`/api/commodity-types/${type.id}/sampling-configs`] }),
+  });
+
+  const toggleStatus = useMutation({
+    mutationFn: ({ id, status }: { id: string; status: string }) =>
+      api(`/api/sampling-configs/${id}`, { method: "PATCH", body: JSON.stringify({ status }) }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: [`/api/commodity-types/${type.id}/sampling-configs`] }),
+    onError: (e: any) => toast({ title: "Failed", description: e.message, variant: "destructive" }),
+  });
+
+  const usedActiveStages = new Set((configs ?? []).filter(c => c.status === "active").map(c => c.stage));
+  const stageAlreadyActive = usedActiveStages.has(form.stage);
+
+  return (
+    <div className="space-y-4 mt-3">
+      <div className="text-sm text-muted-foreground">
+        Define sampling requirements per operational stage. Each (stage) can have one active rule —
+        adding another will conflict, so deactivate the old one first.
+      </div>
+
+      <div className="border rounded-md p-4 space-y-3 bg-muted/30">
+        <div className="font-medium text-sm">Add Rule</div>
+        <div className="grid grid-cols-3 gap-3">
+          <div><Label>Stage</Label>
+            <Select value={form.stage} onValueChange={(v) => setForm({ ...form, stage: v })}>
+              <SelectTrigger data-testid="select-sampling-stage"><SelectValue /></SelectTrigger>
+              <SelectContent>{SAMPLE_STAGES.map(s => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}</SelectContent>
+            </Select>
+            {stageAlreadyActive && <p className="text-xs text-amber-600 mt-1">Active rule exists for this stage.</p>}
+          </div>
+          <div><Label>Sampling Method</Label>
+            <Select value={form.samplingMethod} onValueChange={(v) => setForm({ ...form, samplingMethod: v })}>
+              <SelectTrigger data-testid="select-sampling-method"><SelectValue /></SelectTrigger>
+              <SelectContent>{SAMPLING_METHODS.map(s => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}</SelectContent>
+            </Select>
+          </div>
+          <div><Label>Frequency Rule</Label>
+            <Select value={form.frequencyRule} onValueChange={(v) => setForm({ ...form, frequencyRule: v })}>
+              <SelectTrigger data-testid="select-frequency-rule"><SelectValue /></SelectTrigger>
+              <SelectContent>{FREQUENCY_RULES.map(s => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}</SelectContent>
+            </Select>
+          </div>
+        </div>
+        <div className="grid grid-cols-3 gap-3">
+          {form.frequencyRule === "per_kg" ? (
+            <div><Label>kg per sample</Label><Input type="number" step="1" value={form.frequencyValue} onChange={e => setForm({ ...form, frequencyValue: e.target.value })} placeholder="500" data-testid="input-frequency-value" /></div>
+          ) : <div />}
+          <div><Label>Min Samples</Label><Input type="number" min="1" step="1" value={form.minSamples} onChange={e => setForm({ ...form, minSamples: e.target.value })} data-testid="input-min-samples" /></div>
+          <div><Label>Max Samples (optional)</Label><Input type="number" min="1" step="1" value={form.maxSamples} onChange={e => setForm({ ...form, maxSamples: e.target.value })} data-testid="input-max-samples" /></div>
+        </div>
+        <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
+          <label className="flex items-center gap-2"><input type="checkbox" checked={form.isMandatory} onChange={e => setForm({ ...form, isMandatory: e.target.checked })} /> Mandatory</label>
+          <label className="flex items-center gap-2"><input type="checkbox" checked={form.requiresLabTest} onChange={e => setForm({ ...form, requiresLabTest: e.target.checked })} /> Requires Lab Test</label>
+          <label className="flex items-center gap-2"><input type="checkbox" checked={form.autoBlockIfMissing} onChange={e => setForm({ ...form, autoBlockIfMissing: e.target.checked })} /> Auto-Block if Missing</label>
+          <label className="flex items-center gap-2"><input type="checkbox" checked={form.allowOverride} onChange={e => setForm({ ...form, allowOverride: e.target.checked })} /> Allow Override</label>
+        </div>
+        <div><Label>Notes</Label><Input value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} placeholder="Optional" /></div>
+        <div className="flex justify-end">
+          <Button
+            onClick={() => create.mutate(form)}
+            disabled={create.isPending || stageAlreadyActive || (form.frequencyRule === "per_kg" && !form.frequencyValue)}
+            data-testid="btn-add-sampling-config"
+          >
+            {create.isPending ? "Adding..." : "Add Rule"}
+          </Button>
+        </div>
+      </div>
+
+      <Table>
+        <TableHeader><TableRow>
+          <TableHead>Stage</TableHead>
+          <TableHead>Method</TableHead>
+          <TableHead>Frequency</TableHead>
+          <TableHead>Samples</TableHead>
+          <TableHead>Flags</TableHead>
+          <TableHead>Status</TableHead>
+          <TableHead />
+        </TableRow></TableHeader>
+        <TableBody>
+          {(configs ?? []).length === 0 && (
+            <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground py-6">No sampling rules defined yet.</TableCell></TableRow>
+          )}
+          {(configs ?? []).map(c => (
+            <TableRow key={c.id} data-testid={`row-sampling-${c.stage}`}>
+              <TableCell><Badge variant="outline">{stageLabel(c.stage)}</Badge></TableCell>
+              <TableCell>{methodLabel(c.samplingMethod)}</TableCell>
+              <TableCell>{freqLabel(c.frequencyRule)}{c.frequencyRule === "per_kg" && c.frequencyValue ? ` (${Number(c.frequencyValue)} kg)` : ""}</TableCell>
+              <TableCell>{c.minSamples}{c.maxSamples ? `–${c.maxSamples}` : "+"}</TableCell>
+              <TableCell>
+                <div className="flex flex-wrap gap-1">
+                  {c.isMandatory && <Badge className="text-xs">Mandatory</Badge>}
+                  {c.requiresLabTest && <Badge variant="secondary" className="text-xs">Lab</Badge>}
+                  {c.autoBlockIfMissing && <Badge variant="destructive" className="text-xs">Auto-Block</Badge>}
+                  {c.allowOverride && <Badge variant="outline" className="text-xs">Override OK</Badge>}
+                </div>
+              </TableCell>
+              <TableCell>
+                <Badge variant={c.status === "active" ? "default" : "secondary"}>{c.status}</Badge>
+              </TableCell>
+              <TableCell className="flex gap-1">
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => toggleStatus.mutate({ id: c.id, status: c.status === "active" ? "inactive" : "active" })}
+                  data-testid={`btn-toggle-sampling-${c.stage}`}
+                >
+                  {c.status === "active" ? "Deactivate" : "Activate"}
+                </Button>
+                <Button size="sm" variant="ghost" onClick={() => remove.mutate(c.id)} data-testid={`btn-delete-sampling-${c.stage}`}>
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </div>
   );
 }
