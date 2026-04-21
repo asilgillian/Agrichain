@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { eq } from "drizzle-orm";
-import { db, regionsTable, rolesTable, farmersTable, groupsTable } from "@workspace/db";
+import { db, regionsTable, rolesTable, farmersTable, groupsTable, countryHierarchiesTable, UpsertCountryHierarchyBody } from "@workspace/db";
 import { CreateRegionBody, UpdateRolePermissionsBody, CreateFarmerBody, CreateGroupBody } from "@workspace/api-zod";
 import { requirePermission } from "../middlewares/auth";
 
@@ -55,6 +55,7 @@ const PERMISSION_CATALOG: Array<{ key: string; module: string; description: stri
   { key: "admin.regions", module: "Admin", description: "Manage regions" },
   { key: "admin.roles", module: "Admin", description: "Manage roles and permissions" },
   { key: "admin.bulk_upload", module: "Admin", description: "Bulk upload master data (regions, farmers, groups)" },
+  { key: "admin.hierarchy", module: "Admin", description: "Configure per-country administrative hierarchies" },
   { key: "audit.read", module: "Audit", description: "View audit log" },
   { key: "*", module: "Admin", description: "Wildcard — full system access" },
 ];
@@ -87,6 +88,131 @@ router.post("/admin/regions", requirePermission("admin.regions"), async (req, re
   }
   const [region] = await db.insert(regionsTable).values(parsed.data).returning();
   res.status(201).json(region);
+});
+
+// ---------- COUNTRY HIERARCHIES ----------
+
+const DEFAULT_HIERARCHIES = [
+  {
+    countryCode: "UG",
+    countryName: "Uganda",
+    levels: [
+      { level: 1, name: "District" },
+      { level: 2, name: "Sub-county" },
+      { level: 3, name: "Parish" },
+      { level: 4, name: "Village" },
+    ],
+  },
+  {
+    countryCode: "KE",
+    countryName: "Kenya",
+    levels: [
+      { level: 1, name: "County" },
+      { level: 2, name: "Sub-county" },
+      { level: 3, name: "Location" },
+      { level: 4, name: "Village" },
+    ],
+  },
+  {
+    countryCode: "TZ",
+    countryName: "Tanzania",
+    levels: [
+      { level: 1, name: "Region" },
+      { level: 2, name: "District" },
+      { level: 3, name: "Ward" },
+      { level: 4, name: "Village" },
+    ],
+  },
+  {
+    countryCode: "RW",
+    countryName: "Rwanda",
+    levels: [
+      { level: 1, name: "Province" },
+      { level: 2, name: "District" },
+      { level: 3, name: "Sector" },
+      { level: 4, name: "Cell" },
+      { level: 5, name: "Village" },
+    ],
+  },
+];
+
+let seededOnce = false;
+async function ensureSeedHierarchiesOnce(): Promise<void> {
+  if (seededOnce) return;
+  const existing = await db.select().from(countryHierarchiesTable);
+  if (existing.length === 0) {
+    for (const seed of DEFAULT_HIERARCHIES) {
+      await db.insert(countryHierarchiesTable).values(seed);
+    }
+  }
+  seededOnce = true;
+}
+
+router.get("/admin/country-hierarchies", requirePermission("admin.hierarchy"), async (_req, res): Promise<void> => {
+  await ensureSeedHierarchiesOnce();
+  const rows = await db.select().from(countryHierarchiesTable);
+  rows.sort((a, b) => a.countryName.localeCompare(b.countryName));
+  res.json(rows);
+});
+
+router.get("/admin/country-hierarchies/:countryCode", requirePermission("admin.hierarchy"), async (req, res): Promise<void> => {
+  const code = String(req.params.countryCode).toUpperCase();
+  const [row] = await db.select().from(countryHierarchiesTable).where(eq(countryHierarchiesTable.countryCode, code));
+  if (!row) { res.status(404).json({ error: "Country hierarchy not found" }); return; }
+  res.json(row);
+});
+
+router.put("/admin/country-hierarchies/:countryCode", requirePermission("admin.hierarchy"), async (req, res): Promise<void> => {
+  const code = String(req.params.countryCode).toUpperCase();
+  const parsed = UpsertCountryHierarchyBody.safeParse({
+    ...((req.body && typeof req.body === "object") ? req.body : {}),
+    countryCode: ((req.body as any)?.countryCode ?? code).toString().toUpperCase(),
+  });
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.issues.map(i => `${i.path.join(".")}: ${i.message}`).join("; ") });
+    return;
+  }
+  if (parsed.data.countryCode !== code) {
+    res.status(400).json({ error: "countryCode in path does not match body" });
+    return;
+  }
+  const countryName = parsed.data.countryName.trim();
+  if (countryName.length < 2) {
+    res.status(400).json({ error: "countryName must be at least 2 non-whitespace characters" });
+    return;
+  }
+  const levels = parsed.data.levels
+    .slice()
+    .sort((a, b) => a.level - b.level)
+    .map((l, i) => ({ level: i + 1, name: l.name.trim() }));
+  if (levels.some(l => l.name.length === 0)) {
+    res.status(400).json({ error: "Level names cannot be empty or whitespace" });
+    return;
+  }
+  if (new Set(levels.map(l => l.name.toLowerCase())).size !== levels.length) {
+    res.status(400).json({ error: "Level names must be unique within a country" });
+    return;
+  }
+
+  const [existing] = await db.select().from(countryHierarchiesTable).where(eq(countryHierarchiesTable.countryCode, code));
+  let saved;
+  if (existing) {
+    [saved] = await db.update(countryHierarchiesTable)
+      .set({ countryName, levels, updatedAt: new Date() })
+      .where(eq(countryHierarchiesTable.countryCode, code))
+      .returning();
+  } else {
+    [saved] = await db.insert(countryHierarchiesTable)
+      .values({ countryCode: code, countryName, levels })
+      .returning();
+  }
+  res.json(saved);
+});
+
+router.delete("/admin/country-hierarchies/:countryCode", requirePermission("admin.hierarchy"), async (req, res): Promise<void> => {
+  const code = String(req.params.countryCode).toUpperCase();
+  await db.delete(countryHierarchiesTable).where(eq(countryHierarchiesTable.countryCode, code));
+  res.status(204).end();
 });
 
 // ---------- BULK UPLOAD ----------

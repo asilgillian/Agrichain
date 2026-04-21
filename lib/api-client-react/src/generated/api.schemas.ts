@@ -1273,6 +1273,44 @@ export interface Region {
   countryCode?: string;
 }
 
+export interface HierarchyLevel {
+  /**
+   * @minimum 1
+   * @maximum 10
+   */
+  level: number;
+  /**
+   * @minLength 1
+   * @maxLength 60
+   */
+  name: string;
+}
+
+export interface CountryHierarchy {
+  countryCode: string;
+  countryName: string;
+  levels: HierarchyLevel[];
+  updatedAt?: string;
+}
+
+export interface UpsertCountryHierarchyBody {
+  /**
+   * @minLength 2
+   * @maxLength 3
+   */
+  countryCode: string;
+  /**
+   * @minLength 2
+   * @maxLength 80
+   */
+  countryName: string;
+  /**
+   * @minItems 1
+   * @maxItems 10
+   */
+  levels: HierarchyLevel[];
+}
+
 export interface CreateRegionBody {
   name: string;
   parentId?: string;

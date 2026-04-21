@@ -2621,6 +2621,131 @@ export const CreateRegionBody = zod.object({
 });
 
 /**
+ * @summary List per-country administrative hierarchies
+ */
+export const listCountryHierarchiesResponseLevelsItemLevelMax = 10;
+
+export const listCountryHierarchiesResponseLevelsItemNameMax = 60;
+
+export const ListCountryHierarchiesResponseItem = zod.object({
+  countryCode: zod.string(),
+  countryName: zod.string(),
+  levels: zod.array(
+    zod.object({
+      level: zod
+        .number()
+        .min(1)
+        .max(listCountryHierarchiesResponseLevelsItemLevelMax),
+      name: zod
+        .string()
+        .min(1)
+        .max(listCountryHierarchiesResponseLevelsItemNameMax),
+    }),
+  ),
+  updatedAt: zod.coerce.date().optional(),
+});
+export const ListCountryHierarchiesResponse = zod.array(
+  ListCountryHierarchiesResponseItem,
+);
+
+export const GetCountryHierarchyParams = zod.object({
+  countryCode: zod.coerce.string(),
+});
+
+export const getCountryHierarchyResponseLevelsItemLevelMax = 10;
+
+export const getCountryHierarchyResponseLevelsItemNameMax = 60;
+
+export const GetCountryHierarchyResponse = zod.object({
+  countryCode: zod.string(),
+  countryName: zod.string(),
+  levels: zod.array(
+    zod.object({
+      level: zod
+        .number()
+        .min(1)
+        .max(getCountryHierarchyResponseLevelsItemLevelMax),
+      name: zod
+        .string()
+        .min(1)
+        .max(getCountryHierarchyResponseLevelsItemNameMax),
+    }),
+  ),
+  updatedAt: zod.coerce.date().optional(),
+});
+
+/**
+ * @summary Create or update a country administrative hierarchy
+ */
+export const UpsertCountryHierarchyParams = zod.object({
+  countryCode: zod.coerce.string(),
+});
+
+export const upsertCountryHierarchyBodyCountryCodeMin = 2;
+export const upsertCountryHierarchyBodyCountryCodeMax = 3;
+
+export const upsertCountryHierarchyBodyCountryNameMin = 2;
+export const upsertCountryHierarchyBodyCountryNameMax = 80;
+
+export const upsertCountryHierarchyBodyLevelsItemLevelMax = 10;
+
+export const upsertCountryHierarchyBodyLevelsItemNameMax = 60;
+
+export const upsertCountryHierarchyBodyLevelsMax = 10;
+
+export const UpsertCountryHierarchyBody = zod.object({
+  countryCode: zod
+    .string()
+    .min(upsertCountryHierarchyBodyCountryCodeMin)
+    .max(upsertCountryHierarchyBodyCountryCodeMax),
+  countryName: zod
+    .string()
+    .min(upsertCountryHierarchyBodyCountryNameMin)
+    .max(upsertCountryHierarchyBodyCountryNameMax),
+  levels: zod
+    .array(
+      zod.object({
+        level: zod
+          .number()
+          .min(1)
+          .max(upsertCountryHierarchyBodyLevelsItemLevelMax),
+        name: zod
+          .string()
+          .min(1)
+          .max(upsertCountryHierarchyBodyLevelsItemNameMax),
+      }),
+    )
+    .min(1)
+    .max(upsertCountryHierarchyBodyLevelsMax),
+});
+
+export const upsertCountryHierarchyResponseLevelsItemLevelMax = 10;
+
+export const upsertCountryHierarchyResponseLevelsItemNameMax = 60;
+
+export const UpsertCountryHierarchyResponse = zod.object({
+  countryCode: zod.string(),
+  countryName: zod.string(),
+  levels: zod.array(
+    zod.object({
+      level: zod
+        .number()
+        .min(1)
+        .max(upsertCountryHierarchyResponseLevelsItemLevelMax),
+      name: zod
+        .string()
+        .min(1)
+        .max(upsertCountryHierarchyResponseLevelsItemNameMax),
+    }),
+  ),
+  updatedAt: zod.coerce.date().optional(),
+});
+
+export const DeleteCountryHierarchyParams = zod.object({
+  countryCode: zod.coerce.string(),
+});
+
+/**
  * @summary List the catalog of available permission keys
  */
 export const ListPermissionCatalogResponseItem = zod.object({

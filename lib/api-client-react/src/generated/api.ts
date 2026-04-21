@@ -28,6 +28,7 @@ import type {
   CertificationEnrolment,
   CertificationStream,
   ComplianceOverview,
+  CountryHierarchy,
   CreateActivityFundRequestBody,
   CreateAssetBody,
   CreateBatchBody,
@@ -108,6 +109,7 @@ import type {
   UpdateProcurementContractBody,
   UpdateRolePermissionsBody,
   UpdateUserBody,
+  UpsertCountryHierarchyBody,
   User,
   Visit,
 } from "./api.schemas";
@@ -6752,6 +6754,333 @@ export const useCreateRegion = <
   TContext
 > => {
   return useMutation(getCreateRegionMutationOptions(options));
+};
+
+/**
+ * @summary List per-country administrative hierarchies
+ */
+export const getListCountryHierarchiesUrl = () => {
+  return `/api/admin/country-hierarchies`;
+};
+
+export const listCountryHierarchies = async (
+  options?: RequestInit,
+): Promise<CountryHierarchy[]> => {
+  return customFetch<CountryHierarchy[]>(getListCountryHierarchiesUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListCountryHierarchiesQueryKey = () => {
+  return [`/api/admin/country-hierarchies`] as const;
+};
+
+export const getListCountryHierarchiesQueryOptions = <
+  TData = Awaited<ReturnType<typeof listCountryHierarchies>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listCountryHierarchies>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getListCountryHierarchiesQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listCountryHierarchies>>
+  > = ({ signal }) => listCountryHierarchies({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listCountryHierarchies>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListCountryHierarchiesQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listCountryHierarchies>>
+>;
+export type ListCountryHierarchiesQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List per-country administrative hierarchies
+ */
+
+export function useListCountryHierarchies<
+  TData = Awaited<ReturnType<typeof listCountryHierarchies>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listCountryHierarchies>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListCountryHierarchiesQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+export const getGetCountryHierarchyUrl = (countryCode: string) => {
+  return `/api/admin/country-hierarchies/${countryCode}`;
+};
+
+export const getCountryHierarchy = async (
+  countryCode: string,
+  options?: RequestInit,
+): Promise<CountryHierarchy> => {
+  return customFetch<CountryHierarchy>(getGetCountryHierarchyUrl(countryCode), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetCountryHierarchyQueryKey = (countryCode: string) => {
+  return [`/api/admin/country-hierarchies/${countryCode}`] as const;
+};
+
+export const getGetCountryHierarchyQueryOptions = <
+  TData = Awaited<ReturnType<typeof getCountryHierarchy>>,
+  TError = ErrorType<unknown>,
+>(
+  countryCode: string,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getCountryHierarchy>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetCountryHierarchyQueryKey(countryCode);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getCountryHierarchy>>
+  > = ({ signal }) =>
+    getCountryHierarchy(countryCode, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!countryCode,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getCountryHierarchy>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetCountryHierarchyQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getCountryHierarchy>>
+>;
+export type GetCountryHierarchyQueryError = ErrorType<unknown>;
+
+export function useGetCountryHierarchy<
+  TData = Awaited<ReturnType<typeof getCountryHierarchy>>,
+  TError = ErrorType<unknown>,
+>(
+  countryCode: string,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getCountryHierarchy>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetCountryHierarchyQueryOptions(countryCode, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Create or update a country administrative hierarchy
+ */
+export const getUpsertCountryHierarchyUrl = (countryCode: string) => {
+  return `/api/admin/country-hierarchies/${countryCode}`;
+};
+
+export const upsertCountryHierarchy = async (
+  countryCode: string,
+  upsertCountryHierarchyBody: UpsertCountryHierarchyBody,
+  options?: RequestInit,
+): Promise<CountryHierarchy> => {
+  return customFetch<CountryHierarchy>(
+    getUpsertCountryHierarchyUrl(countryCode),
+    {
+      ...options,
+      method: "PUT",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(upsertCountryHierarchyBody),
+    },
+  );
+};
+
+export const getUpsertCountryHierarchyMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof upsertCountryHierarchy>>,
+    TError,
+    { countryCode: string; data: BodyType<UpsertCountryHierarchyBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof upsertCountryHierarchy>>,
+  TError,
+  { countryCode: string; data: BodyType<UpsertCountryHierarchyBody> },
+  TContext
+> => {
+  const mutationKey = ["upsertCountryHierarchy"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof upsertCountryHierarchy>>,
+    { countryCode: string; data: BodyType<UpsertCountryHierarchyBody> }
+  > = (props) => {
+    const { countryCode, data } = props ?? {};
+
+    return upsertCountryHierarchy(countryCode, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpsertCountryHierarchyMutationResult = NonNullable<
+  Awaited<ReturnType<typeof upsertCountryHierarchy>>
+>;
+export type UpsertCountryHierarchyMutationBody =
+  BodyType<UpsertCountryHierarchyBody>;
+export type UpsertCountryHierarchyMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Create or update a country administrative hierarchy
+ */
+export const useUpsertCountryHierarchy = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof upsertCountryHierarchy>>,
+    TError,
+    { countryCode: string; data: BodyType<UpsertCountryHierarchyBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof upsertCountryHierarchy>>,
+  TError,
+  { countryCode: string; data: BodyType<UpsertCountryHierarchyBody> },
+  TContext
+> => {
+  return useMutation(getUpsertCountryHierarchyMutationOptions(options));
+};
+
+export const getDeleteCountryHierarchyUrl = (countryCode: string) => {
+  return `/api/admin/country-hierarchies/${countryCode}`;
+};
+
+export const deleteCountryHierarchy = async (
+  countryCode: string,
+  options?: RequestInit,
+): Promise<void> => {
+  return customFetch<void>(getDeleteCountryHierarchyUrl(countryCode), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getDeleteCountryHierarchyMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteCountryHierarchy>>,
+    TError,
+    { countryCode: string },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof deleteCountryHierarchy>>,
+  TError,
+  { countryCode: string },
+  TContext
+> => {
+  const mutationKey = ["deleteCountryHierarchy"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof deleteCountryHierarchy>>,
+    { countryCode: string }
+  > = (props) => {
+    const { countryCode } = props ?? {};
+
+    return deleteCountryHierarchy(countryCode, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DeleteCountryHierarchyMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deleteCountryHierarchy>>
+>;
+
+export type DeleteCountryHierarchyMutationError = ErrorType<unknown>;
+
+export const useDeleteCountryHierarchy = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteCountryHierarchy>>,
+    TError,
+    { countryCode: string },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof deleteCountryHierarchy>>,
+  TError,
+  { countryCode: string },
+  TContext
+> => {
+  return useMutation(getDeleteCountryHierarchyMutationOptions(options));
 };
 
 /**

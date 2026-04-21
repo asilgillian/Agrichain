@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { useListRegions, useListRoles, useListSyncQueue } from "@workspace/api-client-react";
+import { useListRegions, useListRoles, useListSyncQueue, useListCountryHierarchies } from "@workspace/api-client-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -11,7 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Settings, RefreshCw, MapPin, Plus, Pencil, Trash2, Upload, FileSpreadsheet, AlertCircle, CheckCircle2 } from "lucide-react";
+import { Settings, RefreshCw, MapPin, Plus, Pencil, Trash2, Upload, FileSpreadsheet, AlertCircle, CheckCircle2, Globe2, ArrowUp, ArrowDown, Save } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
@@ -295,6 +295,7 @@ export default function AdminPage() {
       <Tabs defaultValue="roles">
         <TabsList>
           <TabsTrigger value="regions">Regions</TabsTrigger>
+          <TabsTrigger value="hierarchy">Country Hierarchy</TabsTrigger>
           <TabsTrigger value="roles">Roles &amp; Permissions</TabsTrigger>
           <TabsTrigger value="bulk">Bulk Upload</TabsTrigger>
           <TabsTrigger value="sync">Sync Queue</TabsTrigger>
@@ -356,6 +357,10 @@ export default function AdminPage() {
               </Table>
             </CardContent>
           </Card>
+        </TabsContent>
+
+        <TabsContent value="hierarchy" className="mt-4">
+          <CountryHierarchyEditor />
         </TabsContent>
 
         <TabsContent value="bulk" className="mt-4">
@@ -567,5 +572,240 @@ export default function AdminPage() {
         </DialogContent>
       </Dialog>
     </div>
+  );
+}
+
+type HierarchyRow = { countryCode: string; countryName: string; levels: { level: number; name: string }[]; updatedAt?: string };
+
+function CountryHierarchyEditor() {
+  const { toast } = useToast();
+  const qc = useQueryClient();
+  const { data: hierarchies, isLoading } = useListCountryHierarchies();
+  const list = (hierarchies ?? []) as HierarchyRow[];
+
+  const [selectedCode, setSelectedCode] = useState<string>("");
+  const [draft, setDraft] = useState<HierarchyRow | null>(null);
+  const [addingNew, setAddingNew] = useState(false);
+  const [newCode, setNewCode] = useState("");
+  const [newName, setNewName] = useState("");
+
+  const activeCode = selectedCode || list[0]?.countryCode || "";
+  const active = list.find(h => h.countryCode === activeCode);
+
+  const current: HierarchyRow | null = draft && draft.countryCode === activeCode
+    ? draft
+    : active
+      ? { ...active, levels: active.levels.map(l => ({ ...l })) }
+      : null;
+
+  const beginEdit = () => active && setDraft({ ...active, levels: active.levels.map(l => ({ ...l })) });
+
+  const saveMut = useMutation({
+    mutationFn: async (h: HierarchyRow) => {
+      const r = await fetch(`${API_BASE}/api/admin/country-hierarchies/${h.countryCode}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ countryCode: h.countryCode, countryName: h.countryName, levels: h.levels }),
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(j.error ?? `HTTP ${r.status}`);
+      return j;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["listCountryHierarchies"] });
+      qc.invalidateQueries({ queryKey: ["/api/admin/country-hierarchies"] });
+      setDraft(null);
+      setAddingNew(false);
+      setNewCode("");
+      setNewName("");
+      toast({ title: "Hierarchy saved" });
+    },
+    onError: (e: any) => toast({ title: "Failed to save", description: e.message, variant: "destructive" }),
+  });
+
+  const deleteMut = useMutation({
+    mutationFn: async (code: string) => {
+      const r = await fetch(`${API_BASE}/api/admin/country-hierarchies/${code}`, { method: "DELETE" });
+      if (!r.ok && r.status !== 204) {
+        const j = await r.json().catch(() => ({}));
+        throw new Error(j.error ?? `HTTP ${r.status}`);
+      }
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["listCountryHierarchies"] });
+      qc.invalidateQueries({ queryKey: ["/api/admin/country-hierarchies"] });
+      setSelectedCode("");
+      setDraft(null);
+      toast({ title: "Country hierarchy deleted" });
+    },
+    onError: (e: any) => toast({ title: "Failed to delete", description: e.message, variant: "destructive" }),
+  });
+
+  const updateLevelName = (idx: number, name: string) => {
+    if (!current) return;
+    const next = { ...current, levels: current.levels.map((l, i) => i === idx ? { ...l, name } : l) };
+    setDraft(next);
+  };
+  const moveLevel = (idx: number, dir: -1 | 1) => {
+    if (!current) return;
+    const target = idx + dir;
+    if (target < 0 || target >= current.levels.length) return;
+    const lvls = current.levels.map(l => ({ ...l }));
+    [lvls[idx], lvls[target]] = [lvls[target], lvls[idx]];
+    const renum = lvls.map((l, i) => ({ ...l, level: i + 1 }));
+    setDraft({ ...current, levels: renum });
+  };
+  const addLevel = () => {
+    if (!current) return;
+    if (current.levels.length >= 10) return;
+    const next = { ...current, levels: [...current.levels, { level: current.levels.length + 1, name: "" }] };
+    setDraft(next);
+  };
+  const removeLevel = (idx: number) => {
+    if (!current) return;
+    if (current.levels.length <= 1) return;
+    const lvls = current.levels.filter((_, i) => i !== idx).map((l, i) => ({ ...l, level: i + 1 }));
+    setDraft({ ...current, levels: lvls });
+  };
+  const updateCountryName = (name: string) => current && setDraft({ ...current, countryName: name });
+
+  const submitDraft = () => {
+    if (!current) return;
+    const cleaned = current.levels.map(l => ({ ...l, name: l.name.trim() }));
+    if (cleaned.some(l => !l.name)) { toast({ title: "All level names are required", variant: "destructive" }); return; }
+    if (new Set(cleaned.map(l => l.name.toLowerCase())).size !== cleaned.length) {
+      toast({ title: "Level names must be unique", variant: "destructive" }); return;
+    }
+    if (!current.countryName.trim()) { toast({ title: "Country name is required", variant: "destructive" }); return; }
+    saveMut.mutate({ ...current, levels: cleaned });
+  };
+
+  const submitNew = () => {
+    const code = newCode.trim().toUpperCase();
+    const name = newName.trim();
+    if (!/^[A-Z]{2,3}$/.test(code)) { toast({ title: "Country code must be 2–3 letters (e.g. UG)", variant: "destructive" }); return; }
+    if (!name) { toast({ title: "Country name is required", variant: "destructive" }); return; }
+    if (list.some(h => h.countryCode === code)) { toast({ title: `${code} already exists`, variant: "destructive" }); return; }
+    saveMut.mutate({ countryCode: code, countryName: name, levels: [{ level: 1, name: "Region" }] });
+  };
+
+  const isDirty = !!draft && active ? JSON.stringify({ n: draft.countryName, l: draft.levels }) !== JSON.stringify({ n: active.countryName, l: active.levels }) : false;
+
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-start justify-between gap-2 space-y-0">
+        <div className="flex items-start gap-2">
+          <Globe2 className="h-4 w-4 text-muted-foreground mt-1" />
+          <div>
+            <CardTitle>Country Administrative Hierarchy</CardTitle>
+            <p className="text-sm text-muted-foreground mt-1">Define the level names, depth and order used by each country (e.g. Uganda: District → Sub-county → Parish → Village).</p>
+          </div>
+        </div>
+        <Dialog open={addingNew} onOpenChange={setAddingNew}>
+          <DialogTrigger asChild>
+            <Button size="sm" className="gap-2" data-testid="add-country-btn"><Plus className="h-4 w-4" /> Add Country</Button>
+          </DialogTrigger>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Add Country</DialogTitle>
+              <DialogDescription>Add a new country and start with one administrative level. You can add more levels after creation.</DialogDescription>
+            </DialogHeader>
+            <div className="space-y-3">
+              <div>
+                <Label>Country code (ISO 2-letter)</Label>
+                <Input value={newCode} onChange={e => setNewCode(e.target.value.toUpperCase())} placeholder="e.g. ET" maxLength={3} data-testid="new-country-code" />
+              </div>
+              <div>
+                <Label>Country name</Label>
+                <Input value={newName} onChange={e => setNewName(e.target.value)} placeholder="e.g. Ethiopia" data-testid="new-country-name" />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setAddingNew(false)}>Cancel</Button>
+              <Button onClick={submitNew} disabled={saveMut.isPending} data-testid="submit-new-country">{saveMut.isPending ? "Adding..." : "Add"}</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {isLoading ? <Skeleton className="h-40 w-full" /> : list.length === 0 ? (
+          <p className="text-sm text-muted-foreground">No countries configured yet.</p>
+        ) : (
+          <>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
+              <div>
+                <Label>Country</Label>
+                <Select value={activeCode} onValueChange={(v) => { setSelectedCode(v); setDraft(null); }}>
+                  <SelectTrigger data-testid="hierarchy-country-select"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {list.map(h => (
+                      <SelectItem key={h.countryCode} value={h.countryCode}>{h.countryName} ({h.countryCode})</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="md:col-span-2">
+                <Label>Country name</Label>
+                <Input value={current?.countryName ?? ""} onChange={e => { if (!draft) beginEdit(); updateCountryName(e.target.value); }} data-testid="hierarchy-country-name" />
+              </div>
+            </div>
+
+            {current && (
+              <>
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <Label>Levels (top to bottom)</Label>
+                    <span className="text-xs text-muted-foreground">{current.levels.length} / 10</span>
+                  </div>
+                  <div className="border rounded-md divide-y">
+                    {current.levels.map((lvl, idx) => (
+                      <div key={idx} className="flex items-center gap-2 p-2" data-testid={`hierarchy-level-${idx}`}>
+                        <Badge variant="outline" className="w-12 justify-center">L{idx + 1}</Badge>
+                        <Input
+                          value={lvl.name}
+                          onChange={e => { if (!draft) beginEdit(); updateLevelName(idx, e.target.value); }}
+                          placeholder="e.g. District"
+                          className="flex-1"
+                          data-testid={`hierarchy-level-name-${idx}`}
+                        />
+                        <Button size="icon" variant="ghost" disabled={idx === 0} onClick={() => { if (!draft) beginEdit(); moveLevel(idx, -1); }} aria-label="Move up"><ArrowUp className="h-4 w-4" /></Button>
+                        <Button size="icon" variant="ghost" disabled={idx === current.levels.length - 1} onClick={() => { if (!draft) beginEdit(); moveLevel(idx, 1); }} aria-label="Move down"><ArrowDown className="h-4 w-4" /></Button>
+                        <Button size="icon" variant="ghost" disabled={current.levels.length <= 1} onClick={() => { if (!draft) beginEdit(); removeLevel(idx); }} aria-label="Remove"><Trash2 className="h-4 w-4 text-destructive" /></Button>
+                      </div>
+                    ))}
+                  </div>
+                  <Button size="sm" variant="outline" className="gap-1" disabled={current.levels.length >= 10} onClick={() => { if (!draft) beginEdit(); addLevel(); }} data-testid="add-level-btn">
+                    <Plus className="h-3 w-3" /> Add Level
+                  </Button>
+                </div>
+
+                <div className="rounded-md bg-muted/40 p-3 text-xs">
+                  <p className="font-semibold mb-1">Preview</p>
+                  <p className="font-mono">
+                    {current.levels.map(l => l.name || "?").join(" → ")}
+                  </p>
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    {isDirty && <Badge variant="secondary">Unsaved changes</Badge>}
+                    {current.updatedAt && !isDirty && <span className="text-xs text-muted-foreground">Last updated {new Date(current.updatedAt).toLocaleString()}</span>}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button variant="outline" disabled={!isDirty} onClick={() => setDraft(null)}>Cancel</Button>
+                    <Button variant="destructive" onClick={() => { if (confirm(`Delete the ${current.countryName} hierarchy? Existing regions will keep their level numbers but lose their named labels.`)) deleteMut.mutate(current.countryCode); }} disabled={deleteMut.isPending} data-testid="delete-country-btn">
+                      <Trash2 className="h-4 w-4 mr-1" /> Delete
+                    </Button>
+                    <Button onClick={submitDraft} disabled={!isDirty || saveMut.isPending} data-testid="save-hierarchy-btn" className="gap-2">
+                      <Save className="h-4 w-4" />{saveMut.isPending ? "Saving..." : "Save"}
+                    </Button>
+                  </div>
+                </div>
+              </>
+            )}
+          </>
+        )}
+      </CardContent>
+    </Card>
   );
 }

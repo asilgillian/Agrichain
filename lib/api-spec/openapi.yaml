@@ -1691,6 +1691,71 @@ paths:
               schema:
                 $ref: "#/components/schemas/Region"
 
+  /admin/country-hierarchies:
+    get:
+      operationId: listCountryHierarchies
+      tags: [admin]
+      summary: List per-country administrative hierarchies
+      responses:
+        "200":
+          description: Country hierarchies
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CountryHierarchy"
+
+  /admin/country-hierarchies/{countryCode}:
+    get:
+      operationId: getCountryHierarchy
+      tags: [admin]
+      parameters:
+        - in: path
+          name: countryCode
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Country hierarchy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CountryHierarchy"
+    put:
+      operationId: upsertCountryHierarchy
+      tags: [admin]
+      summary: Create or update a country administrative hierarchy
+      parameters:
+        - in: path
+          name: countryCode
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpsertCountryHierarchyBody"
+      responses:
+        "200":
+          description: Hierarchy saved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CountryHierarchy"
+    delete:
+      operationId: deleteCountryHierarchy
+      tags: [admin]
+      parameters:
+        - in: path
+          name: countryCode
+          required: true
+          schema: { type: string }
+      responses:
+        "204":
+          description: Deleted
+
   /admin/permissions:
     get:
       operationId: listPermissionCatalog
@@ -3411,6 +3476,38 @@ components:
         countryCode:
           type: string
       required: [id, name, level]
+
+    HierarchyLevel:
+      type: object
+      properties:
+        level: { type: integer, minimum: 1, maximum: 10 }
+        name: { type: string, minLength: 1, maxLength: 60 }
+      required: [level, name]
+
+    CountryHierarchy:
+      type: object
+      properties:
+        countryCode: { type: string }
+        countryName: { type: string }
+        levels:
+          type: array
+          items:
+            $ref: "#/components/schemas/HierarchyLevel"
+        updatedAt: { type: string, format: date-time }
+      required: [countryCode, countryName, levels]
+
+    UpsertCountryHierarchyBody:
+      type: object
+      properties:
+        countryCode: { type: string, minLength: 2, maxLength: 3 }
+        countryName: { type: string, minLength: 2, maxLength: 80 }
+        levels:
+          type: array
+          minItems: 1
+          maxItems: 10
+          items:
+            $ref: "#/components/schemas/HierarchyLevel"
+      required: [countryCode, countryName, levels]
 
     CreateRegionBody:
       type: object
