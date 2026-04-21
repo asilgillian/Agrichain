@@ -1,11 +1,15 @@
-import { pgTable, text, uuid, timestamp, date, numeric, integer, index, uniqueIndex } from "drizzle-orm/pg-core";
+import { pgTable, text, uuid, timestamp, date, numeric, integer, boolean, index, uniqueIndex } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 
-// Master catalog of commodities traded by Mtandeo (e.g. Coffee, Maize, Beans, Cocoa).
+// =================================================================================================
+// Commodity Master — what is being traded (Coffee, Maize, Cocoa…).
+// =================================================================================================
 export const commoditiesTable = pgTable("commodities", {
   id: uuid("id").primaryKey().defaultRandom(),
   name: text("name").notNull(),
   code: text("code").notNull(),
+  scientificName: text("scientific_name"),
+  defaultUnit: text("default_unit").notNull().default("kg"),
   description: text("description"),
   // 'active' | 'inactive'
   status: text("status").notNull().default("active"),
@@ -15,70 +19,105 @@ export const commoditiesTable = pgTable("commodities", {
   uniqueIndex("commodities_code_uniq").on(t.code),
 ]);
 
-// Variants of a commodity (e.g. Coffee → Robusta / Arabica; Maize → Yellow / White).
-// Harvest season is captured as month-of-year integers (1-12); a season may wrap across the year-end
-// (e.g. start=10, end=2 means Oct..Feb).
+// =================================================================================================
+// Commodity Type — variant + processing stage. Hierarchy via parentCommodityTypeId enables
+// transformations: Robusta Cherry (RAW) → Robusta Parchment (INTERMEDIATE) → Robusta Green Bean
+// (FINISHED). Each stage can have its own price, conversion, and quality spec.
+// =================================================================================================
 export const commodityTypesTable = pgTable("commodity_types", {
   id: uuid("id").primaryKey().defaultRandom(),
-  commodityId: uuid("commodity_id").notNull(),
+  commodityId: uuid("commodity_id").notNull().references(() => commoditiesTable.id, { onDelete: "restrict" }),
   name: text("name").notNull(),
   code: text("code").notNull(),
+  // 'raw' | 'intermediate' | 'finished'
+  stage: text("stage").notNull().default("raw"),
+  parentCommodityTypeId: uuid("parent_commodity_type_id").references((): any => commodityTypesTable.id, { onDelete: "set null" }),
+  isTradable: boolean("is_tradable").notNull().default(true),
   defaultUnit: text("default_unit").notNull().default("kg"),
-  // Form sold/received in (e.g. 'cherry', 'green_bean', 'parchment', 'whole_grain').
-  // Used as the canonical/default form for prices unless overridden in the price row.
-  defaultForm: text("default_form"),
-  harvestSeasonStartMonth: integer("harvest_season_start_month"),
-  harvestSeasonEndMonth: integer("harvest_season_end_month"),
+  defaultMoistureMin: numeric("default_moisture_min", { precision: 5, scale: 2 }),
+  defaultMoistureMax: numeric("default_moisture_max", { precision: 5, scale: 2 }),
   // 'active' | 'inactive'
   status: text("status").notNull().default("active"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
   index("commodity_types_commodity_idx").on(t.commodityId),
+  index("commodity_types_parent_idx").on(t.parentCommodityTypeId),
   uniqueIndex("commodity_types_commodity_code_uniq").on(t.commodityId, t.code),
 ]);
 
-// Daily purchase price per kg per commodity type. Append-only: the "current" price is the row with
-// the latest effectiveDate <= today (optionally scoped by region). Region NULL = national default.
-// Form lets the same type carry distinct prices for different processing forms (cherry vs parchment).
+// =================================================================================================
+// Commodity Seasons — explicit date-range windows per commodity type, optionally region-scoped.
+// Replaces simple "month-of-year" representation; supports overlapping or wrap-year-end windows.
+// =================================================================================================
+export const commoditySeasonsTable = pgTable("commodity_seasons", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  commodityTypeId: uuid("commodity_type_id").notNull().references(() => commodityTypesTable.id, { onDelete: "cascade" }),
+  seasonName: text("season_name").notNull(),
+  startDate: date("start_date").notNull(),
+  endDate: date("end_date").notNull(),
+  regionId: uuid("region_id"),
+  isActive: boolean("is_active").notNull().default(true),
+  notes: text("notes"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("commodity_seasons_type_idx").on(t.commodityTypeId),
+  index("commodity_seasons_dates_idx").on(t.commodityTypeId, t.startDate, t.endDate),
+]);
+
+// =================================================================================================
+// Daily Pricing — append-only price-per-kg per commodity type, optionally region-scoped.
+// Latest effectiveDate ≤ today wins. Source enumerates origin: manual | market | contract.
+// =================================================================================================
 export const commodityPricesTable = pgTable("commodity_prices", {
   id: uuid("id").primaryKey().defaultRandom(),
-  commodityTypeId: uuid("commodity_type_id").notNull(),
+  commodityTypeId: uuid("commodity_type_id").notNull().references(() => commodityTypesTable.id, { onDelete: "restrict" }),
   regionId: uuid("region_id"),
-  form: text("form"),
   pricePerKg: numeric("price_per_kg", { precision: 14, scale: 2 }).notNull(),
   currency: text("currency").notNull().default("UGX"),
   effectiveDate: date("effective_date").notNull(),
-  source: text("source"),
+  // 'manual' | 'market' | 'contract'
+  source: text("source").notNull().default("manual"),
   notes: text("notes"),
   createdById: uuid("created_by_id"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
   index("commodity_prices_type_date_idx").on(t.commodityTypeId, t.effectiveDate),
   index("commodity_prices_type_region_date_idx").on(t.commodityTypeId, t.regionId, t.effectiveDate),
-  // One canonical price per scope per day. NULL coalesced so national (regionId=NULL) and a missing
-  // form still collide with each other and not silently duplicate.
   uniqueIndex("commodity_prices_scope_day_uniq").on(
     t.commodityTypeId,
     sql`coalesce(${t.regionId}::text, '')`,
-    sql`coalesce(${t.form}, '')`,
     t.currency,
     t.effectiveDate,
   ),
 ]);
 
-// Conversion ratios between two forms of the same commodity type.
-// ratio = (toForm units) / (fromForm units). Example: 5 kg cherry → 1 kg green bean ⇒ ratio = 0.2.
+// =================================================================================================
+// Conversion Ratios — type → type (Cherry → Parchment, Parchment → Green Bean). Carries an
+// expected ratio plus min/max tolerance; outside tolerance triggers warnings during processing.
+// processType labels the operation (Pulping, Drying, Hulling). Versioned by effectiveDate so old
+// batches can audit against the rate that was active at the time.
+// =================================================================================================
 export const commodityConversionsTable = pgTable("commodity_conversions", {
   id: uuid("id").primaryKey().defaultRandom(),
-  commodityTypeId: uuid("commodity_type_id").notNull(),
-  fromForm: text("from_form").notNull(),
-  toForm: text("to_form").notNull(),
-  ratio: numeric("ratio", { precision: 18, scale: 8 }).notNull(),
+  fromCommodityTypeId: uuid("from_commodity_type_id").notNull().references(() => commodityTypesTable.id, { onDelete: "restrict" }),
+  toCommodityTypeId: uuid("to_commodity_type_id").notNull().references(() => commodityTypesTable.id, { onDelete: "restrict" }),
+  expectedRate: numeric("expected_rate", { precision: 18, scale: 8 }).notNull(),
+  minRate: numeric("min_rate", { precision: 18, scale: 8 }),
+  maxRate: numeric("max_rate", { precision: 18, scale: 8 }),
+  processType: text("process_type"),
+  effectiveDate: date("effective_date").notNull(),
+  version: integer("version").notNull().default(1),
   notes: text("notes"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
-  index("commodity_conversions_type_idx").on(t.commodityTypeId),
-  uniqueIndex("commodity_conversions_type_from_to_uniq").on(t.commodityTypeId, t.fromForm, t.toForm),
+  index("commodity_conversions_from_idx").on(t.fromCommodityTypeId),
+  index("commodity_conversions_to_idx").on(t.toCommodityTypeId),
+  // (from, to, effectiveDate, version) — allows multiple versions issued on the same effective date
+  // (e.g. v1 superseded by v2 mid-day after a recalibration). Latest-version wins per pair+date.
+  uniqueIndex("commodity_conversions_pair_effective_version_uniq").on(
+    t.fromCommodityTypeId, t.toCommodityTypeId, t.effectiveDate, t.version,
+  ),
 ]);

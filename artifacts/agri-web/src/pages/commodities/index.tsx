@@ -11,16 +11,23 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
-import { Leaf, Plus, Tag, Coins, ArrowRightLeft, Calendar } from "lucide-react";
+import { Leaf, Plus, Tag, Coins, ArrowRightLeft, CalendarRange } from "lucide-react";
 
 const API_BASE = import.meta.env.BASE_URL?.replace(/\/$/, "");
 
-const MONTHS = ["", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-
-type Commodity = { id: string; name: string; code: string; description: string | null; status: string; types: CommodityType[] };
+type Commodity = {
+  id: string; name: string; code: string; scientificName: string | null;
+  defaultUnit: string; description: string | null; status: string;
+  types: CommodityType[];
+};
 type CommodityType = {
-  id: string; commodityId: string; name: string; code: string; defaultUnit: string;
-  defaultForm: string | null; harvestSeasonStartMonth: number | null; harvestSeasonEndMonth: number | null;
+  id: string; commodityId: string; name: string; code: string;
+  stage: "raw" | "intermediate" | "finished";
+  parentCommodityTypeId: string | null;
+  isTradable: boolean;
+  defaultUnit: string;
+  defaultMoistureMin: string | null;
+  defaultMoistureMax: string | null;
   status: string;
 };
 
@@ -37,12 +44,9 @@ async function api<T>(path: string, init?: RequestInit): Promise<T> {
   return r.json();
 }
 
-function seasonLabel(s: number | null, e: number | null): string {
-  if (!s && !e) return "—";
-  if (s && e) return `${MONTHS[s]} – ${MONTHS[e]}`;
-  if (s) return `from ${MONTHS[s]}`;
-  return `until ${MONTHS[e!]}`;
-}
+const stageBadge: Record<string, "default" | "secondary" | "outline"> = {
+  raw: "outline", intermediate: "secondary", finished: "default",
+};
 
 export default function CommoditiesPage() {
   const { toast } = useToast();
@@ -54,34 +58,57 @@ export default function CommoditiesPage() {
     queryFn: () => api<Commodity[]>("/api/commodities"),
   });
 
-  const allTypes = useMemo(() => commodities?.flatMap(c => c.types.map(t => ({ ...t, commodityName: c.name }))) ?? [], [commodities]);
+  const allTypes = useMemo(
+    () => commodities?.flatMap(c => c.types.map(t => ({ ...t, commodityName: c.name }))) ?? [],
+    [commodities],
+  );
+  const typesByCommodity = useMemo(() => {
+    const m = new Map<string, CommodityType[]>();
+    (commodities ?? []).forEach(c => m.set(c.id, c.types));
+    return m;
+  }, [commodities]);
   const selectedType = useMemo(() => allTypes.find(t => t.id === selectedTypeId), [allTypes, selectedTypeId]);
+  const selectedCommodity = useMemo(
+    () => commodities?.find(c => c.id === selectedType?.commodityId),
+    [commodities, selectedType],
+  );
 
   // ---- Create commodity ----
   const [cOpen, setCOpen] = useState(false);
-  const [cForm, setCForm] = useState({ name: "", code: "", description: "" });
+  const [cForm, setCForm] = useState({ name: "", code: "", scientificName: "", defaultUnit: "kg", description: "" });
   const createCommodity = useMutation({
     mutationFn: (b: any) => api("/api/commodities", { method: "POST", body: JSON.stringify(b) }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["/api/commodities"] }); setCOpen(false); setCForm({ name: "", code: "", description: "" }); toast({ title: "Commodity created" }); },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["/api/commodities"] });
+      setCOpen(false);
+      setCForm({ name: "", code: "", scientificName: "", defaultUnit: "kg", description: "" });
+      toast({ title: "Commodity created" });
+    },
     onError: (e: any) => toast({ title: "Failed", description: e.message, variant: "destructive" }),
   });
 
   // ---- Create type ----
   const [tOpen, setTOpen] = useState(false);
-  const [tForm, setTForm] = useState({ commodityId: "", name: "", code: "", defaultUnit: "kg", defaultForm: "", harvestSeasonStartMonth: "", harvestSeasonEndMonth: "" });
+  const initialTForm = {
+    commodityId: "", name: "", code: "", stage: "raw" as const,
+    parentCommodityTypeId: "__none__", isTradable: true, defaultUnit: "kg",
+    defaultMoistureMin: "", defaultMoistureMax: "",
+  };
+  const [tForm, setTForm] = useState(initialTForm);
   const createType = useMutation({
     mutationFn: ({ commodityId, ...body }: any) => api(`/api/commodities/${commodityId}/types`, {
       method: "POST",
       body: JSON.stringify({
         ...body,
-        harvestSeasonStartMonth: body.harvestSeasonStartMonth ? Number(body.harvestSeasonStartMonth) : null,
-        harvestSeasonEndMonth: body.harvestSeasonEndMonth ? Number(body.harvestSeasonEndMonth) : null,
+        parentCommodityTypeId: body.parentCommodityTypeId === "__none__" ? null : body.parentCommodityTypeId,
+        defaultMoistureMin: body.defaultMoistureMin || null,
+        defaultMoistureMax: body.defaultMoistureMax || null,
       }),
     }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["/api/commodities"] });
       setTOpen(false);
-      setTForm({ commodityId: "", name: "", code: "", defaultUnit: "kg", defaultForm: "", harvestSeasonStartMonth: "", harvestSeasonEndMonth: "" });
+      setTForm(initialTForm);
       toast({ title: "Variety added" });
     },
     onError: (e: any) => toast({ title: "Failed", description: e.message, variant: "destructive" }),
@@ -92,56 +119,88 @@ export default function CommoditiesPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold flex items-center gap-2"><Leaf className="h-7 w-7 text-green-600" /> Commodities</h1>
-          <p className="text-muted-foreground">Master catalog, varieties, daily prices, and conversion ratios.</p>
+          <p className="text-muted-foreground">Master catalog, variants & processing stages, daily prices, conversions, and seasons.</p>
         </div>
         <div className="flex gap-2">
           <Dialog open={cOpen} onOpenChange={setCOpen}>
-            <DialogTrigger asChild><Button variant="outline" data-testid="btn-new-commodity"><Plus className="h-4 w-4 mr-1" /> New Commodity</Button></DialogTrigger>
+            <DialogTrigger asChild>
+              <Button variant="outline" data-testid="btn-new-commodity"><Plus className="h-4 w-4 mr-1" /> New Commodity</Button>
+            </DialogTrigger>
             <DialogContent>
               <DialogHeader><DialogTitle>New Commodity</DialogTitle></DialogHeader>
               <div className="space-y-3">
-                <div><Label>Name</Label><Input value={cForm.name} onChange={e => setCForm({ ...cForm, name: e.target.value })} placeholder="Coffee" data-testid="input-commodity-name" /></div>
-                <div><Label>Code</Label><Input value={cForm.code} onChange={e => setCForm({ ...cForm, code: e.target.value })} placeholder="coffee" data-testid="input-commodity-code" /></div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div><Label>Name</Label><Input value={cForm.name} onChange={e => setCForm({ ...cForm, name: e.target.value })} placeholder="Coffee" data-testid="input-commodity-name" /></div>
+                  <div><Label>Code</Label><Input value={cForm.code} onChange={e => setCForm({ ...cForm, code: e.target.value })} placeholder="coffee" data-testid="input-commodity-code" /></div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div><Label>Scientific Name</Label><Input value={cForm.scientificName} onChange={e => setCForm({ ...cForm, scientificName: e.target.value })} placeholder="Coffea spp." /></div>
+                  <div><Label>Default Unit</Label><Input value={cForm.defaultUnit} onChange={e => setCForm({ ...cForm, defaultUnit: e.target.value })} placeholder="kg" /></div>
+                </div>
                 <div><Label>Description</Label><Input value={cForm.description} onChange={e => setCForm({ ...cForm, description: e.target.value })} placeholder="Optional" /></div>
               </div>
-              <DialogFooter><Button onClick={() => createCommodity.mutate({ ...cForm, description: cForm.description || undefined })} disabled={!cForm.name || !cForm.code} data-testid="btn-save-commodity">Create</Button></DialogFooter>
+              <DialogFooter>
+                <Button onClick={() => createCommodity.mutate({
+                  ...cForm,
+                  scientificName: cForm.scientificName || undefined,
+                  description: cForm.description || undefined,
+                })} disabled={!cForm.name || !cForm.code} data-testid="btn-save-commodity">Create</Button>
+              </DialogFooter>
             </DialogContent>
           </Dialog>
           <Dialog open={tOpen} onOpenChange={setTOpen}>
-            <DialogTrigger asChild><Button data-testid="btn-new-type"><Plus className="h-4 w-4 mr-1" /> New Variety</Button></DialogTrigger>
-            <DialogContent>
-              <DialogHeader><DialogTitle>New Variety</DialogTitle></DialogHeader>
+            <DialogTrigger asChild>
+              <Button data-testid="btn-new-type"><Plus className="h-4 w-4 mr-1" /> New Variety / Stage</Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-lg">
+              <DialogHeader><DialogTitle>New Variety / Processing Stage</DialogTitle></DialogHeader>
               <div className="space-y-3">
                 <div><Label>Commodity</Label>
-                  <Select value={tForm.commodityId} onValueChange={(v) => setTForm({ ...tForm, commodityId: v })}>
+                  <Select value={tForm.commodityId} onValueChange={(v) => setTForm({ ...tForm, commodityId: v, parentCommodityTypeId: "__none__" })}>
                     <SelectTrigger data-testid="select-type-commodity"><SelectValue placeholder="Pick a commodity" /></SelectTrigger>
                     <SelectContent>{commodities?.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
                   </Select>
                 </div>
                 <div className="grid grid-cols-2 gap-3">
-                  <div><Label>Variety Name</Label><Input value={tForm.name} onChange={e => setTForm({ ...tForm, name: e.target.value })} placeholder="Robusta" data-testid="input-type-name" /></div>
-                  <div><Label>Code</Label><Input value={tForm.code} onChange={e => setTForm({ ...tForm, code: e.target.value })} placeholder="robusta" data-testid="input-type-code" /></div>
+                  <div><Label>Name</Label><Input value={tForm.name} onChange={e => setTForm({ ...tForm, name: e.target.value })} placeholder="Robusta Cherry" data-testid="input-type-name" /></div>
+                  <div><Label>Code</Label><Input value={tForm.code} onChange={e => setTForm({ ...tForm, code: e.target.value })} placeholder="robusta_cherry" data-testid="input-type-code" /></div>
                 </div>
                 <div className="grid grid-cols-2 gap-3">
+                  <div><Label>Stage</Label>
+                    <Select value={tForm.stage} onValueChange={(v: any) => setTForm({ ...tForm, stage: v })}>
+                      <SelectTrigger data-testid="select-stage"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="raw">Raw</SelectItem>
+                        <SelectItem value="intermediate">Intermediate</SelectItem>
+                        <SelectItem value="finished">Finished</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div><Label>Parent (transforms from)</Label>
+                    <Select value={tForm.parentCommodityTypeId} onValueChange={(v) => setTForm({ ...tForm, parentCommodityTypeId: v })} disabled={!tForm.commodityId}>
+                      <SelectTrigger><SelectValue placeholder="None (top-level)" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__none__">— None —</SelectItem>
+                        {(typesByCommodity.get(tForm.commodityId) ?? []).map(p => (
+                          <SelectItem key={p.id} value={p.id}>{p.name} <span className="text-muted-foreground">({p.stage})</span></SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <div className="grid grid-cols-3 gap-3">
                   <div><Label>Default Unit</Label><Input value={tForm.defaultUnit} onChange={e => setTForm({ ...tForm, defaultUnit: e.target.value })} /></div>
-                  <div><Label>Default Form</Label><Input value={tForm.defaultForm} onChange={e => setTForm({ ...tForm, defaultForm: e.target.value })} placeholder="cherry, parchment, ..." /></div>
+                  <div><Label>Moisture Min %</Label><Input type="number" step="0.1" value={tForm.defaultMoistureMin} onChange={e => setTForm({ ...tForm, defaultMoistureMin: e.target.value })} /></div>
+                  <div><Label>Moisture Max %</Label><Input type="number" step="0.1" value={tForm.defaultMoistureMax} onChange={e => setTForm({ ...tForm, defaultMoistureMax: e.target.value })} /></div>
                 </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div><Label>Harvest Season Start</Label>
-                    <Select value={tForm.harvestSeasonStartMonth} onValueChange={(v) => setTForm({ ...tForm, harvestSeasonStartMonth: v })}>
-                      <SelectTrigger><SelectValue placeholder="Month" /></SelectTrigger>
-                      <SelectContent>{MONTHS.slice(1).map((m, i) => <SelectItem key={m} value={String(i + 1)}>{m}</SelectItem>)}</SelectContent>
-                    </Select>
-                  </div>
-                  <div><Label>Harvest Season End</Label>
-                    <Select value={tForm.harvestSeasonEndMonth} onValueChange={(v) => setTForm({ ...tForm, harvestSeasonEndMonth: v })}>
-                      <SelectTrigger><SelectValue placeholder="Month" /></SelectTrigger>
-                      <SelectContent>{MONTHS.slice(1).map((m, i) => <SelectItem key={m} value={String(i + 1)}>{m}</SelectItem>)}</SelectContent>
-                    </Select>
-                  </div>
+                <div className="flex items-center gap-2">
+                  <input id="isTradable" type="checkbox" checked={tForm.isTradable} onChange={e => setTForm({ ...tForm, isTradable: e.target.checked })} />
+                  <Label htmlFor="isTradable" className="cursor-pointer">Tradable (can be bought/sold directly)</Label>
                 </div>
               </div>
-              <DialogFooter><Button onClick={() => createType.mutate(tForm)} disabled={!tForm.commodityId || !tForm.name || !tForm.code} data-testid="btn-save-type">Create</Button></DialogFooter>
+              <DialogFooter>
+                <Button onClick={() => createType.mutate(tForm)} disabled={!tForm.commodityId || !tForm.name || !tForm.code} data-testid="btn-save-type">Create</Button>
+              </DialogFooter>
             </DialogContent>
           </Dialog>
         </div>
@@ -152,15 +211,28 @@ export default function CommoditiesPage() {
           <CardHeader><CardTitle className="flex items-center gap-2"><Tag className="h-5 w-5" /> Catalog</CardTitle></CardHeader>
           <CardContent>
             <Table>
-              <TableHeader><TableRow><TableHead>Commodity</TableHead><TableHead>Variety</TableHead><TableHead>Form</TableHead><TableHead><Calendar className="inline h-4 w-4 mr-1" />Harvest Season</TableHead><TableHead>Status</TableHead><TableHead /></TableRow></TableHeader>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Commodity</TableHead>
+                  <TableHead>Variety / Stage</TableHead>
+                  <TableHead>Stage</TableHead>
+                  <TableHead>Tradable</TableHead>
+                  <TableHead>Moisture</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead />
+                </TableRow>
+              </TableHeader>
               <TableBody>
-                {allTypes.length === 0 && <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground py-8">No varieties yet — start by creating a commodity, then add a variety.</TableCell></TableRow>}
+                {allTypes.length === 0 && (
+                  <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground py-8">No varieties yet — start by creating a commodity, then add a variety.</TableCell></TableRow>
+                )}
                 {allTypes.map(t => (
                   <TableRow key={t.id} data-testid={`row-type-${t.code}`}>
                     <TableCell className="font-medium">{t.commodityName}</TableCell>
                     <TableCell>{t.name} <span className="text-muted-foreground text-xs">{t.code}</span></TableCell>
-                    <TableCell>{t.defaultForm ?? "—"}</TableCell>
-                    <TableCell>{seasonLabel(t.harvestSeasonStartMonth, t.harvestSeasonEndMonth)}</TableCell>
+                    <TableCell><Badge variant={stageBadge[t.stage] ?? "outline"}>{t.stage}</Badge></TableCell>
+                    <TableCell>{t.isTradable ? "Yes" : "No"}</TableCell>
+                    <TableCell>{t.defaultMoistureMin || t.defaultMoistureMax ? `${t.defaultMoistureMin ?? "—"}–${t.defaultMoistureMax ?? "—"}%` : "—"}</TableCell>
                     <TableCell><Badge variant={t.status === "active" ? "default" : "secondary"}>{t.status}</Badge></TableCell>
                     <TableCell><Button size="sm" variant="ghost" onClick={() => setSelectedTypeId(t.id)} data-testid={`btn-manage-${t.code}`}>Manage</Button></TableCell>
                   </TableRow>
@@ -172,29 +244,38 @@ export default function CommoditiesPage() {
       )}
 
       <Dialog open={!!selectedType} onOpenChange={(o) => !o && setSelectedTypeId(null)}>
-        <DialogContent className="max-w-3xl">
-          <DialogHeader><DialogTitle>{selectedType?.name} <span className="text-muted-foreground text-base font-normal">{selectedType?.code}</span></DialogTitle></DialogHeader>
-          {selectedType && <ManagePanel type={selectedType} />}
+        <DialogContent className="max-w-4xl">
+          <DialogHeader>
+            <DialogTitle>
+              {selectedType?.name} <span className="text-muted-foreground text-base font-normal">{selectedType?.code}</span>
+              {selectedType && <Badge variant={stageBadge[selectedType.stage]} className="ml-2">{selectedType.stage}</Badge>}
+            </DialogTitle>
+          </DialogHeader>
+          {selectedType && selectedCommodity && (
+            <ManagePanel type={selectedType} commodity={selectedCommodity} siblings={typesByCommodity.get(selectedType.commodityId) ?? []} />
+          )}
         </DialogContent>
       </Dialog>
     </div>
   );
 }
 
-function ManagePanel({ type }: { type: CommodityType }) {
+function ManagePanel({ type, commodity, siblings }: { type: CommodityType; commodity: Commodity; siblings: CommodityType[] }) {
   return (
     <Tabs defaultValue="prices" className="w-full">
       <TabsList>
         <TabsTrigger value="prices"><Coins className="h-4 w-4 mr-1" /> Prices</TabsTrigger>
         <TabsTrigger value="conversions"><ArrowRightLeft className="h-4 w-4 mr-1" /> Conversions</TabsTrigger>
+        <TabsTrigger value="seasons"><CalendarRange className="h-4 w-4 mr-1" /> Seasons</TabsTrigger>
       </TabsList>
-      <TabsContent value="prices"><PricesPanel type={type} /></TabsContent>
-      <TabsContent value="conversions"><ConversionsPanel type={type} /></TabsContent>
+      <TabsContent value="prices"><PricesPanel type={type} commodity={commodity} /></TabsContent>
+      <TabsContent value="conversions"><ConversionsPanel type={type} siblings={siblings} /></TabsContent>
+      <TabsContent value="seasons"><SeasonsPanel type={type} /></TabsContent>
     </Tabs>
   );
 }
 
-function PricesPanel({ type }: { type: CommodityType }) {
+function PricesPanel({ type, commodity }: { type: CommodityType; commodity: Commodity }) {
   const qc = useQueryClient();
   const { toast } = useToast();
   const { data: prices } = useQuery<any[]>({
@@ -202,26 +283,41 @@ function PricesPanel({ type }: { type: CommodityType }) {
     queryFn: () => api(`/api/commodity-types/${type.id}/prices`),
   });
   const today = new Date().toISOString().slice(0, 10);
-  const [form, setForm] = useState({ pricePerKg: "", currency: "UGX", effectiveDate: today, form: type.defaultForm ?? "", source: "" });
+  const [form, setForm] = useState({ pricePerKg: "", currency: "UGX", effectiveDate: today, source: "manual", notes: "" });
   const create = useMutation({
     mutationFn: (b: any) => api(`/api/commodity-types/${type.id}/prices`, { method: "POST", body: JSON.stringify(b) }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: [`/api/commodity-types/${type.id}/prices`] }); toast({ title: "Price set" }); setForm(f => ({ ...f, pricePerKg: "", source: "" })); },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: [`/api/commodity-types/${type.id}/prices`] });
+      toast({ title: "Price set" });
+      setForm(f => ({ ...f, pricePerKg: "", notes: "" }));
+    },
     onError: (e: any) => toast({ title: "Failed", description: e.message, variant: "destructive" }),
   });
   return (
     <div className="space-y-4 mt-3">
-      <div className="grid grid-cols-5 gap-2 items-end">
-        <div><Label>Price / kg</Label><Input type="number" step="1" value={form.pricePerKg} onChange={e => setForm({ ...form, pricePerKg: e.target.value })} data-testid="input-price" /></div>
-        <div><Label>Currency</Label><Input value={form.currency} onChange={e => setForm({ ...form, currency: e.target.value })} /></div>
-        <div><Label>Effective Date</Label><Input type="date" value={form.effectiveDate} onChange={e => setForm({ ...form, effectiveDate: e.target.value })} /></div>
-        <div><Label>Form</Label><Input value={form.form} onChange={e => setForm({ ...form, form: e.target.value })} placeholder="cherry / green_bean" /></div>
-        <Button onClick={() => create.mutate({ ...form, pricePerKg: Number(form.pricePerKg), form: form.form || undefined })} disabled={!form.pricePerKg || !form.effectiveDate} data-testid="btn-set-price">Set Price</Button>
+      <div className="text-sm text-muted-foreground">Price per kg of <strong>{type.name}</strong> ({commodity.name}). Latest effective date wins; older rows kept for audit.</div>
+      <div className="grid grid-cols-6 gap-2 items-end">
+        <div className="col-span-1"><Label>Price / kg</Label><Input type="number" step="1" value={form.pricePerKg} onChange={e => setForm({ ...form, pricePerKg: e.target.value })} data-testid="input-price" /></div>
+        <div><Label>Currency</Label><Input value={form.currency} onChange={e => setForm({ ...form, currency: e.target.value.toUpperCase() })} /></div>
+        <div><Label>Effective</Label><Input type="date" value={form.effectiveDate} onChange={e => setForm({ ...form, effectiveDate: e.target.value })} /></div>
+        <div><Label>Source</Label>
+          <Select value={form.source} onValueChange={(v) => setForm({ ...form, source: v })}>
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="manual">Manual</SelectItem>
+              <SelectItem value="market">Market</SelectItem>
+              <SelectItem value="contract">Contract</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="col-span-1"><Label>Notes</Label><Input value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} /></div>
+        <Button onClick={() => create.mutate({ ...form, pricePerKg: Number(form.pricePerKg), notes: form.notes || undefined })} disabled={!form.pricePerKg || !form.effectiveDate} data-testid="btn-set-price">Set Price</Button>
       </div>
       <Table>
-        <TableHeader><TableRow><TableHead>Effective</TableHead><TableHead>Form</TableHead><TableHead>Price/kg</TableHead><TableHead>Source</TableHead></TableRow></TableHeader>
+        <TableHeader><TableRow><TableHead>Effective</TableHead><TableHead>Price/kg</TableHead><TableHead>Source</TableHead><TableHead>Notes</TableHead></TableRow></TableHeader>
         <TableBody>
           {(prices ?? []).map(p => (
-            <TableRow key={p.id}><TableCell>{p.effectiveDate}</TableCell><TableCell>{p.form ?? "—"}</TableCell><TableCell>{p.currency} {Number(p.pricePerKg).toLocaleString()}</TableCell><TableCell>{p.source ?? "—"}</TableCell></TableRow>
+            <TableRow key={p.id}><TableCell>{p.effectiveDate}</TableCell><TableCell>{p.currency} {Number(p.pricePerKg).toLocaleString()}</TableCell><TableCell>{p.source}</TableCell><TableCell>{p.notes ?? "—"}</TableCell></TableRow>
           ))}
           {(prices ?? []).length === 0 && <TableRow><TableCell colSpan={4} className="text-muted-foreground text-center py-6">No prices yet.</TableCell></TableRow>}
         </TableBody>
@@ -230,44 +326,158 @@ function PricesPanel({ type }: { type: CommodityType }) {
   );
 }
 
-function ConversionsPanel({ type }: { type: CommodityType }) {
+function ConversionsPanel({ type, siblings }: { type: CommodityType; siblings: CommodityType[] }) {
   const qc = useQueryClient();
   const { toast } = useToast();
   const { data: conversions } = useQuery<any[]>({
     queryKey: [`/api/commodity-types/${type.id}/conversions`],
     queryFn: () => api(`/api/commodity-types/${type.id}/conversions`),
   });
-  const [form, setForm] = useState({ fromForm: "", toForm: "", ratio: "", notes: "" });
+  const today = new Date().toISOString().slice(0, 10);
+  const otherTypes = siblings.filter(s => s.id !== type.id);
+  const [form, setForm] = useState({
+    direction: "from" as "from" | "to", // current type is the "from" or the "to"
+    otherTypeId: "",
+    expectedRate: "", minRate: "", maxRate: "",
+    processType: "", effectiveDate: today, notes: "",
+  });
+  const typeName = (id: string) => siblings.find(s => s.id === id)?.name ?? id.slice(0, 8);
   const create = useMutation({
-    mutationFn: (b: any) => api(`/api/commodity-types/${type.id}/conversions`, { method: "POST", body: JSON.stringify(b) }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: [`/api/commodity-types/${type.id}/conversions`] }); toast({ title: "Conversion added" }); setForm({ fromForm: "", toForm: "", ratio: "", notes: "" }); },
+    mutationFn: (b: any) => api("/api/commodity-conversions", { method: "POST", body: JSON.stringify(b) }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: [`/api/commodity-types/${type.id}/conversions`] });
+      toast({ title: "Conversion added" });
+      setForm(f => ({ ...f, expectedRate: "", minRate: "", maxRate: "", processType: "", notes: "" }));
+    },
     onError: (e: any) => toast({ title: "Failed", description: e.message, variant: "destructive" }),
   });
   const remove = useMutation({
     mutationFn: (id: string) => api(`/api/commodity-conversions/${id}`, { method: "DELETE" }),
     onSuccess: () => qc.invalidateQueries({ queryKey: [`/api/commodity-types/${type.id}/conversions`] }),
   });
+
+  const submit = () => {
+    const fromCommodityTypeId = form.direction === "from" ? type.id : form.otherTypeId;
+    const toCommodityTypeId = form.direction === "from" ? form.otherTypeId : type.id;
+    create.mutate({
+      fromCommodityTypeId, toCommodityTypeId,
+      expectedRate: Number(form.expectedRate),
+      minRate: form.minRate ? Number(form.minRate) : undefined,
+      maxRate: form.maxRate ? Number(form.maxRate) : undefined,
+      processType: form.processType || undefined,
+      effectiveDate: form.effectiveDate,
+      notes: form.notes || undefined,
+    });
+  };
+
   return (
     <div className="space-y-4 mt-3">
-      <div className="grid grid-cols-5 gap-2 items-end">
-        <div><Label>From Form</Label><Input value={form.fromForm} onChange={e => setForm({ ...form, fromForm: e.target.value })} placeholder="cherry" data-testid="input-from-form" /></div>
-        <div><Label>To Form</Label><Input value={form.toForm} onChange={e => setForm({ ...form, toForm: e.target.value })} placeholder="green_bean" data-testid="input-to-form" /></div>
-        <div><Label>Ratio (out/in)</Label><Input type="number" step="0.0001" value={form.ratio} onChange={e => setForm({ ...form, ratio: e.target.value })} placeholder="0.2" data-testid="input-ratio" /></div>
-        <div><Label>Notes</Label><Input value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} placeholder="5 kg cherry → 1 kg green bean" /></div>
-        <Button onClick={() => create.mutate(form)} disabled={!form.fromForm || !form.toForm || !form.ratio} data-testid="btn-add-conversion">Add</Button>
+      <div className="text-sm text-muted-foreground">
+        Conversion ratio = output kg per 1 kg input. e.g. Cherry → Parchment = 0.45 means 1 kg cherry yields 0.45 kg parchment.
       </div>
+      {otherTypes.length === 0 ? (
+        <div className="text-sm text-muted-foreground border rounded-md p-3">Add another variety/stage under <strong>{typeName(type.commodityId)}</strong> to define conversions.</div>
+      ) : (
+        <div className="grid grid-cols-7 gap-2 items-end">
+          <div>
+            <Label>Direction</Label>
+            <Select value={form.direction} onValueChange={(v: any) => setForm({ ...form, direction: v })}>
+              <SelectTrigger data-testid="select-direction"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="from">{type.name} → ...</SelectItem>
+                <SelectItem value="to">... → {type.name}</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="col-span-2">
+            <Label>{form.direction === "from" ? "To Type" : "From Type"}</Label>
+            <Select value={form.otherTypeId} onValueChange={(v) => setForm({ ...form, otherTypeId: v })}>
+              <SelectTrigger data-testid="select-other-type"><SelectValue placeholder="Pick a stage" /></SelectTrigger>
+              <SelectContent>
+                {otherTypes.map(s => <SelectItem key={s.id} value={s.id}>{s.name} ({s.stage})</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+          <div><Label>Expected</Label><Input type="number" step="0.0001" value={form.expectedRate} onChange={e => setForm({ ...form, expectedRate: e.target.value })} placeholder="0.45" data-testid="input-expected-rate" /></div>
+          <div><Label>Min</Label><Input type="number" step="0.0001" value={form.minRate} onChange={e => setForm({ ...form, minRate: e.target.value })} placeholder="0.40" /></div>
+          <div><Label>Max</Label><Input type="number" step="0.0001" value={form.maxRate} onChange={e => setForm({ ...form, maxRate: e.target.value })} placeholder="0.50" /></div>
+          <Button onClick={submit} disabled={!form.otherTypeId || !form.expectedRate} data-testid="btn-add-conversion">Add</Button>
+        </div>
+      )}
+      {otherTypes.length > 0 && (
+        <div className="grid grid-cols-3 gap-2">
+          <div><Label>Process Type</Label><Input value={form.processType} onChange={e => setForm({ ...form, processType: e.target.value })} placeholder="Pulping / Drying / Hulling" /></div>
+          <div><Label>Effective Date</Label><Input type="date" value={form.effectiveDate} onChange={e => setForm({ ...form, effectiveDate: e.target.value })} /></div>
+          <div><Label>Notes</Label><Input value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} /></div>
+        </div>
+      )}
       <Table>
-        <TableHeader><TableRow><TableHead>From</TableHead><TableHead>To</TableHead><TableHead>Ratio</TableHead><TableHead>Notes</TableHead><TableHead /></TableRow></TableHeader>
+        <TableHeader><TableRow><TableHead>From</TableHead><TableHead>To</TableHead><TableHead>Expected</TableHead><TableHead>Min / Max</TableHead><TableHead>Process</TableHead><TableHead>Effective</TableHead><TableHead /></TableRow></TableHeader>
         <TableBody>
           {(conversions ?? []).map(c => (
             <TableRow key={c.id}>
-              <TableCell>{c.fromForm}</TableCell><TableCell>{c.toForm}</TableCell>
-              <TableCell>{Number(c.ratio).toLocaleString(undefined, { maximumFractionDigits: 6 })}</TableCell>
-              <TableCell>{c.notes ?? "—"}</TableCell>
+              <TableCell>{typeName(c.fromCommodityTypeId)}</TableCell>
+              <TableCell>{typeName(c.toCommodityTypeId)}</TableCell>
+              <TableCell className="font-medium">{Number(c.expectedRate).toLocaleString(undefined, { maximumFractionDigits: 6 })}</TableCell>
+              <TableCell className="text-muted-foreground text-xs">{c.minRate ?? "—"} / {c.maxRate ?? "—"}</TableCell>
+              <TableCell>{c.processType ?? "—"}</TableCell>
+              <TableCell>{c.effectiveDate}</TableCell>
               <TableCell><Button size="sm" variant="ghost" onClick={() => remove.mutate(c.id)}>Remove</Button></TableCell>
             </TableRow>
           ))}
-          {(conversions ?? []).length === 0 && <TableRow><TableCell colSpan={5} className="text-muted-foreground text-center py-6">No conversions defined.</TableCell></TableRow>}
+          {(conversions ?? []).length === 0 && <TableRow><TableCell colSpan={7} className="text-muted-foreground text-center py-6">No conversions defined.</TableCell></TableRow>}
+        </TableBody>
+      </Table>
+    </div>
+  );
+}
+
+function SeasonsPanel({ type }: { type: CommodityType }) {
+  const qc = useQueryClient();
+  const { toast } = useToast();
+  const { data: seasons } = useQuery<any[]>({
+    queryKey: [`/api/commodity-types/${type.id}/seasons`],
+    queryFn: () => api(`/api/commodity-types/${type.id}/seasons`),
+  });
+  const today = new Date().toISOString().slice(0, 10);
+  const [form, setForm] = useState({ seasonName: "", startDate: today, endDate: today, isActive: true, notes: "" });
+  const create = useMutation({
+    mutationFn: (b: any) => api(`/api/commodity-types/${type.id}/seasons`, { method: "POST", body: JSON.stringify(b) }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: [`/api/commodity-types/${type.id}/seasons`] });
+      toast({ title: "Season added" });
+      setForm({ seasonName: "", startDate: today, endDate: today, isActive: true, notes: "" });
+    },
+    onError: (e: any) => toast({ title: "Failed", description: e.message, variant: "destructive" }),
+  });
+  const remove = useMutation({
+    mutationFn: (id: string) => api(`/api/commodity-seasons/${id}`, { method: "DELETE" }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: [`/api/commodity-types/${type.id}/seasons`] }),
+  });
+  return (
+    <div className="space-y-4 mt-3">
+      <div className="text-sm text-muted-foreground">Define explicit harvest/buying windows. Used by procurement to validate that deliveries fall within an active season.</div>
+      <div className="grid grid-cols-6 gap-2 items-end">
+        <div className="col-span-2"><Label>Season Name</Label><Input value={form.seasonName} onChange={e => setForm({ ...form, seasonName: e.target.value })} placeholder="2026 Main Crop" data-testid="input-season-name" /></div>
+        <div><Label>Start</Label><Input type="date" value={form.startDate} onChange={e => setForm({ ...form, startDate: e.target.value })} /></div>
+        <div><Label>End</Label><Input type="date" value={form.endDate} onChange={e => setForm({ ...form, endDate: e.target.value })} /></div>
+        <div className="col-span-1"><Label>Notes</Label><Input value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} /></div>
+        <Button onClick={() => create.mutate({ ...form, notes: form.notes || undefined })} disabled={!form.seasonName || !form.startDate || !form.endDate} data-testid="btn-add-season">Add</Button>
+      </div>
+      <Table>
+        <TableHeader><TableRow><TableHead>Season</TableHead><TableHead>Start</TableHead><TableHead>End</TableHead><TableHead>Active</TableHead><TableHead>Notes</TableHead><TableHead /></TableRow></TableHeader>
+        <TableBody>
+          {(seasons ?? []).map(s => (
+            <TableRow key={s.id}>
+              <TableCell className="font-medium">{s.seasonName}</TableCell>
+              <TableCell>{s.startDate}</TableCell>
+              <TableCell>{s.endDate}</TableCell>
+              <TableCell>{s.isActive ? <Badge>active</Badge> : <Badge variant="secondary">inactive</Badge>}</TableCell>
+              <TableCell>{s.notes ?? "—"}</TableCell>
+              <TableCell><Button size="sm" variant="ghost" onClick={() => remove.mutate(s.id)}>Remove</Button></TableCell>
+            </TableRow>
+          ))}
+          {(seasons ?? []).length === 0 && <TableRow><TableCell colSpan={6} className="text-muted-foreground text-center py-6">No seasons defined.</TableCell></TableRow>}
         </TableBody>
       </Table>
     </div>
