@@ -155,3 +155,29 @@ pnpm run typecheck                                 # Full typecheck
 - All 8 module list pages have wired Create/Action dialogs (Farmers, Groups, Procurement, Activity Funds, Assets, Staff, Exports, Compliance) — direct `fetch` POST + react-query invalidation; payloads omit empty optional fields and validate numbers/dates client-side; staff role enum uses capitalized values (Agronomist, Manager, etc.)
 - Admin Roles & Permissions: 8 system roles seeded (Agronomist, Manager, Supervisor, ProcurementHead, FinanceOfficer, SystemAdministrator, WarehouseManager, ComplianceOfficer) with `isSystem=true` (cannot be deleted). PERMISSION_CATALOG in `artifacts/api-server/src/routes/admin.ts` is source of truth (~40 keys grouped by module, plus `*` wildcard). Endpoints: `GET /api/admin/permissions`, `GET/POST /api/admin/roles`, `PATCH /api/admin/roles/:roleId/permissions`, `DELETE /api/admin/roles/:roleId`. Path roleId is UUID-validated. Server rejects unknown permission keys.
 - ⚠️ Auth: `/api/admin/*` (and all other API routes) currently have no authentication or authorization. A dedicated auth feature must be added before production.
+
+## Group Management Module (10 capabilities)
+
+Schema (`lib/db/src/schema/groups.ts`):
+- `groupsTable` extended with: `parish`, `subCounty`, `district`, `parentGroupId` (hierarchy), `groupType` (cooperative|association|producer_group), `status` (active|archived), `archivedAt`, `archivedById`.
+- New `groupLeadersTable`: position-based leadership terms (chairperson, secretary, treasurer, extension_lead, gender_lead) with `termStart`/`termEnd`/`status`.
+- New `groupTransfersTable`: append-only audit of every farmer movement (`fromGroupId`, `toGroupId`, `reason`, `kind`: transfer|bulk_reassign|archive_redistribute, actor metadata).
+
+API (`artifacts/api-server/src/routes/groups.ts`):
+- `GET /api/groups?regionId=&status=&parentGroupId=` — list with KPIs (members, active plots, procurement volume kg, compliance score).
+- `POST /api/groups` — create, with parent validation (existence + not-archived).
+- `PATCH /api/groups/:id` — update with cycle prevention on parent re-link.
+- `GET /api/groups/:id` — detail with parent, children, leaders, members, last 50 transfers.
+- `POST /api/groups/:id/leaders` — appoint leader (transactional: auto-ends prior holder of same position with audit).
+- `PATCH /api/groups/:id/leaders/:leaderId/end` — end a term.
+- `POST /api/groups/:toId/transfer` — single or bulk reassign, transactional, strict UUID batch validation, rejects all-same-group.
+- `POST /api/groups/:id/archive` — deactivate with required redistribution; transactional with TOCTOU re-read; per-farmer audit + leader-end audit + group-archive audit all in one tx.
+- `GET /api/groups/:id/report` — CSV export for auditors (group metadata, KPIs, member roster with plot counts and area).
+
+Permission keys (added to PERMISSION_CATALOG): `groups.read`, `groups.write`, `groups.leaders.write`, `groups.transfer`, `groups.archive`.
+
+Farmer registration enforcement (`artifacts/api-server/src/routes/farmers.ts`): POST /api/farmers now rejects (400) missing groupId (`GROUP_REQUIRED`), unknown group (`GROUP_NOT_FOUND`), and archived group (`GROUP_ARCHIVED`).
+
+UI (`artifacts/agri-web/src/pages/groups/detail.tsx`): full rewrite with KPI cards, hierarchy breadcrumb, leadership table with appoint/end-term, member checkbox-multiselect with single+bulk transfer dialog, archive dialog (with required redistribution target when members exist), CSV report download, transfer history.
+
+Audit invariants: every state change (group create/update/archive, leader appoint/end, farmer group transfer) writes to `audit_logs`. Inserts that span multiple tables (transfer, archive, leader appointment) are wrapped in `db.transaction` so audit + state updates commit atomically.

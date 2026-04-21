@@ -72,6 +72,19 @@ router.post("/farmers", async (req, res): Promise<void> => {
     res.status(400).json({ error: parsed.error.message });
     return;
   }
+  // Mandatory group membership (MTANDEO policy): every farmer must belong to an ACTIVE group.
+  const rawGroupId: unknown = (parsed.data as any).groupId ?? (req.body as any).groupId;
+  if (typeof rawGroupId !== "string" || !rawGroupId) {
+    res.status(400).json({ error: "groupId is required — farmers must belong to a group", code: "GROUP_REQUIRED" });
+    return;
+  }
+  const groupId: string = rawGroupId;
+  const [group] = await db.select().from(groupsTable).where(eq(groupsTable.id, groupId));
+  if (!group) { res.status(400).json({ error: "Group not found", code: "GROUP_NOT_FOUND" }); return; }
+  if (group.status === "archived") {
+    res.status(400).json({ error: "Cannot register farmer into an archived group", code: "GROUP_ARCHIVED" });
+    return;
+  }
   const referenceNumber = generateRefNumber();
   const [farmer] = await db.insert(farmersTable).values({ ...parsed.data, referenceNumber }).returning();
   const result = await buildFarmerResponse(farmer);
