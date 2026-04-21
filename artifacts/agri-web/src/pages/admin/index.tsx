@@ -11,7 +11,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Settings, RefreshCw, MapPin, Plus, Pencil, Trash2 } from "lucide-react";
+import { Settings, RefreshCw, MapPin, Plus, Pencil, Trash2, Upload, FileSpreadsheet, AlertCircle, CheckCircle2 } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 
@@ -116,6 +117,111 @@ export default function AdminPage() {
     onError: (e: any) => toast({ title: "Failed to create region", description: e.message, variant: "destructive" }),
   });
 
+  const [bulkEntity, setBulkEntity] = useState<"regions" | "farmers" | "groups">("regions");
+  const [bulkRows, setBulkRows] = useState<Record<string, any>[]>([]);
+  const [bulkFileName, setBulkFileName] = useState<string>("");
+  const [bulkResult, setBulkResult] = useState<any | null>(null);
+
+  const BULK_TEMPLATES: Record<string, { headers: string[]; example: string; notes: string }> = {
+    regions: {
+      headers: ["name", "level", "countryCode", "parentId"],
+      example: "Mbale,1,UG,\nMbale Municipality,2,UG,<parent-region-uuid>",
+      notes: "name and level are required. countryCode defaults to UG when blank. parentId is the UUID of the parent region (leave blank for top-level).",
+    },
+    groups: {
+      headers: ["name", "regionId", "village"],
+      example: "Buwasa Coffee Coop,<region-uuid>,Buwasa\nNorth Mbale Producers,<region-uuid>,",
+      notes: "name and regionId are required. regionId must be the UUID of an existing region.",
+    },
+    farmers: {
+      headers: ["firstName", "lastName", "nationalId", "phoneNumber", "sex", "groupId", "regionId", "village", "dateOfBirth"],
+      example: "John,Wanyama,CM12345678,+256770000001,male,<group-uuid>,<region-uuid>,Buwasa,1985-04-12",
+      notes: "firstName, lastName, nationalId, groupId and regionId are required. sex is one of male/female/other. dateOfBirth in YYYY-MM-DD.",
+    },
+  };
+
+  function parseCsv(text: string): Record<string, any>[] {
+    const lines = text.split(/\r?\n/).filter(l => l.trim().length > 0);
+    if (lines.length === 0) return [];
+    const splitLine = (l: string): string[] => {
+      const out: string[] = [];
+      let cur = "";
+      let inQuotes = false;
+      for (let i = 0; i < l.length; i++) {
+        const ch = l[i];
+        if (ch === '"') {
+          if (inQuotes && l[i + 1] === '"') { cur += '"'; i++; }
+          else inQuotes = !inQuotes;
+        } else if (ch === "," && !inQuotes) {
+          out.push(cur);
+          cur = "";
+        } else {
+          cur += ch;
+        }
+      }
+      out.push(cur);
+      return out.map(s => s.trim());
+    };
+    const headers = splitLine(lines[0]);
+    return lines.slice(1).map(l => {
+      const cells = splitLine(l);
+      const obj: Record<string, any> = {};
+      headers.forEach((h, i) => {
+        const v = cells[i];
+        if (v != null && v !== "") {
+          if (h === "level") obj[h] = Number(v);
+          else obj[h] = v;
+        }
+      });
+      return obj;
+    });
+  }
+
+  const handleBulkFile = async (file: File) => {
+    setBulkResult(null);
+    setBulkFileName(file.name);
+    try {
+      const text = await file.text();
+      const rows = parseCsv(text);
+      setBulkRows(rows);
+      if (rows.length === 0) toast({ title: "No rows found in file", variant: "destructive" });
+    } catch (e: any) {
+      toast({ title: "Failed to parse CSV", description: e.message, variant: "destructive" });
+    }
+  };
+
+  const bulkUploadMut = useMutation({
+    mutationFn: () => fetch(`${API_BASE}/api/admin/bulk-upload`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ entityType: bulkEntity, rows: bulkRows }),
+    }).then(async r => { const j = await r.json(); if (!r.ok) throw new Error(j.error ?? "Upload failed"); return j; }),
+    onSuccess: (data) => {
+      setBulkResult(data);
+      qc.invalidateQueries({ queryKey: ["/api/admin/regions"] });
+      qc.invalidateQueries({ queryKey: ["listRegions"] });
+      qc.invalidateQueries({ queryKey: ["listFarmers"] });
+      qc.invalidateQueries({ queryKey: ["listGroups"] });
+      toast({
+        title: `Uploaded: ${data.createdCount} created, ${data.errorCount} failed`,
+        variant: data.errorCount > 0 ? "destructive" : "default",
+      });
+    },
+    onError: (e: any) => toast({ title: "Upload failed", description: e.message, variant: "destructive" }),
+  });
+
+  const downloadTemplate = () => {
+    const t = BULK_TEMPLATES[bulkEntity];
+    const csv = `${t.headers.join(",")}\n${t.example}\n`;
+    const blob = new Blob([csv], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${bulkEntity}-template.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   const submitRegion = () => {
     const name = regionForm.name.trim();
     const level = parseInt(regionForm.level, 10);
@@ -190,6 +296,7 @@ export default function AdminPage() {
         <TabsList>
           <TabsTrigger value="regions">Regions</TabsTrigger>
           <TabsTrigger value="roles">Roles &amp; Permissions</TabsTrigger>
+          <TabsTrigger value="bulk">Bulk Upload</TabsTrigger>
           <TabsTrigger value="sync">Sync Queue</TabsTrigger>
         </TabsList>
 
@@ -247,6 +354,111 @@ export default function AdminPage() {
                   )}
                 </TableBody>
               </Table>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="bulk" className="mt-4">
+          <Card>
+            <CardHeader>
+              <div className="flex items-center gap-2">
+                <Upload className="h-4 w-4 text-muted-foreground" />
+                <CardTitle>Bulk Upload Master Data</CardTitle>
+              </div>
+              <p className="text-sm text-muted-foreground mt-1">Upload up to 1,000 records at a time from a CSV file. Each row is validated; valid rows are inserted and invalid rows are reported back with their error.</p>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
+                <div>
+                  <Label>Entity type</Label>
+                  <Select value={bulkEntity} onValueChange={(v) => { setBulkEntity(v as any); setBulkRows([]); setBulkFileName(""); setBulkResult(null); }}>
+                    <SelectTrigger data-testid="bulk-entity-select"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="regions">Regions</SelectItem>
+                      <SelectItem value="groups">Farmer Groups</SelectItem>
+                      <SelectItem value="farmers">Farmers</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="md:col-span-2">
+                  <Label>CSV file</Label>
+                  <Input
+                    type="file"
+                    accept=".csv,text/csv"
+                    onChange={(e) => { const f = e.target.files?.[0]; if (f) handleBulkFile(f); }}
+                    data-testid="bulk-file-input"
+                  />
+                </div>
+              </div>
+
+              <div className="rounded-md bg-muted/40 p-3 text-xs space-y-1">
+                <div className="flex items-center justify-between">
+                  <span className="font-semibold">Expected columns: <code className="font-mono">{BULK_TEMPLATES[bulkEntity].headers.join(", ")}</code></span>
+                  <Button size="sm" variant="outline" className="gap-1" onClick={downloadTemplate} data-testid="download-template-btn">
+                    <FileSpreadsheet className="h-3 w-3" /> Template
+                  </Button>
+                </div>
+                <p className="text-muted-foreground">{BULK_TEMPLATES[bulkEntity].notes}</p>
+              </div>
+
+              {bulkRows.length > 0 && (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm"><strong>{bulkFileName}</strong> — {bulkRows.length} row{bulkRows.length === 1 ? "" : "s"} parsed (showing first 5)</p>
+                    <Button onClick={() => bulkUploadMut.mutate()} disabled={bulkUploadMut.isPending} data-testid="bulk-submit-btn" className="gap-2">
+                      <Upload className="h-4 w-4" />{bulkUploadMut.isPending ? "Uploading..." : `Upload ${bulkRows.length} rows`}
+                    </Button>
+                  </div>
+                  <div className="border rounded-md overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          {BULK_TEMPLATES[bulkEntity].headers.map(h => <TableHead key={h}>{h}</TableHead>)}
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {bulkRows.slice(0, 5).map((r, i) => (
+                          <TableRow key={i}>
+                            {BULK_TEMPLATES[bulkEntity].headers.map(h => (
+                              <TableCell key={h} className="font-mono text-xs">{r[h] != null ? String(r[h]) : <span className="text-muted-foreground">—</span>}</TableCell>
+                            ))}
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </div>
+              )}
+
+              {bulkResult && (
+                <div className="space-y-2">
+                  <div className="flex items-center gap-3 flex-wrap">
+                    <Badge variant="default" className="gap-1"><CheckCircle2 className="h-3 w-3" />{bulkResult.createdCount} created</Badge>
+                    {bulkResult.errorCount > 0 && <Badge variant="destructive" className="gap-1"><AlertCircle className="h-3 w-3" />{bulkResult.errorCount} failed</Badge>}
+                    <span className="text-xs text-muted-foreground">of {bulkResult.totalSubmitted} submitted</span>
+                  </div>
+                  {bulkResult.errors?.length > 0 && (
+                    <div className="border border-destructive/30 rounded-md max-h-72 overflow-y-auto">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead className="w-16">Row</TableHead>
+                            <TableHead>Error</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {bulkResult.errors.map((e: any) => (
+                            <TableRow key={e.row} data-testid={`bulk-error-${e.row}`}>
+                              <TableCell className="font-mono">{e.row}</TableCell>
+                              <TableCell className="text-xs text-destructive">{e.error}</TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  )}
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>

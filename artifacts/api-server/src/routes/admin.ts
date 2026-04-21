@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import { eq } from "drizzle-orm";
-import { db, regionsTable, rolesTable } from "@workspace/db";
-import { CreateRegionBody, UpdateRolePermissionsBody } from "@workspace/api-zod";
+import { db, regionsTable, rolesTable, farmersTable, groupsTable } from "@workspace/db";
+import { CreateRegionBody, UpdateRolePermissionsBody, CreateFarmerBody, CreateGroupBody } from "@workspace/api-zod";
 import { requirePermission } from "../middlewares/auth";
 
 const router: IRouter = Router();
@@ -54,6 +54,7 @@ const PERMISSION_CATALOG: Array<{ key: string; module: string; description: stri
   { key: "users.write", module: "Staff", description: "Add and edit staff" },
   { key: "admin.regions", module: "Admin", description: "Manage regions" },
   { key: "admin.roles", module: "Admin", description: "Manage roles and permissions" },
+  { key: "admin.bulk_upload", module: "Admin", description: "Bulk upload master data (regions, farmers, groups)" },
   { key: "audit.read", module: "Audit", description: "View audit log" },
   { key: "*", module: "Admin", description: "Wildcard — full system access" },
 ];
@@ -86,6 +87,84 @@ router.post("/admin/regions", requirePermission("admin.regions"), async (req, re
   }
   const [region] = await db.insert(regionsTable).values(parsed.data).returning();
   res.status(201).json(region);
+});
+
+// ---------- BULK UPLOAD ----------
+
+const BULK_VALIDATORS = {
+  regions: CreateRegionBody,
+  farmers: CreateFarmerBody,
+  groups: CreateGroupBody,
+} as const;
+type BulkEntity = keyof typeof BULK_VALIDATORS;
+
+async function generateFarmerReferenceNumber(): Promise<string> {
+  const year = new Date().getFullYear();
+  const rand = Math.random().toString(36).slice(2, 8).toUpperCase();
+  return `FARM-${year}-${rand}`;
+}
+
+router.post("/admin/bulk-upload", requirePermission("admin.bulk_upload"), async (req, res): Promise<void> => {
+  const body = req.body as { entityType?: string; rows?: unknown };
+  const entityType = body?.entityType as BulkEntity | undefined;
+  if (!entityType || !(entityType in BULK_VALIDATORS)) {
+    res.status(400).json({ error: `entityType must be one of: ${Object.keys(BULK_VALIDATORS).join(", ")}` });
+    return;
+  }
+  if (!Array.isArray(body.rows)) {
+    res.status(400).json({ error: "rows must be an array" });
+    return;
+  }
+  if (body.rows.length === 0) {
+    res.status(400).json({ error: "rows cannot be empty" });
+    return;
+  }
+  if (body.rows.length > 1000) {
+    res.status(400).json({ error: "Maximum 1000 rows per upload" });
+    return;
+  }
+
+  const validator = BULK_VALIDATORS[entityType];
+  const created: any[] = [];
+  const errors: Array<{ row: number; error: string; data: unknown }> = [];
+
+  for (let i = 0; i < body.rows.length; i++) {
+    const raw = body.rows[i];
+    const parsed = validator.safeParse(raw);
+    if (!parsed.success) {
+      errors.push({ row: i + 1, error: parsed.error.issues.map(iss => `${iss.path.join(".")}: ${iss.message}`).join("; "), data: raw });
+      continue;
+    }
+    try {
+      if (entityType === "regions") {
+        const [r] = await db.insert(regionsTable).values(parsed.data as any).returning();
+        created.push(r);
+      } else if (entityType === "groups") {
+        const [g] = await db.insert(groupsTable).values(parsed.data as any).returning();
+        created.push(g);
+      } else if (entityType === "farmers") {
+        const referenceNumber = await generateFarmerReferenceNumber();
+        const data = parsed.data as any;
+        const [f] = await db.insert(farmersTable).values({
+          ...data,
+          referenceNumber,
+          dateOfBirth: data.dateOfBirth instanceof Date ? data.dateOfBirth.toISOString().slice(0, 10) : data.dateOfBirth,
+        }).returning();
+        created.push(f);
+      }
+    } catch (err: any) {
+      errors.push({ row: i + 1, error: err?.message ?? "Insert failed", data: raw });
+    }
+  }
+
+  res.status(201).json({
+    entityType,
+    totalSubmitted: body.rows.length,
+    createdCount: created.length,
+    errorCount: errors.length,
+    created,
+    errors,
+  });
 });
 
 router.get("/admin/permissions", requirePermission("admin.roles"), async (_req, res): Promise<void> => {
