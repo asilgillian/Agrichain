@@ -160,7 +160,7 @@ export default function SalesPage() {
                     <SelectContent>
                       <SelectItem value="USD">USD</SelectItem>
                       <SelectItem value="EUR">EUR</SelectItem>
-                      <SelectItem value="KES">KES</SelectItem>
+                      <SelectItem value="UGX">UGX</SelectItem>
                       <SelectItem value="GBP">GBP</SelectItem>
                     </SelectContent>
                   </Select>

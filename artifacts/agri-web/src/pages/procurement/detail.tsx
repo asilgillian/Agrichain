@@ -144,12 +144,12 @@ export default function DeliveryDetail() {
             <div className="py-4 text-center text-muted-foreground text-sm">Complete weight and QC steps to unlock pricing</div>
           ) : delivery.pricePerKg != null ? (
             <div className="space-y-2 text-sm">
-              <div className="flex justify-between"><span className="text-muted-foreground">Price per kg</span><span className="font-medium">KES {Number(delivery.pricePerKg).toLocaleString()}</span></div>
-              <div className="flex justify-between border-t pt-2"><span className="text-muted-foreground font-medium">Total Value</span><span className="font-bold text-xl text-primary">KES {Number(delivery.totalValue).toLocaleString()}</span></div>
+              <div className="flex justify-between"><span className="text-muted-foreground">Price per kg</span><span className="font-medium">UGX {Number(delivery.pricePerKg).toLocaleString()}</span></div>
+              <div className="flex justify-between border-t pt-2"><span className="text-muted-foreground font-medium">Total Value</span><span className="font-bold text-xl text-primary">UGX {Number(delivery.totalValue).toLocaleString()}</span></div>
             </div>
           ) : (
             <div className="flex items-end gap-3">
-              <div className="flex-1"><Label>Price per kg (KES)</Label><Input value={price} onChange={e => setPrice(e.target.value)} placeholder="0.00" data-testid="price-input" /></div>
+              <div className="flex-1"><Label>Price per kg (UGX)</Label><Input value={price} onChange={e => setPrice(e.target.value)} placeholder="0.00" data-testid="price-input" /></div>
               <Button onClick={handlePricing} disabled={pricingMut.isPending || !price} data-testid="submit-pricing-btn">
                 {pricingMut.isPending ? "Submitting..." : "Set Price"}
               </Button>

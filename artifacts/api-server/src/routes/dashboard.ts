@@ -35,7 +35,7 @@ router.get("/dashboard/summary", async (req, res): Promise<void> => {
     totalPaymentsPending,
     complianceRate,
     syncPendingCount: 3,
-    currency: "KES",
+    currency: "UGX",
   });
 });
 
@@ -102,7 +102,7 @@ router.get("/dashboard/procurement-stats", async (req, res): Promise<void> => {
     pendingApprovals: pending.length,
     rejectedDeliveries: rejected.length,
     totalValueThisMonth: approved.reduce((s, d) => s + parseFloat(d.totalValue ?? "0"), 0),
-    currency: "KES",
+    currency: "UGX",
   });
 });
 

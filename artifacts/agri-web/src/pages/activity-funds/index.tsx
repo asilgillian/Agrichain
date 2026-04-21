@@ -5,9 +5,9 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { format } from "date-fns";
 
-function fmtKES(v?: number | null) {
+function fmtUGX(v?: number | null) {
   if (v == null) return "-";
-  return new Intl.NumberFormat("en-KE", { style: "currency", currency: "KES", maximumFractionDigits: 0 }).format(Number(v));
+  return new Intl.NumberFormat("en-UG", { style: "currency", currency: "UGX", maximumFractionDigits: 0 }).format(Number(v));
 }
 
 const statusColors: Record<string, "default" | "secondary" | "destructive"> = {
@@ -53,8 +53,8 @@ export default function ActivityFundsPage() {
                   <TableCell className="capitalize">{(f.activityType ?? "").replace(/_/g, " ")}</TableCell>
                   <TableCell className="text-muted-foreground">{format(new Date(f.plannedDate), "MMM d, yyyy")}</TableCell>
                   <TableCell className="text-muted-foreground">{f.destination ?? "—"}</TableCell>
-                  <TableCell>{fmtKES(f.estimatedAmount)}</TableCell>
-                  <TableCell>{f.approvedAmount != null ? fmtKES(Number(f.approvedAmount)) : <span className="text-muted-foreground">—</span>}</TableCell>
+                  <TableCell>{fmtUGX(f.estimatedAmount)}</TableCell>
+                  <TableCell>{f.approvedAmount != null ? fmtUGX(Number(f.approvedAmount)) : <span className="text-muted-foreground">—</span>}</TableCell>
                   <TableCell><Badge variant={statusColors[f.status ?? ""] ?? "secondary"}>{f.status}</Badge></TableCell>
                 </TableRow>
               )) : (

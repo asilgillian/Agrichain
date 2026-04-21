@@ -67,7 +67,7 @@ export default function ProcurementHub() {
                     <TableCell>{d.grade ?? <span className="text-muted-foreground text-sm">—</span>}</TableCell>
                     <TableCell className="text-center"><Checkmark ok={d.weightApproved ?? false} /></TableCell>
                     <TableCell className="text-center"><Checkmark ok={d.qcApproved ?? false} /></TableCell>
-                    <TableCell>{d.pricePerKg != null ? `KES ${Number(d.pricePerKg).toLocaleString()}` : <span className="text-muted-foreground text-sm">—</span>}</TableCell>
+                    <TableCell>{d.pricePerKg != null ? `UGX ${Number(d.pricePerKg).toLocaleString()}` : <span className="text-muted-foreground text-sm">—</span>}</TableCell>
                     <TableCell><Badge variant={statusColors[d.status ?? ""] ?? "secondary"}>{statusLabels[d.status ?? ""] ?? d.status}</Badge></TableCell>
                     <TableCell>
                       <Link href={`/procurement/${d.id}`}><ChevronRight className="h-4 w-4 text-muted-foreground" /></Link>

@@ -27,10 +27,10 @@ const statusColors: Record<string, string> = {
 
 function fmt(n: string | null | undefined) {
   if (!n) return "—";
-  return "KES " + Number(n).toLocaleString("en-KE", { minimumFractionDigits: 0 });
+  return "UGX " + Number(n).toLocaleString("en-UG", { minimumFractionDigits: 0 });
 }
 
-const emptyRepay = { amount: "", paymentDate: new Date().toISOString().slice(0, 10), paymentMethod: "MPESA", reference: "" };
+const emptyRepay = { amount: "", paymentDate: new Date().toISOString().slice(0, 10), paymentMethod: "MTN_MOMO", reference: "" };
 
 export default function LoanDetail() {
   const { id } = useParams<{ id: string }>();
@@ -168,7 +168,7 @@ export default function LoanDetail() {
                   <DialogDescription>Outstanding balance: {fmt(loan.outstandingBalance)}</DialogDescription>
                 </DialogHeader>
                 <div className="space-y-3">
-                  <div><Label>Amount (KES) *</Label><Input type="number" value={repayForm.amount} onChange={e => setRepayForm({ ...repayForm, amount: e.target.value })} placeholder="10000" data-testid="input-amount" /></div>
+                  <div><Label>Amount (UGX) *</Label><Input type="number" value={repayForm.amount} onChange={e => setRepayForm({ ...repayForm, amount: e.target.value })} placeholder="100000" data-testid="input-amount" /></div>
                   <div className="grid grid-cols-2 gap-3">
                     <div><Label>Payment Date</Label><Input type="date" value={repayForm.paymentDate} onChange={e => setRepayForm({ ...repayForm, paymentDate: e.target.value })} data-testid="input-date" /></div>
                     <div>
@@ -176,7 +176,8 @@ export default function LoanDetail() {
                       <Select value={repayForm.paymentMethod} onValueChange={v => setRepayForm({ ...repayForm, paymentMethod: v })}>
                         <SelectTrigger data-testid="input-method"><SelectValue /></SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="MPESA">M-PESA</SelectItem>
+                          <SelectItem value="MTN_MOMO">MTN Mobile Money</SelectItem>
+                          <SelectItem value="AIRTEL_MONEY">Airtel Money</SelectItem>
                           <SelectItem value="BANK_TRANSFER">Bank Transfer</SelectItem>
                           <SelectItem value="CASH">Cash</SelectItem>
                           <SelectItem value="CROP_DEDUCTION">Crop Deduction</SelectItem>
@@ -184,7 +185,7 @@ export default function LoanDetail() {
                       </Select>
                     </div>
                   </div>
-                  <div><Label>Reference</Label><Input value={repayForm.reference} onChange={e => setRepayForm({ ...repayForm, reference: e.target.value })} placeholder="M-PESA code or txn ref" data-testid="input-ref" /></div>
+                  <div><Label>Reference</Label><Input value={repayForm.reference} onChange={e => setRepayForm({ ...repayForm, reference: e.target.value })} placeholder="MoMo code or txn ref" data-testid="input-ref" /></div>
                 </div>
                 <DialogFooter>
                   <Button variant="outline" onClick={() => setRepayOpen(false)}>Cancel</Button>

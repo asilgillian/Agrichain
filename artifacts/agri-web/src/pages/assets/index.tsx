@@ -7,9 +7,9 @@ import { Link } from "wouter";
 import { ChevronRight } from "lucide-react";
 import { format } from "date-fns";
 
-function fmtKES(v?: number | null) {
+function fmtUGX(v?: number | null) {
   if (v == null) return "-";
-  return new Intl.NumberFormat("en-KE", { style: "currency", currency: "KES", maximumFractionDigits: 0 }).format(Number(v));
+  return new Intl.NumberFormat("en-UG", { style: "currency", currency: "UGX", maximumFractionDigits: 0 }).format(Number(v));
 }
 
 export default function AssetsPage() {
@@ -50,8 +50,8 @@ export default function AssetsPage() {
                   <TableCell className="capitalize">{a.type}</TableCell>
                   <TableCell className="text-muted-foreground">{a.make} {a.model}</TableCell>
                   <TableCell className="font-mono text-sm">{a.serialNumber ?? "—"}</TableCell>
-                  <TableCell>{fmtKES(a.purchaseValue)}</TableCell>
-                  <TableCell>{fmtKES(a.currentBookValue)}</TableCell>
+                  <TableCell>{fmtUGX(a.purchaseValue)}</TableCell>
+                  <TableCell>{fmtUGX(a.currentBookValue)}</TableCell>
                   <TableCell className="text-muted-foreground">{(a as any).assignedToName ?? <span className="italic">Unassigned</span>}</TableCell>
                   <TableCell><Badge variant={a.status === "available" ? "secondary" : "default"}>{a.status}</Badge></TableCell>
                   <TableCell>

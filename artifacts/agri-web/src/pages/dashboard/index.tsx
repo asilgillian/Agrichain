@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 
 function formatCurrency(v?: number | null) {
   if (v == null) return "-";
-  return new Intl.NumberFormat("en-KE", { style: "currency", currency: "KES", maximumFractionDigits: 0 }).format(v);
+  return new Intl.NumberFormat("en-UG", { style: "currency", currency: "UGX", maximumFractionDigits: 0 }).format(v);
 }
 function formatNumber(v?: number | null) {
   if (v == null) return "-";

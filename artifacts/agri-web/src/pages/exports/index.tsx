@@ -12,9 +12,9 @@ function fmtKg(v?: number | null) {
   return `${Number(v).toLocaleString()} kg`;
 }
 
-function fmtKES(v?: number | null) {
+function fmtUGX(v?: number | null) {
   if (v == null) return "-";
-  return new Intl.NumberFormat("en-KE", { style: "currency", currency: "KES", maximumFractionDigits: 0 }).format(Number(v));
+  return new Intl.NumberFormat("en-UG", { style: "currency", currency: "UGX", maximumFractionDigits: 0 }).format(Number(v));
 }
 
 export default function ExportsPage() {

@@ -28,7 +28,7 @@ const statusColors: Record<string, string> = {
 
 function fmt(n: string | null | undefined) {
   if (!n) return "—";
-  return "KES " + Number(n).toLocaleString("en-KE", { minimumFractionDigits: 0 });
+  return "UGX " + Number(n).toLocaleString("en-UG", { minimumFractionDigits: 0 });
 }
 
 const emptyForm = { farmerId: "", loanType: "CASH_ADVANCE", principalAmount: "", interestRatePct: "", purpose: "", collateral: "", dueDate: "", notes: "" };
@@ -125,7 +125,7 @@ export default function LoansPage() {
                   </Select>
                 </div>
                 <div>
-                  <Label>Principal (KES) *</Label>
+                  <Label>Principal (UGX) *</Label>
                   <Input type="number" value={form.principalAmount} onChange={e => setForm({ ...form, principalAmount: e.target.value })} placeholder="50000" data-testid="input-principal" />
                 </div>
               </div>
@@ -158,8 +158,8 @@ export default function LoansPage() {
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <Card><CardContent className="pt-6"><p className="text-sm text-muted-foreground">Disbursed</p><p className="text-xl font-bold mt-1">KES {Number(totalDisbursed).toLocaleString()}</p></CardContent></Card>
-        <Card><CardContent className="pt-6"><p className="text-sm text-muted-foreground">Repaying</p><p className="text-xl font-bold mt-1">KES {Number(totalRepaying).toLocaleString()}</p></CardContent></Card>
+        <Card><CardContent className="pt-6"><p className="text-sm text-muted-foreground">Disbursed</p><p className="text-xl font-bold mt-1">UGX {Number(totalDisbursed).toLocaleString()}</p></CardContent></Card>
+        <Card><CardContent className="pt-6"><p className="text-sm text-muted-foreground">Repaying</p><p className="text-xl font-bold mt-1">UGX {Number(totalRepaying).toLocaleString()}</p></CardContent></Card>
         <Card><CardContent className="pt-6"><p className="text-sm text-muted-foreground">Defaulted</p><p className="text-xl font-bold text-red-600 mt-1">{totalDefaulted}</p></CardContent></Card>
         <Card><CardContent className="pt-6"><p className="text-sm text-muted-foreground">Closed</p><p className="text-xl font-bold text-green-600 mt-1">{totalClosed}</p></CardContent></Card>
       </div>

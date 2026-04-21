@@ -66,7 +66,7 @@ router.get("/payments/summary", async (req, res): Promise<void> => {
     totalPaid: paid.reduce((s, p) => s + parseFloat(p.amountDue), 0),
     pendingCount: pending.length,
     paidCount: paid.length,
-    currency: "KES",
+    currency: "UGX",
   });
 });
 
