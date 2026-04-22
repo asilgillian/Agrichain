@@ -6,8 +6,10 @@ import {
   batchesTable,
   auditLogsTable,
   procurementContractsTable,
+  procurementWorkflowsTable,
   usersTable,
 } from "@workspace/db";
+import { resolveWorkflowForDelivery, getWorkflowStages, DEFAULT_STAGE_PERMISSION } from "./procurement-workflows";
 import {
   CreateDeliveryBody,
   SubmitDeliveryWeightBody,
@@ -70,6 +72,45 @@ function shapeDelivery(
     pricingApprovedByName: d.pricingApprovedById ? names[d.pricingApprovedById] : undefined,
     rejectionByName: d.rejectionById ? names[d.rejectionById] : undefined,
   };
+}
+
+// ---------- WORKFLOW ENGINE HELPERS ----------
+//
+// Each delivery is pinned to a workflow at creation. The workflow's stages list — ordered by
+// orderIdx — defines the sequence of submit/approve/info actions that must happen. The delivery
+// carries `currentStageOrder`, an integer that points at the row in that list whose action is
+// currently expected. The legacy `status` column is still maintained as a human-readable label
+// (pending_<stage>_<verb>, approved, rejected_*, etc.) so existing dashboards/filters keep working.
+
+const STATUS_FOR_KIND: Record<string, string> = {
+  WEIGHT_SUBMIT: "pending_weight_submit",
+  WEIGHT_APPROVE: "pending_weight_approve",
+  QC_SUBMIT: "pending_qc_submit",
+  QC_APPROVE: "pending_qc_approve",
+  PRICING_PROPOSE: "pending_pricing_propose",
+  PRICING_APPROVE: "pending_pricing_approve",
+  INFO_CHECKPOINT: "pending_info_checkpoint",
+};
+
+type StageLike = { id: string; orderIdx: number; isActive: boolean; stageKind: string; displayName: string };
+
+// INFO_CHECKPOINT stages are informational landmarks — there is no completion endpoint, so the
+// engine treats them as auto-pass and never parks a delivery on one. They still appear in the
+// workflow for documentation/audit purposes.
+const NON_GATING_KINDS = new Set(["INFO_CHECKPOINT"]);
+
+// Find the next ACTIVE gating stage strictly after `currentOrder`. Returns null when finished.
+function nextActiveStage<T extends StageLike>(stages: T[], currentOrder: number): T | null {
+  return stages
+    .filter((s) => s.isActive && !NON_GATING_KINDS.has(s.stageKind) && s.orderIdx > currentOrder)
+    .sort((a, b) => a.orderIdx - b.orderIdx)[0] ?? null;
+}
+
+// Find the ACTIVE gating stage at exactly `currentOrder` (or skip forward over a deactivated/info row).
+function activeStageAtOrAfter<T extends StageLike>(stages: T[], currentOrder: number): T | null {
+  return stages
+    .filter((s) => s.isActive && !NON_GATING_KINDS.has(s.stageKind) && s.orderIdx >= currentOrder)
+    .sort((a, b) => a.orderIdx - b.orderIdx)[0] ?? null;
 }
 
 // Atomic state transition: UPDATE with status precondition + audit insert in a single transaction.
@@ -169,7 +210,14 @@ router.post("/procurement/deliveries", requirePermission("procurement.write"), a
   const result = await db.transaction(async (tx) => {
     const [batch] = await tx.select().from(batchesTable).where(eq(batchesTable.batchTag, parsed.data.batchTag));
     if (!batch) return { error: "Batch not found" as const };
+    // Resolve workflow OUTSIDE the inner transaction (it does its own seed-on-empty txn).
+    // Then pin its first active stage on the new delivery.
     const lotTag = generateLotTag();
+    const workflow = await resolveWorkflowForDelivery(batch.cropType ?? null);
+    const stages = await getWorkflowStages(workflow.id);
+    const firstStage = stages.find((s) => s.isActive);
+    if (!firstStage) return { error: "Resolved workflow has no active stages — cannot create delivery" as const };
+    const initialStatus = STATUS_FOR_KIND[firstStage.stageKind] ?? "pending_weight_submit";
     const [delivery] = await tx.insert(deliveriesTable).values({
       lotTag,
       batchId: batch.id,
@@ -178,7 +226,9 @@ router.post("/procurement/deliveries", requirePermission("procurement.write"), a
       driverName: parsed.data.driverName,
       preOffloadSampleTaken: parsed.data.preOffloadSampleTaken ?? false,
       qualifyingStreams: batch.qualifyingStreams,
-      status: "pending_weight_submit",
+      workflowId: workflow.id,
+      currentStageOrder: firstStage.orderIdx,
+      status: initialStatus,
     }).returning();
     await tx.insert(auditLogsTable).values({
       entityType: "delivery",
@@ -211,28 +261,63 @@ router.get("/procurement/deliveries/:deliveryId", requirePermission("procurement
     delivery.weightSubmittedById, delivery.weightApprovedById, delivery.qcSubmittedById, delivery.qcApprovedById,
     delivery.pricingProposedById, delivery.pricingApprovedById, delivery.rejectionById,
   ]);
+  // Resolve workflow + current stage so the UI can render stage names from the configured master
+  // instead of legacy hardcoded labels.
+  let workflow: any = null;
+  let currentStage: any = null;
+  if (delivery.workflowId) {
+    const [wf] = await db.select().from(procurementWorkflowsTable).where(eq(procurementWorkflowsTable.id, delivery.workflowId));
+    if (wf) {
+      const stages = await getWorkflowStages(delivery.workflowId);
+      workflow = { id: wf.id, code: wf.code, name: wf.name, stages };
+      currentStage = activeStageAtOrAfter(stages, delivery.currentStageOrder ?? 0);
+    }
+  }
   res.json({
     ...shapeDelivery(delivery, names),
     batch: batch ? { ...batch, totalWeightKg: parseFloat(batch.totalWeightKg ?? "0") } : null,
     contract: contract ? { ...contract, floorPricePerKg: num(contract.floorPricePerKg) } : null,
+    workflow,
+    currentStage,
     auditTrail,
   });
 });
 
 // ---------- DUAL-ACTOR GATES ----------
+//
+// Each gate handler loads the delivery + its workflow stages, validates that the stage at
+// `currentStageOrder` is of the expected kind (e.g. WEIGHT_SUBMIT), and computes the next
+// status from the next active stage in the workflow.
+async function loadDeliveryWithStage(deliveryId: string, expectedKind: string) {
+  const [delivery] = await db.select().from(deliveriesTable).where(eq(deliveriesTable.id, deliveryId));
+  if (!delivery) return { error: "Delivery not found", code: 404 } as const;
+  if (!delivery.workflowId) return { error: "Delivery has no workflow pinned (legacy row)", code: 400 } as const;
+  const stages = await getWorkflowStages(delivery.workflowId);
+  const current = activeStageAtOrAfter(stages, delivery.currentStageOrder ?? 0);
+  if (!current) return { error: "Delivery has no remaining active stages", code: 409 } as const;
+  if (current.stageKind !== expectedKind) {
+    return { error: `Workflow expects ${current.stageKind} (${current.displayName}); cannot ${expectedKind}`, code: 409 } as const;
+  }
+  const next = nextActiveStage(stages, current.orderIdx);
+  return { delivery, stages, current, next } as const;
+}
+
+// Compute the status string for the stage AFTER advancement. If there is no next stage, we land
+// in `approved` (terminal). Otherwise we use the canonical pending_* label for that kind.
+function nextStatusAfter(nextStage: { stageKind: string } | null): string {
+  if (!nextStage) return "approved";
+  return STATUS_FOR_KIND[nextStage.stageKind] ?? "pending_pricing_approve";
+}
+
 
 router.post("/procurement/deliveries/:deliveryId/weight/submit", requirePermission("procurement.weight.submit"), async (req: AuthedRequest, res): Promise<void> => {
   const parsed = SubmitDeliveryWeightBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
-  const { deliveryId } = req.params;
-  const [current] = await db.select().from(deliveriesTable).where(eq(deliveriesTable.id, deliveryId as string));
-  if (!current) { res.status(404).json({ error: "Delivery not found" }); return; }
-  if (current.status !== "pending_weight_submit") {
-    res.status(409).json({ error: `Cannot submit weight from status ${current.status}` }); return;
-  }
+  const ctx = await loadDeliveryWithStage(req.params.deliveryId as string, "WEIGHT_SUBMIT");
+  if ("error" in ctx) { res.status(ctx.code).json({ error: ctx.error }); return; }
   const userId = req.authedUser!.id;
   const net = (parsed.data.grossWeightKg - parsed.data.tareWeightKg).toFixed(3);
-  const delivery = await transition(deliveryId as string, "pending_weight_submit", {
+  const delivery = await transition(ctx.delivery.id, ctx.delivery.status, {
     grossWeightKg: parsed.data.grossWeightKg.toString(),
     tareWeightKg: parsed.data.tareWeightKg.toString(),
     netWeightKg: net,
@@ -241,30 +326,28 @@ router.post("/procurement/deliveries/:deliveryId/weight/submit", requirePermissi
     weightApproved: false,
     weightApprovedById: null,
     weightApprovedAt: null,
-    status: "pending_weight_approve",
+    currentStageOrder: (ctx.next?.orderIdx ?? ctx.current.orderIdx) as number,
+    status: nextStatusAfter(ctx.next),
     rejectionType: null, rejectionStage: null, rejectionReason: null, rejectionById: null, rejectionAt: null,
-  }, req.authedUser, "weight.submit", { grossWeightKg: parsed.data.grossWeightKg, tareWeightKg: parsed.data.tareWeightKg, netWeightKg: parseFloat(net) });
+  }, req.authedUser, "weight.submit", { grossWeightKg: parsed.data.grossWeightKg, tareWeightKg: parsed.data.tareWeightKg, netWeightKg: parseFloat(net), stageId: ctx.current.id });
   if (!delivery) { res.status(409).json({ error: "Delivery state changed concurrently — refresh and retry" }); return; }
   res.json(shapeDelivery(delivery));
 });
 
 router.post("/procurement/deliveries/:deliveryId/weight/approve", requirePermission("procurement.weight.approve"), async (req: AuthedRequest, res): Promise<void> => {
-  const { deliveryId } = req.params;
-  const [current] = await db.select().from(deliveriesTable).where(eq(deliveriesTable.id, deliveryId as string));
-  if (!current) { res.status(404).json({ error: "Delivery not found" }); return; }
-  if (current.status !== "pending_weight_approve") {
-    res.status(409).json({ error: `Cannot approve weight from status ${current.status}` }); return;
-  }
+  const ctx = await loadDeliveryWithStage(req.params.deliveryId as string, "WEIGHT_APPROVE");
+  if ("error" in ctx) { res.status(ctx.code).json({ error: ctx.error }); return; }
   const userId = req.authedUser!.id;
-  if (current.weightSubmittedById === userId) {
+  if (ctx.delivery.weightSubmittedById === userId) {
     res.status(403).json({ error: "Approver cannot be the same person as submitter" }); return;
   }
-  const delivery = await transition(deliveryId as string, "pending_weight_approve", {
+  const delivery = await transition(ctx.delivery.id, ctx.delivery.status, {
     weightApproved: true,
     weightApprovedById: userId,
     weightApprovedAt: new Date(),
-    status: "pending_qc_submit",
-  }, req.authedUser, "weight.approve", {});
+    currentStageOrder: (ctx.next?.orderIdx ?? ctx.current.orderIdx) as number,
+    status: nextStatusAfter(ctx.next),
+  }, req.authedUser, "weight.approve", { stageId: ctx.current.id });
   if (!delivery) { res.status(409).json({ error: "Delivery state changed concurrently — refresh and retry" }); return; }
   res.json(shapeDelivery(delivery));
 });
@@ -272,16 +355,12 @@ router.post("/procurement/deliveries/:deliveryId/weight/approve", requirePermiss
 router.post("/procurement/deliveries/:deliveryId/qc/submit", requirePermission("procurement.qc.submit"), async (req: AuthedRequest, res): Promise<void> => {
   const parsed = SubmitDeliveryQcBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
-  const { deliveryId } = req.params;
-  const [current] = await db.select().from(deliveriesTable).where(eq(deliveriesTable.id, deliveryId as string));
-  if (!current) { res.status(404).json({ error: "Delivery not found" }); return; }
-  if (current.status !== "pending_qc_submit") {
-    res.status(409).json({ error: `Cannot submit QC from status ${current.status}` }); return;
-  }
+  const ctx = await loadDeliveryWithStage(req.params.deliveryId as string, "QC_SUBMIT");
+  if ("error" in ctx) { res.status(ctx.code).json({ error: ctx.error }); return; }
   const userId = req.authedUser!.id;
   const grade = determineGrade(parsed.data.moistureContent, parsed.data.defectCount, parsed.data.cupScore ?? undefined);
-  const sampleId = (parsed.data as any).sampleId ?? null; // populated when QC values originate from a Sampling Module sample
-  const delivery = await transition(deliveryId as string, "pending_qc_submit", {
+  const sampleId = (parsed.data as any).sampleId ?? null;
+  const delivery = await transition(ctx.delivery.id, ctx.delivery.status, {
     moistureContent: parsed.data.moistureContent.toString(),
     defectCount: parsed.data.defectCount.toString(),
     cupScore: parsed.data.cupScore?.toString() ?? null,
@@ -292,30 +371,28 @@ router.post("/procurement/deliveries/:deliveryId/qc/submit", requirePermission("
     qcApproved: false,
     qcApprovedById: null,
     qcApprovedAt: null,
-    status: "pending_qc_approve",
+    currentStageOrder: (ctx.next?.orderIdx ?? ctx.current.orderIdx) as number,
+    status: nextStatusAfter(ctx.next),
     rejectionType: null, rejectionStage: null, rejectionReason: null, rejectionById: null, rejectionAt: null,
-  }, req.authedUser, "qc.submit", { moistureContent: parsed.data.moistureContent, defectCount: parsed.data.defectCount, cupScore: parsed.data.cupScore, grade, sampleId });
+  }, req.authedUser, "qc.submit", { moistureContent: parsed.data.moistureContent, defectCount: parsed.data.defectCount, cupScore: parsed.data.cupScore, grade, sampleId, stageId: ctx.current.id });
   if (!delivery) { res.status(409).json({ error: "Delivery state changed concurrently — refresh and retry" }); return; }
   res.json(shapeDelivery(delivery));
 });
 
 router.post("/procurement/deliveries/:deliveryId/qc/approve", requirePermission("procurement.qc.approve"), async (req: AuthedRequest, res): Promise<void> => {
-  const { deliveryId } = req.params;
-  const [current] = await db.select().from(deliveriesTable).where(eq(deliveriesTable.id, deliveryId as string));
-  if (!current) { res.status(404).json({ error: "Delivery not found" }); return; }
-  if (current.status !== "pending_qc_approve") {
-    res.status(409).json({ error: `Cannot approve QC from status ${current.status}` }); return;
-  }
+  const ctx = await loadDeliveryWithStage(req.params.deliveryId as string, "QC_APPROVE");
+  if ("error" in ctx) { res.status(ctx.code).json({ error: ctx.error }); return; }
   const userId = req.authedUser!.id;
-  if (current.qcSubmittedById === userId) {
+  if (ctx.delivery.qcSubmittedById === userId) {
     res.status(403).json({ error: "Approver cannot be the same person as submitter" }); return;
   }
-  const delivery = await transition(deliveryId as string, "pending_qc_approve", {
+  const delivery = await transition(ctx.delivery.id, ctx.delivery.status, {
     qcApproved: true,
     qcApprovedById: userId,
     qcApprovedAt: new Date(),
-    status: "pending_pricing_propose",
-  }, req.authedUser, "qc.approve", {});
+    currentStageOrder: (ctx.next?.orderIdx ?? ctx.current.orderIdx) as number,
+    status: nextStatusAfter(ctx.next),
+  }, req.authedUser, "qc.approve", { stageId: ctx.current.id });
   if (!delivery) { res.status(409).json({ error: "Delivery state changed concurrently — refresh and retry" }); return; }
   res.json(shapeDelivery(delivery));
 });
@@ -324,13 +401,17 @@ router.post("/procurement/deliveries/:deliveryId/pricing/propose", requirePermis
   const parsed = ProposeDeliveryPricingBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
   const { deliveryId } = req.params;
-  const [current] = await db.select().from(deliveriesTable).where(eq(deliveriesTable.id, deliveryId as string));
-  if (!current) { res.status(404).json({ error: "Delivery not found" }); return; }
-  if (current.status !== "pending_pricing_propose") {
-    res.status(409).json({ error: `Cannot propose pricing from status ${current.status}` }); return;
+  const ctx = await loadDeliveryWithStage(deliveryId as string, "PRICING_PROPOSE");
+  if ("error" in ctx) { res.status(ctx.code).json({ error: ctx.error }); return; }
+  const current = ctx.delivery;
+  // Workflow may have skipped weight/QC entirely (e.g. pricing-only quick flow). Only enforce
+  // both-approved if those stage kinds are present in the resolved workflow.
+  const stageKinds = new Set(ctx.stages.map((s) => s.stageKind));
+  if (stageKinds.has("WEIGHT_APPROVE") && !current.weightApproved) {
+    res.status(400).json({ error: "Weight must be approved before pricing" }); return;
   }
-  if (!current.weightApproved || !current.qcApproved) {
-    res.status(400).json({ error: "Weight and QC must both be approved before pricing" }); return;
+  if (stageKinds.has("QC_APPROVE") && !current.qcApproved) {
+    res.status(400).json({ error: "QC must be approved before pricing" }); return;
   }
   // Floor-price enforcement via active PRE_SEASON contract.
   //
@@ -424,7 +505,7 @@ router.post("/procurement/deliveries/:deliveryId/pricing/propose", requirePermis
   const userId = req.authedUser!.id;
   const netKg = parseFloat(current.netWeightKg ?? "0");
   const totalValue = (netKg * parsed.data.pricePerKg).toFixed(2);
-  const delivery = await transition(deliveryId as string, "pending_pricing_propose", {
+  const delivery = await transition(current.id, current.status, {
     pricePerKg: parsed.data.pricePerKg.toString(),
     totalValue,
     pricingDeductions: parsed.data.deductions ?? null,
@@ -435,30 +516,27 @@ router.post("/procurement/deliveries/:deliveryId/pricing/propose", requirePermis
     pricingApprovedAt: null,
     floorPricePerKg: floor != null ? floor.toString() : null,
     contractId,
-    status: "pending_pricing_approve",
-    // Clear any leftover rejection metadata from a prior pricing rejection
+    currentStageOrder: (ctx.next?.orderIdx ?? ctx.current.orderIdx) as number,
+    status: nextStatusAfter(ctx.next),
     rejectionType: null, rejectionStage: null, rejectionReason: null, rejectionById: null, rejectionAt: null,
-  }, req.authedUser, "pricing.propose", { pricePerKg: parsed.data.pricePerKg, totalValue, floorPricePerKg: floor, contractId });
+  }, req.authedUser, "pricing.propose", { pricePerKg: parsed.data.pricePerKg, totalValue, floorPricePerKg: floor, contractId, stageId: ctx.current.id });
   if (!delivery) { res.status(409).json({ error: "Delivery state changed concurrently — refresh and retry" }); return; }
   res.json(shapeDelivery(delivery));
 });
 
 router.post("/procurement/deliveries/:deliveryId/pricing/approve", requirePermission("procurement.pricing.approve"), async (req: AuthedRequest, res): Promise<void> => {
-  const { deliveryId } = req.params;
-  const [current] = await db.select().from(deliveriesTable).where(eq(deliveriesTable.id, deliveryId as string));
-  if (!current) { res.status(404).json({ error: "Delivery not found" }); return; }
-  if (current.status !== "pending_pricing_approve") {
-    res.status(409).json({ error: `Cannot approve pricing from status ${current.status}` }); return;
-  }
+  const ctx = await loadDeliveryWithStage(req.params.deliveryId as string, "PRICING_APPROVE");
+  if ("error" in ctx) { res.status(ctx.code).json({ error: ctx.error }); return; }
   const userId = req.authedUser!.id;
-  if (current.pricingProposedById === userId) {
+  if (ctx.delivery.pricingProposedById === userId) {
     res.status(403).json({ error: "Approver cannot be the same person as proposer" }); return;
   }
-  const delivery = await transition(deliveryId as string, "pending_pricing_approve", {
+  const delivery = await transition(ctx.delivery.id, ctx.delivery.status, {
     pricingApprovedById: userId,
     pricingApprovedAt: new Date(),
-    status: "approved",
-  }, req.authedUser, "pricing.approve", { pricePerKg: num(current.pricePerKg), totalValue: num(current.totalValue) });
+    currentStageOrder: (ctx.next?.orderIdx ?? ctx.current.orderIdx) as number,
+    status: nextStatusAfter(ctx.next),
+  }, req.authedUser, "pricing.approve", { pricePerKg: num(ctx.delivery.pricePerKg), totalValue: num(ctx.delivery.totalValue), stageId: ctx.current.id });
   if (!delivery) { res.status(409).json({ error: "Delivery state changed concurrently — refresh and retry" }); return; }
   res.json(shapeDelivery(delivery));
 });
@@ -479,6 +557,14 @@ function stageOf(status: string): "weight" | "qc" | "pricing" | "final" {
   if (status.includes("pricing")) return "pricing";
   return "final";
 }
+
+// Map a logical "stage" label (weight/qc/pricing) to the workflow stage kind that opens that
+// step (i.e. the SUBMIT/PROPOSE side, which is what CORRECTION returns to).
+const REWIND_KIND_FOR_STAGE: Record<string, string> = {
+  weight: "WEIGHT_SUBMIT",
+  qc: "QC_SUBMIT",
+  pricing: "PRICING_PROPOSE",
+};
 
 // Terminal states cannot be re-rejected, re-submitted, or resumed. Approved deliveries are
 // archival; COMMODITY (rejected outright as wrong/contaminated commodity) and SUSPEND (operations
@@ -505,11 +591,29 @@ router.post("/procurement/deliveries/:deliveryId/reject", requirePermission("pro
     rejectionById: userId,
     rejectionAt: new Date(),
   };
-  // CORRECTION returns the delivery to the matching submit step and clears
-  // both actor refs AND the stale stage payload, so the resubmission starts clean.
+  // CORRECTION returns the delivery to the matching submit step (looked up from the workflow,
+  // since the workflow may have skipped that stage entirely) and clears both actor refs AND the
+  // stale stage payload, so the resubmission starts clean.
   if (parsed.data.rejectionType === "CORRECTION") {
+    let rewindOrder: number | null = null;
+    if (current.workflowId) {
+      const stages = await getWorkflowStages(current.workflowId);
+      const targetKind = REWIND_KIND_FOR_STAGE[stage] ?? "PRICING_PROPOSE";
+      const target = stages.find((s) => s.isActive && s.stageKind === targetKind);
+      if (target) {
+        rewindOrder = target.orderIdx;
+      } else {
+        // The workflow no longer has an active stage of the kind we'd rewind to.
+        // Refuse rather than leave currentStageOrder pointing at a different kind.
+        res.status(409).json({
+          error: `Workflow has no active ${targetKind} stage to rewind to. Re-enable the stage or use a different rejection type.`,
+        });
+        return;
+      }
+    }
     if (stage === "weight") {
       updates.status = "pending_weight_submit";
+      if (rewindOrder != null) updates.currentStageOrder = rewindOrder;
       updates.weightApproved = false;
       updates.weightSubmittedById = null;
       updates.weightSubmittedAt = null;
@@ -521,6 +625,7 @@ router.post("/procurement/deliveries/:deliveryId/reject", requirePermission("pro
       updates.weightVarianceKg = null;
     } else if (stage === "qc") {
       updates.status = "pending_qc_submit";
+      if (rewindOrder != null) updates.currentStageOrder = rewindOrder;
       updates.qcApproved = false;
       updates.qcSubmittedById = null;
       updates.qcSubmittedAt = null;
@@ -532,6 +637,7 @@ router.post("/procurement/deliveries/:deliveryId/reject", requirePermission("pro
       updates.grade = null;
     } else if (stage === "pricing") {
       updates.status = "pending_pricing_propose";
+      if (rewindOrder != null) updates.currentStageOrder = rewindOrder;
       updates.pricingProposedById = null;
       updates.pricingProposedAt = null;
       updates.pricingApprovedById = null;
@@ -546,6 +652,7 @@ router.post("/procurement/deliveries/:deliveryId/reject", requirePermission("pro
       // CORRECTION raised against an already-approved or already-rejected delivery: there is no
       // earlier partial state to bounce back to. Treat it like pricing (most common late catch).
       updates.status = "pending_pricing_propose";
+      if (rewindOrder != null) updates.currentStageOrder = rewindOrder;
       updates.pricingApprovedById = null;
       updates.pricingApprovedAt = null;
     }
@@ -575,15 +682,31 @@ router.post("/procurement/deliveries/:deliveryId/resume", requirePermission("pro
     res.status(409).json({ error: `Resume only applies to PARTIAL or ESCALATE rejections; current status is ${current.status}` }); return;
   }
   const stage = current.rejectionStage ?? "pricing";
+  // Look up the stage in the workflow so resume jumps to the right currentStageOrder.
+  let resumeOrder: number | null = null;
+  if (current.workflowId) {
+    const stages = await getWorkflowStages(current.workflowId);
+    const targetKind = REWIND_KIND_FOR_STAGE[stage] ?? "PRICING_PROPOSE";
+    const target = stages.find((s) => s.isActive && s.stageKind === targetKind);
+    if (target) {
+      resumeOrder = target.orderIdx;
+    } else {
+      res.status(409).json({
+        error: `Workflow has no active ${targetKind} stage to resume into. Re-enable the stage in the workflow before resuming.`,
+      });
+      return;
+    }
+  }
   const next =
     stage === "weight" ? "pending_weight_submit"
     : stage === "qc" ? "pending_qc_submit"
     : stage === "pricing" ? "pending_pricing_propose"
-    : "pending_pricing_propose"; // 'final' falls through to pricing as the most common late catch
+    : "pending_pricing_propose";
 
   const reason = (req.body?.note as string | undefined) ?? null;
   const delivery = await transition(deliveryId as string, current.status, {
     status: next,
+    currentStageOrder: resumeOrder ?? current.currentStageOrder,
     rejectionType: null, rejectionStage: null, rejectionReason: null, rejectionById: null, rejectionAt: null,
   }, req.authedUser, "resume", { fromStatus: current.status, toStatus: next, originalRejectionType: current.rejectionType, originalReason: current.rejectionReason, resumeNote: reason });
   if (!delivery) { res.status(409).json({ error: "Delivery state changed concurrently — refresh and retry" }); return; }

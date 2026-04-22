@@ -39,11 +39,13 @@ import type {
   CreateGroupBody,
   CreatePlotBody,
   CreateProcurementContractBody,
+  CreateProcurementWorkflowBody,
   CreateRegionBody,
   CreateRoleBody,
   CreateSurveyTemplateBody,
   CreateTrainingSessionBody,
   CreateUserBody,
+  CreateWorkflowStageBody,
   DashboardSummary,
   Delivery,
   DeliveryDetail,
@@ -88,9 +90,12 @@ import type {
   Plot,
   ProcurementContract,
   ProcurementStats,
+  ProcurementWorkflow,
+  ProcurementWorkflowDetail,
   ProposePricingBody,
   Region,
   RejectDeliveryBody,
+  ReorderWorkflowStagesBody,
   ResumeDeliveryBody,
   ReturnAssetBody,
   ReviewSubmissionBody,
@@ -108,8 +113,10 @@ import type {
   TrainingSession,
   UpdateFarmerBody,
   UpdateProcurementContractBody,
+  UpdateProcurementWorkflowBody,
   UpdateRolePermissionsBody,
   UpdateUserBody,
+  UpdateWorkflowStageBody,
   UpsertCountryHierarchyBody,
   User,
   Visit,
@@ -4190,6 +4197,744 @@ export const useUpdateProcurementContract = <
   TContext
 > => {
   return useMutation(getUpdateProcurementContractMutationOptions(options));
+};
+
+/**
+ * @summary List procurement workflows (master)
+ */
+export const getListProcurementWorkflowsUrl = () => {
+  return `/api/procurement/workflows`;
+};
+
+export const listProcurementWorkflows = async (
+  options?: RequestInit,
+): Promise<ProcurementWorkflow[]> => {
+  return customFetch<ProcurementWorkflow[]>(getListProcurementWorkflowsUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListProcurementWorkflowsQueryKey = () => {
+  return [`/api/procurement/workflows`] as const;
+};
+
+export const getListProcurementWorkflowsQueryOptions = <
+  TData = Awaited<ReturnType<typeof listProcurementWorkflows>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listProcurementWorkflows>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getListProcurementWorkflowsQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listProcurementWorkflows>>
+  > = ({ signal }) => listProcurementWorkflows({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listProcurementWorkflows>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListProcurementWorkflowsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listProcurementWorkflows>>
+>;
+export type ListProcurementWorkflowsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List procurement workflows (master)
+ */
+
+export function useListProcurementWorkflows<
+  TData = Awaited<ReturnType<typeof listProcurementWorkflows>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listProcurementWorkflows>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListProcurementWorkflowsQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Create a new procurement workflow
+ */
+export const getCreateProcurementWorkflowUrl = () => {
+  return `/api/procurement/workflows`;
+};
+
+export const createProcurementWorkflow = async (
+  createProcurementWorkflowBody: CreateProcurementWorkflowBody,
+  options?: RequestInit,
+): Promise<ProcurementWorkflowDetail> => {
+  return customFetch<ProcurementWorkflowDetail>(
+    getCreateProcurementWorkflowUrl(),
+    {
+      ...options,
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(createProcurementWorkflowBody),
+    },
+  );
+};
+
+export const getCreateProcurementWorkflowMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createProcurementWorkflow>>,
+    TError,
+    { data: BodyType<CreateProcurementWorkflowBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createProcurementWorkflow>>,
+  TError,
+  { data: BodyType<CreateProcurementWorkflowBody> },
+  TContext
+> => {
+  const mutationKey = ["createProcurementWorkflow"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createProcurementWorkflow>>,
+    { data: BodyType<CreateProcurementWorkflowBody> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return createProcurementWorkflow(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateProcurementWorkflowMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createProcurementWorkflow>>
+>;
+export type CreateProcurementWorkflowMutationBody =
+  BodyType<CreateProcurementWorkflowBody>;
+export type CreateProcurementWorkflowMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Create a new procurement workflow
+ */
+export const useCreateProcurementWorkflow = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createProcurementWorkflow>>,
+    TError,
+    { data: BodyType<CreateProcurementWorkflowBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createProcurementWorkflow>>,
+  TError,
+  { data: BodyType<CreateProcurementWorkflowBody> },
+  TContext
+> => {
+  return useMutation(getCreateProcurementWorkflowMutationOptions(options));
+};
+
+/**
+ * @summary Get a workflow with its stages
+ */
+export const getGetProcurementWorkflowUrl = (workflowId: string) => {
+  return `/api/procurement/workflows/${workflowId}`;
+};
+
+export const getProcurementWorkflow = async (
+  workflowId: string,
+  options?: RequestInit,
+): Promise<ProcurementWorkflowDetail> => {
+  return customFetch<ProcurementWorkflowDetail>(
+    getGetProcurementWorkflowUrl(workflowId),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getGetProcurementWorkflowQueryKey = (workflowId: string) => {
+  return [`/api/procurement/workflows/${workflowId}`] as const;
+};
+
+export const getGetProcurementWorkflowQueryOptions = <
+  TData = Awaited<ReturnType<typeof getProcurementWorkflow>>,
+  TError = ErrorType<unknown>,
+>(
+  workflowId: string,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getProcurementWorkflow>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetProcurementWorkflowQueryKey(workflowId);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getProcurementWorkflow>>
+  > = ({ signal }) =>
+    getProcurementWorkflow(workflowId, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!workflowId,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getProcurementWorkflow>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetProcurementWorkflowQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getProcurementWorkflow>>
+>;
+export type GetProcurementWorkflowQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Get a workflow with its stages
+ */
+
+export function useGetProcurementWorkflow<
+  TData = Awaited<ReturnType<typeof getProcurementWorkflow>>,
+  TError = ErrorType<unknown>,
+>(
+  workflowId: string,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getProcurementWorkflow>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetProcurementWorkflowQueryOptions(
+    workflowId,
+    options,
+  );
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Update workflow metadata (activate, set default, rename)
+ */
+export const getUpdateProcurementWorkflowUrl = (workflowId: string) => {
+  return `/api/procurement/workflows/${workflowId}`;
+};
+
+export const updateProcurementWorkflow = async (
+  workflowId: string,
+  updateProcurementWorkflowBody: UpdateProcurementWorkflowBody,
+  options?: RequestInit,
+): Promise<ProcurementWorkflowDetail> => {
+  return customFetch<ProcurementWorkflowDetail>(
+    getUpdateProcurementWorkflowUrl(workflowId),
+    {
+      ...options,
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(updateProcurementWorkflowBody),
+    },
+  );
+};
+
+export const getUpdateProcurementWorkflowMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateProcurementWorkflow>>,
+    TError,
+    { workflowId: string; data: BodyType<UpdateProcurementWorkflowBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateProcurementWorkflow>>,
+  TError,
+  { workflowId: string; data: BodyType<UpdateProcurementWorkflowBody> },
+  TContext
+> => {
+  const mutationKey = ["updateProcurementWorkflow"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateProcurementWorkflow>>,
+    { workflowId: string; data: BodyType<UpdateProcurementWorkflowBody> }
+  > = (props) => {
+    const { workflowId, data } = props ?? {};
+
+    return updateProcurementWorkflow(workflowId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateProcurementWorkflowMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateProcurementWorkflow>>
+>;
+export type UpdateProcurementWorkflowMutationBody =
+  BodyType<UpdateProcurementWorkflowBody>;
+export type UpdateProcurementWorkflowMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Update workflow metadata (activate, set default, rename)
+ */
+export const useUpdateProcurementWorkflow = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateProcurementWorkflow>>,
+    TError,
+    { workflowId: string; data: BodyType<UpdateProcurementWorkflowBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateProcurementWorkflow>>,
+  TError,
+  { workflowId: string; data: BodyType<UpdateProcurementWorkflowBody> },
+  TContext
+> => {
+  return useMutation(getUpdateProcurementWorkflowMutationOptions(options));
+};
+
+/**
+ * @summary Append a stage to a workflow
+ */
+export const getAddWorkflowStageUrl = (workflowId: string) => {
+  return `/api/procurement/workflows/${workflowId}/stages`;
+};
+
+export const addWorkflowStage = async (
+  workflowId: string,
+  createWorkflowStageBody: CreateWorkflowStageBody,
+  options?: RequestInit,
+): Promise<ProcurementWorkflowDetail> => {
+  return customFetch<ProcurementWorkflowDetail>(
+    getAddWorkflowStageUrl(workflowId),
+    {
+      ...options,
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(createWorkflowStageBody),
+    },
+  );
+};
+
+export const getAddWorkflowStageMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof addWorkflowStage>>,
+    TError,
+    { workflowId: string; data: BodyType<CreateWorkflowStageBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof addWorkflowStage>>,
+  TError,
+  { workflowId: string; data: BodyType<CreateWorkflowStageBody> },
+  TContext
+> => {
+  const mutationKey = ["addWorkflowStage"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof addWorkflowStage>>,
+    { workflowId: string; data: BodyType<CreateWorkflowStageBody> }
+  > = (props) => {
+    const { workflowId, data } = props ?? {};
+
+    return addWorkflowStage(workflowId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type AddWorkflowStageMutationResult = NonNullable<
+  Awaited<ReturnType<typeof addWorkflowStage>>
+>;
+export type AddWorkflowStageMutationBody = BodyType<CreateWorkflowStageBody>;
+export type AddWorkflowStageMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Append a stage to a workflow
+ */
+export const useAddWorkflowStage = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof addWorkflowStage>>,
+    TError,
+    { workflowId: string; data: BodyType<CreateWorkflowStageBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof addWorkflowStage>>,
+  TError,
+  { workflowId: string; data: BodyType<CreateWorkflowStageBody> },
+  TContext
+> => {
+  return useMutation(getAddWorkflowStageMutationOptions(options));
+};
+
+/**
+ * @summary Edit a stage's metadata (name, permission, SLA, active)
+ */
+export const getUpdateWorkflowStageUrl = (
+  workflowId: string,
+  stageId: string,
+) => {
+  return `/api/procurement/workflows/${workflowId}/stages/${stageId}`;
+};
+
+export const updateWorkflowStage = async (
+  workflowId: string,
+  stageId: string,
+  updateWorkflowStageBody: UpdateWorkflowStageBody,
+  options?: RequestInit,
+): Promise<ProcurementWorkflowDetail> => {
+  return customFetch<ProcurementWorkflowDetail>(
+    getUpdateWorkflowStageUrl(workflowId, stageId),
+    {
+      ...options,
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(updateWorkflowStageBody),
+    },
+  );
+};
+
+export const getUpdateWorkflowStageMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateWorkflowStage>>,
+    TError,
+    {
+      workflowId: string;
+      stageId: string;
+      data: BodyType<UpdateWorkflowStageBody>;
+    },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateWorkflowStage>>,
+  TError,
+  {
+    workflowId: string;
+    stageId: string;
+    data: BodyType<UpdateWorkflowStageBody>;
+  },
+  TContext
+> => {
+  const mutationKey = ["updateWorkflowStage"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateWorkflowStage>>,
+    {
+      workflowId: string;
+      stageId: string;
+      data: BodyType<UpdateWorkflowStageBody>;
+    }
+  > = (props) => {
+    const { workflowId, stageId, data } = props ?? {};
+
+    return updateWorkflowStage(workflowId, stageId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateWorkflowStageMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateWorkflowStage>>
+>;
+export type UpdateWorkflowStageMutationBody = BodyType<UpdateWorkflowStageBody>;
+export type UpdateWorkflowStageMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Edit a stage's metadata (name, permission, SLA, active)
+ */
+export const useUpdateWorkflowStage = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateWorkflowStage>>,
+    TError,
+    {
+      workflowId: string;
+      stageId: string;
+      data: BodyType<UpdateWorkflowStageBody>;
+    },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateWorkflowStage>>,
+  TError,
+  {
+    workflowId: string;
+    stageId: string;
+    data: BodyType<UpdateWorkflowStageBody>;
+  },
+  TContext
+> => {
+  return useMutation(getUpdateWorkflowStageMutationOptions(options));
+};
+
+/**
+ * @summary Remove a stage from a workflow
+ */
+export const getDeleteWorkflowStageUrl = (
+  workflowId: string,
+  stageId: string,
+) => {
+  return `/api/procurement/workflows/${workflowId}/stages/${stageId}`;
+};
+
+export const deleteWorkflowStage = async (
+  workflowId: string,
+  stageId: string,
+  options?: RequestInit,
+): Promise<ProcurementWorkflowDetail> => {
+  return customFetch<ProcurementWorkflowDetail>(
+    getDeleteWorkflowStageUrl(workflowId, stageId),
+    {
+      ...options,
+      method: "DELETE",
+    },
+  );
+};
+
+export const getDeleteWorkflowStageMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteWorkflowStage>>,
+    TError,
+    { workflowId: string; stageId: string },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof deleteWorkflowStage>>,
+  TError,
+  { workflowId: string; stageId: string },
+  TContext
+> => {
+  const mutationKey = ["deleteWorkflowStage"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof deleteWorkflowStage>>,
+    { workflowId: string; stageId: string }
+  > = (props) => {
+    const { workflowId, stageId } = props ?? {};
+
+    return deleteWorkflowStage(workflowId, stageId, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DeleteWorkflowStageMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deleteWorkflowStage>>
+>;
+
+export type DeleteWorkflowStageMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Remove a stage from a workflow
+ */
+export const useDeleteWorkflowStage = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteWorkflowStage>>,
+    TError,
+    { workflowId: string; stageId: string },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof deleteWorkflowStage>>,
+  TError,
+  { workflowId: string; stageId: string },
+  TContext
+> => {
+  return useMutation(getDeleteWorkflowStageMutationOptions(options));
+};
+
+/**
+ * @summary Replace the workflow stage ordering
+ */
+export const getReorderWorkflowStagesUrl = (workflowId: string) => {
+  return `/api/procurement/workflows/${workflowId}/stages/reorder`;
+};
+
+export const reorderWorkflowStages = async (
+  workflowId: string,
+  reorderWorkflowStagesBody: ReorderWorkflowStagesBody,
+  options?: RequestInit,
+): Promise<ProcurementWorkflowDetail> => {
+  return customFetch<ProcurementWorkflowDetail>(
+    getReorderWorkflowStagesUrl(workflowId),
+    {
+      ...options,
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(reorderWorkflowStagesBody),
+    },
+  );
+};
+
+export const getReorderWorkflowStagesMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof reorderWorkflowStages>>,
+    TError,
+    { workflowId: string; data: BodyType<ReorderWorkflowStagesBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof reorderWorkflowStages>>,
+  TError,
+  { workflowId: string; data: BodyType<ReorderWorkflowStagesBody> },
+  TContext
+> => {
+  const mutationKey = ["reorderWorkflowStages"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof reorderWorkflowStages>>,
+    { workflowId: string; data: BodyType<ReorderWorkflowStagesBody> }
+  > = (props) => {
+    const { workflowId, data } = props ?? {};
+
+    return reorderWorkflowStages(workflowId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ReorderWorkflowStagesMutationResult = NonNullable<
+  Awaited<ReturnType<typeof reorderWorkflowStages>>
+>;
+export type ReorderWorkflowStagesMutationBody =
+  BodyType<ReorderWorkflowStagesBody>;
+export type ReorderWorkflowStagesMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Replace the workflow stage ordering
+ */
+export const useReorderWorkflowStages = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof reorderWorkflowStages>>,
+    TError,
+    { workflowId: string; data: BodyType<ReorderWorkflowStagesBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof reorderWorkflowStages>>,
+  TError,
+  { workflowId: string; data: BodyType<ReorderWorkflowStagesBody> },
+  TContext
+> => {
+  return useMutation(getReorderWorkflowStagesMutationOptions(options));
 };
 
 /**

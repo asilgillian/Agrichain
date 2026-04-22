@@ -1,4 +1,4 @@
-import { pgTable, text, uuid, timestamp, numeric, boolean, jsonb } from "drizzle-orm/pg-core";
+import { pgTable, text, uuid, timestamp, numeric, boolean, jsonb, integer } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -45,6 +45,12 @@ export const deliveriesTable = pgTable("deliveries", {
   floorPricePerKg: numeric("floor_price_per_kg", { precision: 10, scale: 4 }),
 
   qualifyingStreams: text("qualifying_streams").array().notNull().default([]),
+
+  // Workflow binding — pinned at delivery creation. currentStageOrder mirrors
+  // `procurement_workflow_stages.orderIdx`; the engine reads the row at that index to determine
+  // what kind of action is expected next.
+  workflowId: uuid("workflow_id"),
+  currentStageOrder: integer("current_stage_order").notNull().default(0),
 
   // status state machine: pending_weight_submit, pending_weight_approve, pending_qc_submit,
   // pending_qc_approve, pending_pricing_propose, pending_pricing_approve, approved,

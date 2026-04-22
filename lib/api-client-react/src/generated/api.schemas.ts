@@ -785,6 +785,100 @@ export interface UpdateProcurementContractBody {
   status?: UpdateProcurementContractBodyStatus;
 }
 
+export interface ProcurementWorkflow {
+  id: string;
+  code: string;
+  name: string;
+  description?: string;
+  commodityType?: string | null;
+  isActive: boolean;
+  isDefault: boolean;
+  stageCount?: number;
+  createdAt: string;
+}
+
+export type WorkflowStageStageKind =
+  (typeof WorkflowStageStageKind)[keyof typeof WorkflowStageStageKind];
+
+export const WorkflowStageStageKind = {
+  WEIGHT_SUBMIT: "WEIGHT_SUBMIT",
+  WEIGHT_APPROVE: "WEIGHT_APPROVE",
+  QC_SUBMIT: "QC_SUBMIT",
+  QC_APPROVE: "QC_APPROVE",
+  PRICING_PROPOSE: "PRICING_PROPOSE",
+  PRICING_APPROVE: "PRICING_APPROVE",
+  INFO_CHECKPOINT: "INFO_CHECKPOINT",
+} as const;
+
+export interface WorkflowStage {
+  id: string;
+  workflowId: string;
+  stageKind: WorkflowStageStageKind;
+  orderIdx: number;
+  displayName: string;
+  description?: string | null;
+  requiredPermission?: string | null;
+  slaHours?: number | null;
+  isActive: boolean;
+  isOptional: boolean;
+}
+
+export type ProcurementWorkflowDetail = ProcurementWorkflow & {
+  stages: WorkflowStage[];
+};
+
+export type CreateWorkflowStageBodyStageKind =
+  (typeof CreateWorkflowStageBodyStageKind)[keyof typeof CreateWorkflowStageBodyStageKind];
+
+export const CreateWorkflowStageBodyStageKind = {
+  WEIGHT_SUBMIT: "WEIGHT_SUBMIT",
+  WEIGHT_APPROVE: "WEIGHT_APPROVE",
+  QC_SUBMIT: "QC_SUBMIT",
+  QC_APPROVE: "QC_APPROVE",
+  PRICING_PROPOSE: "PRICING_PROPOSE",
+  PRICING_APPROVE: "PRICING_APPROVE",
+  INFO_CHECKPOINT: "INFO_CHECKPOINT",
+} as const;
+
+export interface CreateWorkflowStageBody {
+  stageKind: CreateWorkflowStageBodyStageKind;
+  displayName: string;
+  description?: string;
+  requiredPermission?: string;
+  slaHours?: number;
+  isOptional?: boolean;
+}
+
+export interface CreateProcurementWorkflowBody {
+  code: string;
+  name: string;
+  description?: string;
+  commodityType?: string | null;
+  isDefault?: boolean;
+  stages?: CreateWorkflowStageBody[];
+}
+
+export interface UpdateProcurementWorkflowBody {
+  name?: string;
+  description?: string;
+  commodityType?: string | null;
+  isActive?: boolean;
+  isDefault?: boolean;
+}
+
+export interface UpdateWorkflowStageBody {
+  displayName?: string;
+  description?: string;
+  requiredPermission?: string | null;
+  slaHours?: number | null;
+  isActive?: boolean;
+  isOptional?: boolean;
+}
+
+export interface ReorderWorkflowStagesBody {
+  stageIds: string[];
+}
+
 export type LotStatus = (typeof LotStatus)[keyof typeof LotStatus];
 
 export const LotStatus = {

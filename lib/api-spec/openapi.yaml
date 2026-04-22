@@ -1046,6 +1046,162 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/ProcurementContract" }
 
+  # ---- Procurement workflow master ----
+  /procurement/workflows:
+    get:
+      operationId: listProcurementWorkflows
+      tags: [procurement]
+      summary: List procurement workflows (master)
+      responses:
+        "200":
+          description: Workflows
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/ProcurementWorkflow" }
+    post:
+      operationId: createProcurementWorkflow
+      tags: [procurement]
+      summary: Create a new procurement workflow
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateProcurementWorkflowBody" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ProcurementWorkflowDetail" }
+
+  /procurement/workflows/{workflowId}:
+    get:
+      operationId: getProcurementWorkflow
+      tags: [procurement]
+      summary: Get a workflow with its stages
+      parameters:
+        - in: path
+          name: workflowId
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Workflow detail
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ProcurementWorkflowDetail" }
+    patch:
+      operationId: updateProcurementWorkflow
+      tags: [procurement]
+      summary: Update workflow metadata (activate, set default, rename)
+      parameters:
+        - in: path
+          name: workflowId
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UpdateProcurementWorkflowBody" }
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ProcurementWorkflowDetail" }
+
+  /procurement/workflows/{workflowId}/stages:
+    post:
+      operationId: addWorkflowStage
+      tags: [procurement]
+      summary: Append a stage to a workflow
+      parameters:
+        - in: path
+          name: workflowId
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateWorkflowStageBody" }
+      responses:
+        "201":
+          description: Stage added
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ProcurementWorkflowDetail" }
+
+  /procurement/workflows/{workflowId}/stages/{stageId}:
+    patch:
+      operationId: updateWorkflowStage
+      tags: [procurement]
+      summary: Edit a stage's metadata (name, permission, SLA, active)
+      parameters:
+        - in: path
+          name: workflowId
+          required: true
+          schema: { type: string }
+        - in: path
+          name: stageId
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UpdateWorkflowStageBody" }
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ProcurementWorkflowDetail" }
+    delete:
+      operationId: deleteWorkflowStage
+      tags: [procurement]
+      summary: Remove a stage from a workflow
+      parameters:
+        - in: path
+          name: workflowId
+          required: true
+          schema: { type: string }
+        - in: path
+          name: stageId
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ProcurementWorkflowDetail" }
+
+  /procurement/workflows/{workflowId}/stages/reorder:
+    post:
+      operationId: reorderWorkflowStages
+      tags: [procurement]
+      summary: Replace the workflow stage ordering
+      parameters:
+        - in: path
+          name: workflowId
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ReorderWorkflowStagesBody" }
+      responses:
+        "200":
+          description: Reordered
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ProcurementWorkflowDetail" }
+
   # ============================================================
   # WAREHOUSE
   # ============================================================
@@ -2803,6 +2959,100 @@ components:
         status:
           type: string
           enum: [DRAFT, ACTIVE, EXPIRED, SUSPENDED]
+
+    ProcurementWorkflow:
+      type: object
+      properties:
+        id: { type: string }
+        code: { type: string }
+        name: { type: string }
+        description: { type: string }
+        commodityType: { type: string, nullable: true }
+        isActive: { type: boolean }
+        isDefault: { type: boolean }
+        stageCount: { type: integer }
+        createdAt: { type: string, format: date-time }
+      required: [id, code, name, isActive, isDefault, createdAt]
+
+    WorkflowStage:
+      type: object
+      properties:
+        id: { type: string }
+        workflowId: { type: string }
+        stageKind:
+          type: string
+          enum: [WEIGHT_SUBMIT, WEIGHT_APPROVE, QC_SUBMIT, QC_APPROVE, PRICING_PROPOSE, PRICING_APPROVE, INFO_CHECKPOINT]
+        orderIdx: { type: integer }
+        displayName: { type: string }
+        description: { type: string, nullable: true }
+        requiredPermission: { type: string, nullable: true }
+        slaHours: { type: integer, nullable: true }
+        isActive: { type: boolean }
+        isOptional: { type: boolean }
+      required: [id, workflowId, stageKind, orderIdx, displayName, isActive, isOptional]
+
+    ProcurementWorkflowDetail:
+      allOf:
+        - $ref: "#/components/schemas/ProcurementWorkflow"
+        - type: object
+          properties:
+            stages:
+              type: array
+              items: { $ref: "#/components/schemas/WorkflowStage" }
+          required: [stages]
+
+    CreateProcurementWorkflowBody:
+      type: object
+      properties:
+        code: { type: string }
+        name: { type: string }
+        description: { type: string }
+        commodityType: { type: string, nullable: true }
+        isDefault: { type: boolean }
+        stages:
+          type: array
+          items: { $ref: "#/components/schemas/CreateWorkflowStageBody" }
+      required: [code, name]
+
+    UpdateProcurementWorkflowBody:
+      type: object
+      properties:
+        name: { type: string }
+        description: { type: string }
+        commodityType: { type: string, nullable: true }
+        isActive: { type: boolean }
+        isDefault: { type: boolean }
+
+    CreateWorkflowStageBody:
+      type: object
+      properties:
+        stageKind:
+          type: string
+          enum: [WEIGHT_SUBMIT, WEIGHT_APPROVE, QC_SUBMIT, QC_APPROVE, PRICING_PROPOSE, PRICING_APPROVE, INFO_CHECKPOINT]
+        displayName: { type: string }
+        description: { type: string }
+        requiredPermission: { type: string }
+        slaHours: { type: integer }
+        isOptional: { type: boolean }
+      required: [stageKind, displayName]
+
+    UpdateWorkflowStageBody:
+      type: object
+      properties:
+        displayName: { type: string }
+        description: { type: string }
+        requiredPermission: { type: string, nullable: true }
+        slaHours: { type: integer, nullable: true }
+        isActive: { type: boolean }
+        isOptional: { type: boolean }
+
+    ReorderWorkflowStagesBody:
+      type: object
+      properties:
+        stageIds:
+          type: array
+          items: { type: string }
+      required: [stageIds]
 
     # ============================================================
     # WAREHOUSE

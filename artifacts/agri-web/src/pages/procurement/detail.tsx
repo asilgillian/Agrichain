@@ -144,7 +144,13 @@ export default function DeliveryDetail() {
         <Link href="/procurement"><ArrowLeft className="h-5 w-5 text-muted-foreground cursor-pointer hover:text-foreground" /></Link>
         <div className="flex-1">
           <h1 className="text-3xl font-bold tracking-tight font-mono" data-testid="delivery-lot-tag">{delivery.lotTag}</h1>
-          <p className="text-muted-foreground mt-1">Dual-approver procurement workflow</p>
+          <p className="text-muted-foreground mt-1">
+            {delivery.workflow ? (
+              <>Workflow: <span className="font-medium">{delivery.workflow.name}</span>
+                {delivery.currentStage ? <> · Now at <span className="font-medium" data-testid="current-stage-name">{delivery.currentStage.displayName}</span></> : null}
+              </>
+            ) : "Dual-approver procurement workflow"}
+          </p>
         </div>
         <Badge variant={statusVariants[status] ?? "secondary"} data-testid="delivery-status">{statusLabels[status] ?? status}</Badge>
         {(status === "partial_rejection" || status === "rejected_escalate") && (

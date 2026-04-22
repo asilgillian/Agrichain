@@ -58,6 +58,7 @@ const operationsItems = [
   { title: "Samples", icon: TestTube, href: "/samples" },
   { title: "Procurement", icon: Tractor, href: "/procurement" },
   { title: "Procurement Contracts", icon: Tractor, href: "/procurement/contracts" },
+  { title: "Procurement Workflows", icon: Tractor, href: "/procurement/workflows" },
   { title: "Warehouse", icon: Warehouse, href: "/warehouse" },
   { title: "Payments", icon: CreditCard, href: "/payments" },
   { title: "Compliance", icon: ShieldCheck, href: "/compliance" },

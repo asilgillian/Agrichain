@@ -19,6 +19,8 @@ import GroupDetail from "@/pages/groups/detail";
 import ProcurementHub from "@/pages/procurement/index";
 import DeliveryDetail from "@/pages/procurement/detail";
 import ProcurementContracts from "@/pages/procurement/contracts";
+import ProcurementWorkflows from "@/pages/procurement/workflows";
+import ProcurementWorkflowDetail from "@/pages/procurement/workflow-detail";
 import WarehousePage from "@/pages/warehouse/index";
 import LotDetail from "@/pages/warehouse/detail";
 import PaymentsPage from "@/pages/payments/index";
@@ -146,6 +148,8 @@ function ProtectedRoutes() {
             <Route path="/groups/:id" component={GroupDetail} />
             <Route path="/groups" component={GroupsList} />
             <Route path="/procurement/contracts" component={ProcurementContracts} />
+            <Route path="/procurement/workflows" component={ProcurementWorkflows} />
+            <Route path="/procurement/workflows/:id" component={ProcurementWorkflowDetail} />
             <Route path="/procurement/:id" component={DeliveryDetail} />
             <Route path="/procurement" component={ProcurementHub} />
             <Route path="/warehouse/:id" component={LotDetail} />

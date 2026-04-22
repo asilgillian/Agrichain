@@ -1939,6 +1939,332 @@ export const UpdateProcurementContractResponse = zod.object({
 });
 
 /**
+ * @summary List procurement workflows (master)
+ */
+export const ListProcurementWorkflowsResponseItem = zod.object({
+  id: zod.string(),
+  code: zod.string(),
+  name: zod.string(),
+  description: zod.string().optional(),
+  commodityType: zod.string().nullish(),
+  isActive: zod.boolean(),
+  isDefault: zod.boolean(),
+  stageCount: zod.number().optional(),
+  createdAt: zod.coerce.date(),
+});
+export const ListProcurementWorkflowsResponse = zod.array(
+  ListProcurementWorkflowsResponseItem,
+);
+
+/**
+ * @summary Create a new procurement workflow
+ */
+export const CreateProcurementWorkflowBody = zod.object({
+  code: zod.string(),
+  name: zod.string(),
+  description: zod.string().optional(),
+  commodityType: zod.string().nullish(),
+  isDefault: zod.boolean().optional(),
+  stages: zod
+    .array(
+      zod.object({
+        stageKind: zod.enum([
+          "WEIGHT_SUBMIT",
+          "WEIGHT_APPROVE",
+          "QC_SUBMIT",
+          "QC_APPROVE",
+          "PRICING_PROPOSE",
+          "PRICING_APPROVE",
+          "INFO_CHECKPOINT",
+        ]),
+        displayName: zod.string(),
+        description: zod.string().optional(),
+        requiredPermission: zod.string().optional(),
+        slaHours: zod.number().optional(),
+        isOptional: zod.boolean().optional(),
+      }),
+    )
+    .optional(),
+});
+
+/**
+ * @summary Get a workflow with its stages
+ */
+export const GetProcurementWorkflowParams = zod.object({
+  workflowId: zod.coerce.string(),
+});
+
+export const GetProcurementWorkflowResponse = zod
+  .object({
+    id: zod.string(),
+    code: zod.string(),
+    name: zod.string(),
+    description: zod.string().optional(),
+    commodityType: zod.string().nullish(),
+    isActive: zod.boolean(),
+    isDefault: zod.boolean(),
+    stageCount: zod.number().optional(),
+    createdAt: zod.coerce.date(),
+  })
+  .and(
+    zod.object({
+      stages: zod.array(
+        zod.object({
+          id: zod.string(),
+          workflowId: zod.string(),
+          stageKind: zod.enum([
+            "WEIGHT_SUBMIT",
+            "WEIGHT_APPROVE",
+            "QC_SUBMIT",
+            "QC_APPROVE",
+            "PRICING_PROPOSE",
+            "PRICING_APPROVE",
+            "INFO_CHECKPOINT",
+          ]),
+          orderIdx: zod.number(),
+          displayName: zod.string(),
+          description: zod.string().nullish(),
+          requiredPermission: zod.string().nullish(),
+          slaHours: zod.number().nullish(),
+          isActive: zod.boolean(),
+          isOptional: zod.boolean(),
+        }),
+      ),
+    }),
+  );
+
+/**
+ * @summary Update workflow metadata (activate, set default, rename)
+ */
+export const UpdateProcurementWorkflowParams = zod.object({
+  workflowId: zod.coerce.string(),
+});
+
+export const UpdateProcurementWorkflowBody = zod.object({
+  name: zod.string().optional(),
+  description: zod.string().optional(),
+  commodityType: zod.string().nullish(),
+  isActive: zod.boolean().optional(),
+  isDefault: zod.boolean().optional(),
+});
+
+export const UpdateProcurementWorkflowResponse = zod
+  .object({
+    id: zod.string(),
+    code: zod.string(),
+    name: zod.string(),
+    description: zod.string().optional(),
+    commodityType: zod.string().nullish(),
+    isActive: zod.boolean(),
+    isDefault: zod.boolean(),
+    stageCount: zod.number().optional(),
+    createdAt: zod.coerce.date(),
+  })
+  .and(
+    zod.object({
+      stages: zod.array(
+        zod.object({
+          id: zod.string(),
+          workflowId: zod.string(),
+          stageKind: zod.enum([
+            "WEIGHT_SUBMIT",
+            "WEIGHT_APPROVE",
+            "QC_SUBMIT",
+            "QC_APPROVE",
+            "PRICING_PROPOSE",
+            "PRICING_APPROVE",
+            "INFO_CHECKPOINT",
+          ]),
+          orderIdx: zod.number(),
+          displayName: zod.string(),
+          description: zod.string().nullish(),
+          requiredPermission: zod.string().nullish(),
+          slaHours: zod.number().nullish(),
+          isActive: zod.boolean(),
+          isOptional: zod.boolean(),
+        }),
+      ),
+    }),
+  );
+
+/**
+ * @summary Append a stage to a workflow
+ */
+export const AddWorkflowStageParams = zod.object({
+  workflowId: zod.coerce.string(),
+});
+
+export const AddWorkflowStageBody = zod.object({
+  stageKind: zod.enum([
+    "WEIGHT_SUBMIT",
+    "WEIGHT_APPROVE",
+    "QC_SUBMIT",
+    "QC_APPROVE",
+    "PRICING_PROPOSE",
+    "PRICING_APPROVE",
+    "INFO_CHECKPOINT",
+  ]),
+  displayName: zod.string(),
+  description: zod.string().optional(),
+  requiredPermission: zod.string().optional(),
+  slaHours: zod.number().optional(),
+  isOptional: zod.boolean().optional(),
+});
+
+/**
+ * @summary Edit a stage's metadata (name, permission, SLA, active)
+ */
+export const UpdateWorkflowStageParams = zod.object({
+  workflowId: zod.coerce.string(),
+  stageId: zod.coerce.string(),
+});
+
+export const UpdateWorkflowStageBody = zod.object({
+  displayName: zod.string().optional(),
+  description: zod.string().optional(),
+  requiredPermission: zod.string().nullish(),
+  slaHours: zod.number().nullish(),
+  isActive: zod.boolean().optional(),
+  isOptional: zod.boolean().optional(),
+});
+
+export const UpdateWorkflowStageResponse = zod
+  .object({
+    id: zod.string(),
+    code: zod.string(),
+    name: zod.string(),
+    description: zod.string().optional(),
+    commodityType: zod.string().nullish(),
+    isActive: zod.boolean(),
+    isDefault: zod.boolean(),
+    stageCount: zod.number().optional(),
+    createdAt: zod.coerce.date(),
+  })
+  .and(
+    zod.object({
+      stages: zod.array(
+        zod.object({
+          id: zod.string(),
+          workflowId: zod.string(),
+          stageKind: zod.enum([
+            "WEIGHT_SUBMIT",
+            "WEIGHT_APPROVE",
+            "QC_SUBMIT",
+            "QC_APPROVE",
+            "PRICING_PROPOSE",
+            "PRICING_APPROVE",
+            "INFO_CHECKPOINT",
+          ]),
+          orderIdx: zod.number(),
+          displayName: zod.string(),
+          description: zod.string().nullish(),
+          requiredPermission: zod.string().nullish(),
+          slaHours: zod.number().nullish(),
+          isActive: zod.boolean(),
+          isOptional: zod.boolean(),
+        }),
+      ),
+    }),
+  );
+
+/**
+ * @summary Remove a stage from a workflow
+ */
+export const DeleteWorkflowStageParams = zod.object({
+  workflowId: zod.coerce.string(),
+  stageId: zod.coerce.string(),
+});
+
+export const DeleteWorkflowStageResponse = zod
+  .object({
+    id: zod.string(),
+    code: zod.string(),
+    name: zod.string(),
+    description: zod.string().optional(),
+    commodityType: zod.string().nullish(),
+    isActive: zod.boolean(),
+    isDefault: zod.boolean(),
+    stageCount: zod.number().optional(),
+    createdAt: zod.coerce.date(),
+  })
+  .and(
+    zod.object({
+      stages: zod.array(
+        zod.object({
+          id: zod.string(),
+          workflowId: zod.string(),
+          stageKind: zod.enum([
+            "WEIGHT_SUBMIT",
+            "WEIGHT_APPROVE",
+            "QC_SUBMIT",
+            "QC_APPROVE",
+            "PRICING_PROPOSE",
+            "PRICING_APPROVE",
+            "INFO_CHECKPOINT",
+          ]),
+          orderIdx: zod.number(),
+          displayName: zod.string(),
+          description: zod.string().nullish(),
+          requiredPermission: zod.string().nullish(),
+          slaHours: zod.number().nullish(),
+          isActive: zod.boolean(),
+          isOptional: zod.boolean(),
+        }),
+      ),
+    }),
+  );
+
+/**
+ * @summary Replace the workflow stage ordering
+ */
+export const ReorderWorkflowStagesParams = zod.object({
+  workflowId: zod.coerce.string(),
+});
+
+export const ReorderWorkflowStagesBody = zod.object({
+  stageIds: zod.array(zod.string()),
+});
+
+export const ReorderWorkflowStagesResponse = zod
+  .object({
+    id: zod.string(),
+    code: zod.string(),
+    name: zod.string(),
+    description: zod.string().optional(),
+    commodityType: zod.string().nullish(),
+    isActive: zod.boolean(),
+    isDefault: zod.boolean(),
+    stageCount: zod.number().optional(),
+    createdAt: zod.coerce.date(),
+  })
+  .and(
+    zod.object({
+      stages: zod.array(
+        zod.object({
+          id: zod.string(),
+          workflowId: zod.string(),
+          stageKind: zod.enum([
+            "WEIGHT_SUBMIT",
+            "WEIGHT_APPROVE",
+            "QC_SUBMIT",
+            "QC_APPROVE",
+            "PRICING_PROPOSE",
+            "PRICING_APPROVE",
+            "INFO_CHECKPOINT",
+          ]),
+          orderIdx: zod.number(),
+          displayName: zod.string(),
+          description: zod.string().nullish(),
+          requiredPermission: zod.string().nullish(),
+          slaHours: zod.number().nullish(),
+          isActive: zod.boolean(),
+          isOptional: zod.boolean(),
+        }),
+      ),
+    }),
+  );
+
+/**
  * @summary List warehouse lots
  */
 export const ListLotsQueryParams = zod.object({
