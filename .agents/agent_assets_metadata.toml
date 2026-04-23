@@ -1,0 +1,8 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "VTIr7bl-2JbEFqNuMJj-Y"
+uri = "file://docs/MTANDEO_BUDGET_PLAN.md"
+type = "text"
+title = "MTANDEO Build Budget & Milestone Plan"
