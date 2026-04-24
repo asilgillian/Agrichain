@@ -40,6 +40,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { useUser, useClerk } from "@clerk/react";
 import { LogOut } from "lucide-react";
+import { usePermissions } from "@/hooks/use-permissions";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -49,45 +50,60 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
-const operationsItems = [
+// Each nav item declares the permission(s) needed to see it. `requiredAny` means the user must
+// hold ≥1 of the listed keys; an item with no requirement is always visible (e.g. Dashboard).
+// "*" is granted by default to SystemAdministrator and bypasses every check inside usePermissions.
+type NavItem = {
+  title: string;
+  icon: typeof LayoutDashboard;
+  href: string;
+  requiredAny?: string[];
+};
+
+const operationsItems: NavItem[] = [
   { title: "Dashboard", icon: LayoutDashboard, href: "/" },
-  { title: "Farmers", icon: Users, href: "/farmers" },
-  { title: "Groups", icon: UsersRound, href: "/groups" },
-  { title: "Commodities", icon: Leaf, href: "/commodities" },
-  { title: "Processes", icon: Cog, href: "/processes" },
-  { title: "Samples", icon: TestTube, href: "/samples" },
-  { title: "Procurement", icon: Tractor, href: "/procurement" },
-  { title: "Procurement Contracts", icon: Tractor, href: "/procurement/contracts" },
-  { title: "Procurement Workflows", icon: Tractor, href: "/procurement/workflows" },
-  { title: "Warehouse", icon: Warehouse, href: "/warehouse" },
-  { title: "Payments", icon: CreditCard, href: "/payments" },
-  { title: "Compliance", icon: ShieldCheck, href: "/compliance" },
-  { title: "Surveys", icon: ClipboardCheck, href: "/surveys" },
-  { title: "Plot Map (GIS)", icon: MapIcon, href: "/plots-map" },
-  { title: "Exports", icon: Ship, href: "/exports" },
+  { title: "Farmers", icon: Users, href: "/farmers", requiredAny: ["farmers.read", "farmers.preregister", "farmers.register"] },
+  { title: "Groups", icon: UsersRound, href: "/groups", requiredAny: ["groups.read"] },
+  { title: "Commodities", icon: Leaf, href: "/commodities", requiredAny: ["commodities.read"] },
+  { title: "Processes", icon: Cog, href: "/processes", requiredAny: ["procurement.read"] },
+  { title: "Samples", icon: TestTube, href: "/samples", requiredAny: ["procurement.qc.submit", "procurement.read"] },
+  { title: "Procurement", icon: Tractor, href: "/procurement", requiredAny: ["procurement.read"] },
+  { title: "Procurement Contracts", icon: Tractor, href: "/procurement/contracts", requiredAny: ["procurement.contracts.read"] },
+  { title: "Procurement Workflows", icon: Tractor, href: "/procurement/workflows", requiredAny: ["admin.workflows.write", "procurement.read"] },
+  { title: "Warehouse", icon: Warehouse, href: "/warehouse", requiredAny: ["warehouse.read"] },
+  { title: "Payments", icon: CreditCard, href: "/payments", requiredAny: ["payments.read"] },
+  { title: "Compliance", icon: ShieldCheck, href: "/compliance", requiredAny: ["compliance.read"] },
+  { title: "Surveys", icon: ClipboardCheck, href: "/surveys", requiredAny: ["surveys.read"] },
+  { title: "Plot Map (GIS)", icon: MapIcon, href: "/plots-map", requiredAny: ["plots.read", "plots.gps_map"] },
+  { title: "Exports", icon: Ship, href: "/exports", requiredAny: ["exports.read"] },
 ];
 
-const financeItems = [
-  { title: "Loans", icon: Landmark, href: "/loans" },
-  { title: "Buyers", icon: Globe, href: "/buyers" },
-  { title: "Sales & Exit", icon: FileBarChart2, href: "/sales" },
+const financeItems: NavItem[] = [
+  { title: "Loans", icon: Landmark, href: "/loans", requiredAny: ["loans.read"] },
+  { title: "Buyers", icon: Globe, href: "/buyers", requiredAny: ["sales.read"] },
+  { title: "Sales & Exit", icon: FileBarChart2, href: "/sales", requiredAny: ["sales.read"] },
 ];
 
-const systemItems = [
-  { title: "Staff", icon: Users, href: "/staff" },
-  { title: "Assets", icon: Package, href: "/assets" },
-  { title: "Activity Funds", icon: Wallet, href: "/activity-funds" },
-  { title: "Audit Log", icon: Shield, href: "/audit" },
-  { title: "Admin", icon: Settings, href: "/admin" },
+const systemItems: NavItem[] = [
+  { title: "Staff", icon: Users, href: "/staff", requiredAny: ["users.read"] },
+  { title: "Assets", icon: Package, href: "/assets", requiredAny: ["assets.read"] },
+  { title: "Activity Funds", icon: Wallet, href: "/activity-funds", requiredAny: ["activity_funds.read"] },
+  { title: "Audit Log", icon: Shield, href: "/audit", requiredAny: ["audit.read"] },
+  { title: "Admin", icon: Settings, href: "/admin", requiredAny: ["admin.roles", "admin.regions", "admin.hierarchy", "admin.bulk_upload"] },
 ];
 
-function NavGroup({ label, items, location }: { label: string; items: typeof operationsItems; location: string }) {
+function NavGroup({ label, items, location }: { label: string; items: NavItem[]; location: string }) {
+  const { hasAny, isLoading } = usePermissions();
+  // While the permission set is loading we hide everything except items with no requirement,
+  // matching the spec: "Toggling a function off ... is simply not visible." We never grey-out.
+  const visible = items.filter((item) => !item.requiredAny || (!isLoading && hasAny(item.requiredAny)));
+  if (visible.length === 0) return null;
   return (
     <SidebarGroup>
       <SidebarGroupLabel>{label}</SidebarGroupLabel>
       <SidebarGroupContent>
         <SidebarMenu>
-          {items.map((item) => {
+          {visible.map((item) => {
             const isActive = item.href === "/"
               ? location === "/"
               : location === item.href || location.startsWith(item.href + "/");

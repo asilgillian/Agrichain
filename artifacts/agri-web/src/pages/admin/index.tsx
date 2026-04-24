@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, Fragment } from "react";
 import { useListRegions, useListRoles, useListSyncQueue, useListCountryHierarchies } from "@workspace/api-client-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -22,6 +22,44 @@ const API_BASE = import.meta.env.BASE_URL?.replace(/\/$/, "");
 
 type Permission = { key: string; module: string; description: string };
 type Role = { id: string; name: string; description?: string; permissions: string[]; isSystem?: boolean };
+type PermissionTemplate = { name: string; description: string; permissions: string[] };
+
+// Helper rendered inside both the Create and Edit dialogs. The template list is fetched once
+// at the page level and passed in. Selecting a template REPLACES the current selection — this
+// matches the spec ("pre-fill") and avoids surprising additive behavior; the admin can then
+// freely tick or untick individual permissions before saving.
+function TemplatePicker({
+  templates,
+  onApply,
+}: {
+  templates: PermissionTemplate[] | undefined;
+  onApply: (perms: string[]) => void;
+}) {
+  if (!templates || templates.length === 0) return null;
+  return (
+    <div className="flex items-center gap-2 mb-2">
+      <Label className="text-xs whitespace-nowrap">Apply template</Label>
+      <Select value="" onValueChange={(name) => {
+        const t = templates.find(t => t.name === name);
+        if (t) onApply(t.permissions);
+      }}>
+        <SelectTrigger className="h-8 w-64" data-testid="template-picker">
+          <SelectValue placeholder="Choose a starting template…" />
+        </SelectTrigger>
+        <SelectContent>
+          {templates.map(t => (
+            <SelectItem key={t.name} value={t.name} data-testid={`template-${t.name.replace(/\s+/g, "-").toLowerCase()}`}>
+              <div className="flex flex-col">
+                <span className="font-medium">{t.name}</span>
+                <span className="text-xs text-muted-foreground">{t.description}</span>
+              </div>
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </div>
+  );
+}
 
 function PermissionPicker({
   catalog,
@@ -89,6 +127,14 @@ export default function AdminPage() {
     queryFn: async () => {
       const r = await fetch(`${API_BASE}/api/admin/permissions`);
       if (!r.ok) throw new Error(`Failed to load permissions (${r.status})`);
+      return r.json();
+    },
+  });
+  const { data: templates } = useQuery<PermissionTemplate[]>({
+    queryKey: ["/api/admin/permission-templates"],
+    queryFn: async () => {
+      const r = await fetch(`${API_BASE}/api/admin/permission-templates`);
+      if (!r.ok) throw new Error(`Failed to load permission templates (${r.status})`);
       return r.json();
     },
   });
@@ -300,6 +346,7 @@ export default function AdminPage() {
           <TabsTrigger value="map">Map</TabsTrigger>
           <TabsTrigger value="hierarchy">Country Hierarchy</TabsTrigger>
           <TabsTrigger value="roles">Roles &amp; Permissions</TabsTrigger>
+          <TabsTrigger value="matrix">Permission Matrix</TabsTrigger>
           <TabsTrigger value="bulk">Bulk Upload</TabsTrigger>
           <TabsTrigger value="sync">Sync Queue</TabsTrigger>
         </TabsList>
@@ -446,6 +493,7 @@ export default function AdminPage() {
                           <Label>Permissions *</Label>
                           <span className="text-xs text-muted-foreground">{createPerms.size} selected</span>
                         </div>
+                        <TemplatePicker templates={templates} onApply={(perms) => setCreatePerms(new Set(perms))} />
                         {permissions ? <PermissionPicker catalog={permissions} selected={createPerms} onChange={setCreatePerms} /> : <Skeleton className="h-40 w-full" />}
                       </div>
                     </div>
@@ -489,6 +537,14 @@ export default function AdminPage() {
           </Card>
         </TabsContent>
 
+        <TabsContent value="matrix" className="mt-4">
+          <PermissionMatrix
+            roles={(roles ?? []) as Role[]}
+            permissions={permissions ?? []}
+            isLoading={isLoadingRoles || !permissions}
+          />
+        </TabsContent>
+
         <TabsContent value="sync" className="mt-4">
           <Card>
             <CardHeader className="flex flex-row items-center gap-2">
@@ -517,6 +573,7 @@ export default function AdminPage() {
           <div className="flex items-center justify-between">
             <span className="text-sm text-muted-foreground">{editPerms.size} selected</span>
           </div>
+          <TemplatePicker templates={templates} onApply={(perms) => setEditPerms(new Set(perms))} />
           {permissions ? <PermissionPicker catalog={permissions} selected={editPerms} onChange={setEditPerms} /> : <Skeleton className="h-40 w-full" />}
           <DialogFooter>
             <Button variant="outline" onClick={() => setEditRole(null)}>Cancel</Button>
@@ -525,6 +582,196 @@ export default function AdminPage() {
         </DialogContent>
       </Dialog>
     </div>
+  );
+}
+
+// PermissionMatrix renders a permissions × roles grid with checkboxes. The admin can flip
+// many cells across many roles, then "Save changes" issues one PATCH per modified role
+// (sequentially, so the toast only fires when everything succeeds). System roles (e.g.
+// SystemAdministrator) are shown with their permissions but rendered read-only since they
+// hold the wildcard "*" permission and editing them would just be misleading.
+function PermissionMatrix({
+  roles,
+  permissions,
+  isLoading,
+}: {
+  roles: Role[];
+  permissions: Permission[];
+  isLoading: boolean;
+}) {
+  const { toast } = useToast();
+  const qc = useQueryClient();
+  // The matrix keeps a local working copy of permissions per role. Reset whenever the upstream
+  // roles change so we always start from the current server state and never silently overwrite
+  // a permission an admin set in the role edit dialog in another tab.
+  const initialMatrix = useMemo(() => {
+    const m: Record<string, Set<string>> = {};
+    for (const r of roles) m[r.id] = new Set(r.permissions ?? []);
+    return m;
+  }, [roles]);
+  const [matrix, setMatrix] = useState<Record<string, Set<string>>>(initialMatrix);
+  // Reset local state whenever the upstream roles prop changes (e.g. after a save invalidation
+  // refetches). We compare via a stable serialization to avoid re-resetting on every render.
+  const upstreamKey = useMemo(() => JSON.stringify(roles.map(r => [r.id, [...(r.permissions ?? [])].sort()])), [roles]);
+  const [seenKey, setSeenKey] = useState(upstreamKey);
+  if (seenKey !== upstreamKey) {
+    setSeenKey(upstreamKey);
+    setMatrix(initialMatrix);
+  }
+
+  const groupedPerms = useMemo(() => {
+    const map = new Map<string, Permission[]>();
+    for (const p of permissions) {
+      if (!map.has(p.module)) map.set(p.module, []);
+      map.get(p.module)!.push(p);
+    }
+    return Array.from(map.entries()).sort(([a], [b]) => a.localeCompare(b));
+  }, [permissions]);
+
+  const isWildcardRole = (r: Role) => (r.permissions ?? []).includes("*");
+
+  const toggle = (roleId: string, key: string) => {
+    setMatrix(prev => {
+      const next = { ...prev };
+      const set = new Set(next[roleId] ?? []);
+      if (set.has(key)) set.delete(key);
+      else set.add(key);
+      next[roleId] = set;
+      return next;
+    });
+  };
+
+  // Compute which roles have actually changed compared to the upstream snapshot. We compare
+  // sets element-wise so iteration order doesn't produce false-positive "dirty" states.
+  const changedRoleIds = useMemo(() => {
+    const ids: string[] = [];
+    for (const r of roles) {
+      const before = new Set(r.permissions ?? []);
+      const after = matrix[r.id] ?? new Set<string>();
+      if (before.size !== after.size) { ids.push(r.id); continue; }
+      let same = true;
+      for (const k of after) if (!before.has(k)) { same = false; break; }
+      if (!same) ids.push(r.id);
+    }
+    return ids;
+  }, [roles, matrix]);
+
+  const saveMut = useMutation({
+    mutationFn: async () => {
+      // Send sequentially so a partial failure doesn't leave a confusing mix of saved/unsaved
+      // states across roles. Throw on the first error and report the role name in the toast.
+      for (const id of changedRoleIds) {
+        const role = roles.find(r => r.id === id);
+        if (!role) continue;
+        if (isWildcardRole(role)) continue; // safety: never PATCH a wildcard role from the matrix
+        const perms = Array.from(matrix[id] ?? []);
+        const r = await fetch(`${API_BASE}/api/admin/roles/${id}/permissions`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ permissions: perms }),
+        });
+        if (!r.ok) {
+          const j = await r.json().catch(() => ({}));
+          throw new Error(`${role.name}: ${j.error ?? `HTTP ${r.status}`}`);
+        }
+      }
+      return { savedCount: changedRoleIds.length };
+    },
+    onSuccess: ({ savedCount }) => {
+      qc.invalidateQueries({ queryKey: ["/api/admin/roles"] });
+      qc.invalidateQueries({ queryKey: ["listRoles"] });
+      toast({ title: `Saved permissions for ${savedCount} role${savedCount === 1 ? "" : "s"}` });
+    },
+    onError: (e: any) => toast({ title: "Failed to save matrix", description: e.message, variant: "destructive" }),
+  });
+
+  const reset = () => setMatrix(initialMatrix);
+
+  if (isLoading) return <Skeleton className="h-96 w-full" />;
+  if (roles.length === 0 || permissions.length === 0) {
+    return <Card><CardContent className="py-8 text-center text-sm text-muted-foreground">No roles or permissions to display.</CardContent></Card>;
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <CardTitle>Permission Matrix</CardTitle>
+            <p className="text-sm text-muted-foreground mt-1">
+              Each row is a permission; each column is a role. Tick to grant, untick to revoke. Wildcard roles (with the "*" permission, e.g. SystemAdministrator) are read-only here.
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            {changedRoleIds.length > 0 && <Badge variant="secondary" data-testid="matrix-dirty-badge">{changedRoleIds.length} role{changedRoleIds.length === 1 ? "" : "s"} changed</Badge>}
+            <Button variant="outline" disabled={changedRoleIds.length === 0 || saveMut.isPending} onClick={reset} data-testid="matrix-reset-btn">Reset</Button>
+            <Button disabled={changedRoleIds.length === 0 || saveMut.isPending} onClick={() => saveMut.mutate()} data-testid="matrix-save-btn" className="gap-2">
+              <Save className="h-4 w-4" />{saveMut.isPending ? "Saving…" : "Save changes"}
+            </Button>
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent>
+        <div className="border rounded-md overflow-x-auto max-h-[70vh]">
+          <Table>
+            <TableHeader className="sticky top-0 bg-background z-10">
+              <TableRow>
+                <TableHead className="w-[280px] sticky left-0 bg-background">Permission</TableHead>
+                {roles.map(r => (
+                  <TableHead key={r.id} className="text-center min-w-[120px]">
+                    <div className="flex flex-col items-center">
+                      <span className="font-semibold">{r.name}</span>
+                      {isWildcardRole(r) && <Badge variant="outline" className="text-[10px] mt-1">wildcard</Badge>}
+                    </div>
+                  </TableHead>
+                ))}
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {groupedPerms.map(([module, perms]) => (
+                <Fragment key={`module-${module}`}>
+                  <TableRow className="bg-muted/40">
+                    <TableCell colSpan={roles.length + 1} className="text-xs font-semibold uppercase text-muted-foreground sticky left-0">
+                      {module}
+                    </TableCell>
+                  </TableRow>
+                  {perms.map(p => (
+                    <TableRow key={p.key} data-testid={`matrix-row-${p.key}`}>
+                      <TableCell className="sticky left-0 bg-background">
+                        <code className="text-xs font-mono">{p.key}</code>
+                        <p className="text-xs text-muted-foreground">{p.description}</p>
+                      </TableCell>
+                      {roles.map(r => {
+                        const wildcard = isWildcardRole(r);
+                        // Wildcard roles always show as ticked (since "*" implies everything) but disabled.
+                        const checked = wildcard ? true : (matrix[r.id]?.has(p.key) ?? false);
+                        const original = (r.permissions ?? []).includes(p.key) || wildcard;
+                        const changed = !wildcard && checked !== original;
+                        return (
+                          <TableCell key={r.id} className="text-center">
+                            <div
+                              className={`inline-flex items-center justify-center rounded p-1 ${changed ? "bg-amber-100 dark:bg-amber-950" : ""}`}
+                              data-testid={`matrix-cell-${p.key}-${r.id}`}
+                            >
+                              <Checkbox
+                                checked={checked}
+                                disabled={wildcard}
+                                onCheckedChange={() => !wildcard && toggle(r.id, p.key)}
+                                aria-label={`${p.key} for ${r.name}`}
+                              />
+                            </div>
+                          </TableCell>
+                        );
+                      })}
+                    </TableRow>
+                  ))}
+                </Fragment>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 

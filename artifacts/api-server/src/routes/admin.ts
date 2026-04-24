@@ -1,14 +1,47 @@
 import { Router, type IRouter } from "express";
 import { eq } from "drizzle-orm";
-import { db, regionsTable, rolesTable, farmersTable, groupsTable, countryHierarchiesTable, UpsertCountryHierarchyBody } from "@workspace/db";
+import { db, regionsTable, rolesTable, farmersTable, groupsTable, countryHierarchiesTable, auditLogsTable, UpsertCountryHierarchyBody } from "@workspace/db";
 import { CreateRegionBody, UpdateRolePermissionsBody, CreateFarmerBody, CreateGroupBody } from "@workspace/api-zod";
-import { requirePermission } from "../middlewares/auth";
+import { requirePermission, type AuthedRequest } from "../middlewares/auth";
 
 const router: IRouter = Router();
 
+// Lightweight audit helper for role/permission mutations. Always best-effort: a failure to
+// write the audit row must not block the underlying admin action.
+async function auditRoleChange(
+  action: string,
+  roleId: string,
+  user: AuthedRequest["authedUser"],
+  before: Record<string, unknown> | null,
+  after: Record<string, unknown> | null,
+): Promise<void> {
+  try {
+    await db.insert(auditLogsTable).values({
+      entityType: "role",
+      entityId: roleId,
+      action,
+      actorId: user?.id ?? "system",
+      actorName: user?.email ?? "system",
+      actorRole: user?.role ?? "system",
+      before: before as any,
+      after: after as any,
+    });
+  } catch {
+    // Swallow — audit is observability, not gating.
+  }
+}
+
 const PERMISSION_CATALOG: Array<{ key: string; module: string; description: string }> = [
   { key: "farmers.read", module: "Farmers", description: "View farmer records" },
-  { key: "farmers.write", module: "Farmers", description: "Register and edit farmers" },
+  { key: "farmers.write", module: "Farmers", description: "Edit farmer records (legacy combined)" },
+  { key: "farmers.preregister", module: "Farmer Registry", description: "Pre-register a farmer (minimal data capture)" },
+  { key: "farmers.register", module: "Farmer Registry", description: "Complete full farmer registration with KYC" },
+  { key: "plots.gps_map", module: "Farmer Registry", description: "Map farm plot GPS coordinates / polygon" },
+  { key: "field.training.write", module: "Field Operations", description: "Capture training sessions and attendance" },
+  { key: "field.gap.write", module: "Field Operations", description: "Conduct GAP (Good Agricultural Practice) assessments" },
+  { key: "field.bulking.write", module: "Field Operations", description: "Create commodity bulking batches" },
+  { key: "field.delivery.handover", module: "Field Operations", description: "Hand over batch to a buying station" },
+  { key: "buying.truck_arrival", module: "Buying Station", description: "Record truck arrival and goods receipt" },
   { key: "groups.read", module: "Groups", description: "View cooperative groups" },
   { key: "groups.write", module: "Groups", description: "Create and edit groups" },
   { key: "groups.leaders.write", module: "Groups", description: "Appoint and end group leaders" },
@@ -305,12 +338,72 @@ router.get("/admin/permissions", requirePermission("admin.roles"), async (_req, 
   res.json(PERMISSION_CATALOG);
 });
 
+// Pre-built permission templates the admin can apply to a role as a starting point. Templates are
+// static (defined here rather than in the DB) because they're reference defaults — admins are
+// expected to copy + customize them per role rather than mutate the canonical template.
+const PERMISSION_TEMPLATES: Array<{ name: string; description: string; permissions: string[] }> = [
+  {
+    name: "Field Manager",
+    description: "Field-level operations: register farmers, map plots, capture surveys, run trainings and GAP assessments, create bulking batches and hand them over to a buying station.",
+    permissions: [
+      "farmers.read", "farmers.preregister", "farmers.register",
+      "plots.read", "plots.gps_map", "plots.write",
+      "groups.read", "groups.write",
+      "surveys.read", "surveys.write",
+      "visits.read", "visits.write",
+      "field.training.write", "field.gap.write", "field.bulking.write", "field.delivery.handover",
+      "commodities.read",
+    ],
+  },
+  {
+    name: "Area Supervisor",
+    description: "Area oversight: read-only across farmer ops + survey review, plus group transfers and visit oversight.",
+    permissions: [
+      "farmers.read", "plots.read", "groups.read", "groups.transfer",
+      "surveys.read", "surveys.review",
+      "visits.read", "visits.write",
+      "field.training.write", "field.gap.write",
+      "compliance.read",
+      "procurement.read",
+    ],
+  },
+  {
+    name: "Regional Manager",
+    description: "Regional reporting + group governance + procurement read + activity-fund approval.",
+    permissions: [
+      "farmers.read", "plots.read",
+      "groups.read", "groups.write", "groups.leaders.write", "groups.transfer", "groups.archive",
+      "surveys.read", "surveys.review", "visits.read",
+      "procurement.read", "procurement.contracts.read",
+      "warehouse.read", "payments.read", "loans.read", "sales.read",
+      "compliance.read", "certifications.write",
+      "activity_funds.read", "activity_funds.approve",
+      "audit.read", "users.read",
+    ],
+  },
+  {
+    name: "Buying Station Agent",
+    description: "Buying-station floor: receive trucks, submit weights and QC samples, view contracts.",
+    permissions: [
+      "buying.truck_arrival",
+      "procurement.read", "procurement.weight.submit", "procurement.qc.submit",
+      "procurement.contracts.read",
+      "warehouse.read", "lots.write",
+      "farmers.read", "groups.read", "commodities.read",
+    ],
+  },
+];
+
+router.get("/admin/permission-templates", requirePermission("admin.roles"), async (_req, res): Promise<void> => {
+  res.json(PERMISSION_TEMPLATES);
+});
+
 router.get("/admin/roles", requirePermission("admin.roles"), async (_req, res): Promise<void> => {
   const roles = await db.select().from(rolesTable).orderBy(rolesTable.name);
   res.json(roles.map(r => ({ id: r.id, name: r.name, description: r.description ?? undefined, permissions: r.permissions ?? [], isSystem: r.isSystem })));
 });
 
-router.post("/admin/roles", requirePermission("admin.roles"), async (req, res): Promise<void> => {
+router.post("/admin/roles", requirePermission("admin.roles"), async (req: AuthedRequest, res): Promise<void> => {
   const parsed = parseCreateRoleBody(req.body);
   if (!parsed.ok) {
     res.status(400).json({ error: parsed.error });
@@ -332,10 +425,15 @@ router.post("/admin/roles", requirePermission("admin.roles"), async (req, res): 
     permissions: parsed.data.permissions,
     isSystem: false,
   }).returning();
+  await auditRoleChange("role.create", role.id, req.authedUser, null, {
+    name: role.name,
+    description: role.description ?? null,
+    permissions: role.permissions ?? [],
+  });
   res.status(201).json({ id: role.id, name: role.name, description: role.description ?? undefined, permissions: role.permissions ?? [], isSystem: role.isSystem });
 });
 
-router.patch("/admin/roles/:roleId/permissions", requirePermission("admin.roles"), async (req, res): Promise<void> => {
+router.patch("/admin/roles/:roleId/permissions", requirePermission("admin.roles"), async (req: AuthedRequest, res): Promise<void> => {
   const { roleId } = req.params;
   if (!UUID_RE.test(roleId)) {
     res.status(400).json({ error: "Invalid roleId" });
@@ -351,18 +449,31 @@ router.patch("/admin/roles/:roleId/permissions", requirePermission("admin.roles"
     res.status(400).json({ error: `Unknown permissions: ${invalid.join(", ")}` });
     return;
   }
+  const [prior] = await db.select().from(rolesTable).where(eq(rolesTable.id, roleId));
+  if (!prior) {
+    res.status(404).json({ error: "Role not found" });
+    return;
+  }
   const [role] = await db.update(rolesTable)
     .set({ permissions: parsed.data.permissions })
     .where(eq(rolesTable.id, roleId))
     .returning();
-  if (!role) {
-    res.status(404).json({ error: "Role not found" });
-    return;
-  }
+  // Compute the diff so the audit log answers "what changed" without forcing a reader to compare arrays.
+  const oldSet = new Set(prior.permissions ?? []);
+  const newSet = new Set(role.permissions ?? []);
+  const added = [...newSet].filter(p => !oldSet.has(p));
+  const removed = [...oldSet].filter(p => !newSet.has(p));
+  await auditRoleChange(
+    "role.permissions.update",
+    role.id,
+    req.authedUser,
+    { permissions: prior.permissions ?? [] },
+    { permissions: role.permissions ?? [], added, removed },
+  );
   res.json({ id: role.id, name: role.name, description: role.description ?? undefined, permissions: role.permissions ?? [], isSystem: role.isSystem });
 });
 
-router.delete("/admin/roles/:roleId", requirePermission("admin.roles"), async (req, res): Promise<void> => {
+router.delete("/admin/roles/:roleId", requirePermission("admin.roles"), async (req: AuthedRequest, res): Promise<void> => {
   const { roleId } = req.params;
   if (!UUID_RE.test(roleId)) {
     res.status(400).json({ error: "Invalid roleId" });
@@ -378,6 +489,11 @@ router.delete("/admin/roles/:roleId", requirePermission("admin.roles"), async (r
     return;
   }
   await db.delete(rolesTable).where(eq(rolesTable.id, roleId));
+  await auditRoleChange("role.delete", existing.id, req.authedUser, {
+    name: existing.name,
+    description: existing.description ?? null,
+    permissions: existing.permissions ?? [],
+  }, null);
   res.status(204).end();
 });
 
