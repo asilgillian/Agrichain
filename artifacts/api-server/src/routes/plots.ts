@@ -3,6 +3,7 @@ import { eq, and, sql, inArray, type SQL } from "drizzle-orm";
 import { db, plotsTable, farmersTable, groupsTable, regionsTable } from "@workspace/db";
 import { CreatePlotBody, ListPlotsQueryParams } from "@workspace/api-zod";
 import { validatePlotGeometry, findOverlaps, polygonAreaHectares, type PlotGeometry, type PolygonGeometry } from "../lib/plot-validation";
+import { requirePermission } from "../middlewares/auth";
 
 const router: IRouter = Router();
 
@@ -31,7 +32,7 @@ router.get("/plots", async (req, res): Promise<void> => {
   res.json(plots.map(p => ({ ...p, areaHectares: parseFloat(p.areaHectares ?? "0") })));
 });
 
-router.post("/plots", async (req, res): Promise<void> => {
+router.post("/plots", requirePermission("plots.gps_map"), async (req, res): Promise<void> => {
   const parsed = CreatePlotBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
@@ -174,7 +175,7 @@ router.get("/plots/stats", async (req, res): Promise<void> => {
 });
 
 // ---------- PATCH /plots/:plotId ----------
-router.patch("/plots/:plotId", async (req, res): Promise<void> => {
+router.patch("/plots/:plotId", requirePermission("plots.gps_map"), async (req, res): Promise<void> => {
   const { plotId } = req.params;
   if (!UUID_RE.test(plotId)) { res.status(400).json({ error: "Invalid plot id" }); return; }
   const body = (req.body ?? {}) as Record<string, unknown>;

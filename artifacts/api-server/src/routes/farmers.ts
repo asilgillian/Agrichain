@@ -6,6 +6,7 @@ import {
   UpdateFarmerBody,
   ListFarmersQueryParams,
 } from "@workspace/api-zod";
+import { requirePermission } from "../middlewares/auth";
 
 const router: IRouter = Router();
 
@@ -31,6 +32,11 @@ router.get("/farmers", async (req, res): Promise<void> => {
     return;
   }
   const { search, groupId, regionId, status, page = 1, limit = 50 } = parsed.data;
+  // registrationStage filter is read directly off req.query because it's not in the
+  // (codegen'd) ListFarmersQueryParams schema yet. Whitelist the two valid values
+  // so callers can't smuggle arbitrary SQL fragments in.
+  const stageRaw = typeof req.query.registrationStage === "string" ? req.query.registrationStage : "";
+  const registrationStage = (stageRaw === "pre_registered" || stageRaw === "fully_registered") ? stageRaw : undefined;
   const offset = (page - 1) * limit;
 
   const conditions: any[] = [];
@@ -47,6 +53,7 @@ router.get("/farmers", async (req, res): Promise<void> => {
   if (groupId) conditions.push(eq(farmersTable.groupId, groupId));
   if (regionId) conditions.push(eq(farmersTable.regionId, regionId));
   if (status) conditions.push(eq(farmersTable.status, status));
+  if (registrationStage) conditions.push(eq(farmersTable.registrationStage, registrationStage));
 
   const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
 
@@ -66,7 +73,11 @@ router.get("/farmers", async (req, res): Promise<void> => {
   res.json({ data, total: countResult[0]?.count ?? 0, page, limit });
 });
 
-router.post("/farmers", async (req, res): Promise<void> => {
+// ---------- POST /farmers (full registration) ----------
+// Requires `farmers.register`. Sets registrationStage='fully_registered'. National ID is
+// expected for full registration (the existing CreateFarmerBody schema enforces required
+// fields). For lighter capture, agents use POST /farmers/preregister below.
+router.post("/farmers", requirePermission("farmers.register"), async (req, res): Promise<void> => {
   const parsed = CreateFarmerBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
@@ -86,9 +97,107 @@ router.post("/farmers", async (req, res): Promise<void> => {
     return;
   }
   const referenceNumber = generateRefNumber();
-  const [farmer] = await db.insert(farmersTable).values({ ...parsed.data, referenceNumber }).returning();
+  const now = new Date();
+  const [farmer] = await db.insert(farmersTable).values({
+    ...parsed.data,
+    referenceNumber,
+    registrationStage: "fully_registered",
+    fullyRegisteredAt: now,
+    preRegisteredAt: now, // For audit symmetry — full registration always passes through "pre" implicitly.
+  }).returning();
   const result = await buildFarmerResponse(farmer);
   res.status(201).json(result);
+});
+
+// ---------- POST /farmers/preregister (light capture) ----------
+// Captures the bare minimum to identify a farmer in the field — name, group, region, and
+// optionally phone/village. National ID and other KYC fields can be added later via
+// /farmers/:farmerId/complete. Status is set to 'pending' so admin/full registration is
+// required before the farmer is treated as active.
+router.post("/farmers/preregister", requirePermission("farmers.preregister"), async (req, res): Promise<void> => {
+  const body = (req.body ?? {}) as Record<string, unknown>;
+  const firstName = typeof body.firstName === "string" ? body.firstName.trim() : "";
+  const lastName = typeof body.lastName === "string" ? body.lastName.trim() : "";
+  const groupId = typeof body.groupId === "string" ? body.groupId : "";
+  const regionId = typeof body.regionId === "string" ? body.regionId : "";
+  const phoneNumber = typeof body.phoneNumber === "string" ? body.phoneNumber.trim() : "";
+  const village = typeof body.village === "string" ? body.village.trim() : "";
+  const sex = typeof body.sex === "string" ? body.sex : "";
+
+  const fieldErrors: Record<string, string> = {};
+  if (!firstName) fieldErrors.firstName = "Required";
+  if (!lastName) fieldErrors.lastName = "Required";
+  if (!groupId) fieldErrors.groupId = "Required";
+  if (!regionId) fieldErrors.regionId = "Required";
+  if (Object.keys(fieldErrors).length > 0) {
+    res.status(400).json({ error: "Missing required fields", fieldErrors });
+    return;
+  }
+  const [group] = await db.select().from(groupsTable).where(eq(groupsTable.id, groupId));
+  if (!group) { res.status(400).json({ error: "Group not found", code: "GROUP_NOT_FOUND" }); return; }
+  if (group.status === "archived") {
+    res.status(400).json({ error: "Cannot pre-register into an archived group", code: "GROUP_ARCHIVED" });
+    return;
+  }
+  const referenceNumber = generateRefNumber();
+  const now = new Date();
+  const [farmer] = await db.insert(farmersTable).values({
+    firstName,
+    lastName,
+    groupId,
+    regionId,
+    phoneNumber: phoneNumber || null,
+    village: village || null,
+    sex: sex || null,
+    status: "pending",
+    registrationStage: "pre_registered",
+    preRegisteredAt: now,
+    referenceNumber,
+  }).returning();
+  const result = await buildFarmerResponse(farmer);
+  res.status(201).json(result);
+});
+
+// ---------- POST /farmers/:farmerId/complete (promote pre→full) ----------
+// Promotes a pre_registered farmer to fully_registered. Accepts the missing KYC fields
+// (national ID, sex, DOB, household details, etc.) and marks the farmer 'active'.
+router.post("/farmers/:farmerId/complete", requirePermission("farmers.register"), async (req, res): Promise<void> => {
+  const { farmerId } = req.params;
+  const [existing] = await db.select().from(farmersTable).where(eq(farmersTable.id, farmerId as string));
+  if (!existing) { res.status(404).json({ error: "Farmer not found" }); return; }
+  if (existing.registrationStage === "fully_registered") {
+    res.status(409).json({ error: "Farmer is already fully registered", code: "ALREADY_FULLY_REGISTERED" });
+    return;
+  }
+  const body = (req.body ?? {}) as Record<string, unknown>;
+  // National ID is the minimum KYC requirement to qualify as "fully registered".
+  // The DB schema doesn't enforce it (legacy farmers may lack it), so we enforce it here.
+  const nationalId = typeof body.nationalId === "string" ? body.nationalId.trim() : "";
+  if (!nationalId) {
+    res.status(400).json({ error: "nationalId is required to complete registration", code: "NATIONAL_ID_REQUIRED" });
+    return;
+  }
+  const patch: Record<string, unknown> = {
+    registrationStage: "fully_registered",
+    fullyRegisteredAt: new Date(),
+    status: "active",
+    nationalId,
+    updatedAt: new Date(),
+  };
+  // Selectively accept the rest of the KYC fields. We deliberately don't allow overwriting
+  // groupId here — group transfers go through their own endpoint with the correct audit trail.
+  if (typeof body.dateOfBirth === "string" && /^\d{4}-\d{2}-\d{2}$/.test(body.dateOfBirth)) patch.dateOfBirth = body.dateOfBirth;
+  if (typeof body.sex === "string" && body.sex.trim()) patch.sex = body.sex.trim();
+  if (typeof body.householdSize === "number") patch.householdSize = body.householdSize;
+  if (typeof body.dependants === "number") patch.dependants = body.dependants;
+  if (typeof body.headOfHousehold === "string" && body.headOfHousehold.trim()) patch.headOfHousehold = body.headOfHousehold.trim();
+  if (typeof body.landTenure === "string" && body.landTenure.trim()) patch.landTenure = body.landTenure.trim();
+  if (typeof body.village === "string" && body.village.trim()) patch.village = body.village.trim();
+  if (typeof body.phoneNumber === "string" && body.phoneNumber.trim()) patch.phoneNumber = body.phoneNumber.trim();
+
+  const [updated] = await db.update(farmersTable).set(patch).where(eq(farmersTable.id, farmerId as string)).returning();
+  const result = await buildFarmerResponse(updated);
+  res.json(result);
 });
 
 router.get("/farmers/duplicates", async (req, res): Promise<void> => {

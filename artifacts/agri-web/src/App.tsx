@@ -14,6 +14,7 @@ import Dashboard from "@/pages/dashboard/index";
 import FarmersList from "@/pages/farmers/index";
 import FarmerDetail from "@/pages/farmers/detail";
 import FarmerDuplicates from "@/pages/farmers/duplicates";
+import FarmerPreregisterPage from "@/pages/farmers/preregister";
 import GroupsList from "@/pages/groups/index";
 import GroupDetail from "@/pages/groups/detail";
 import ProcurementHub from "@/pages/procurement/index";
@@ -143,6 +144,7 @@ function ProtectedRoutes() {
           <Switch>
             <Route path="/dashboard" component={Dashboard} />
             <Route path="/farmers/duplicates" component={FarmerDuplicates} />
+            <Route path="/farmers/preregister" component={FarmerPreregisterPage} />
             <Route path="/farmers/:id" component={FarmerDetail} />
             <Route path="/farmers" component={FarmersList} />
             <Route path="/groups/:id" component={GroupDetail} />

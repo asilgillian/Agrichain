@@ -16,6 +16,11 @@ export const farmersTable = pgTable("farmers", {
   regionId: uuid("region_id").notNull(),
   village: text("village"),
   status: text("status").notNull().default("active"),
+  // 'pre_registered' (light/initial capture) or 'fully_registered' (KYC + group + region complete).
+  // Defaults to 'fully_registered' so existing rows keep working without backfill.
+  registrationStage: text("registration_stage").notNull().default("fully_registered"),
+  preRegisteredAt: timestamp("pre_registered_at", { withTimezone: true }),
+  fullyRegisteredAt: timestamp("fully_registered_at", { withTimezone: true }),
   photoUrl: text("photo_url"),
   biometricPhotoUrl: text("biometric_photo_url"),
   householdSize: integer("household_size"),

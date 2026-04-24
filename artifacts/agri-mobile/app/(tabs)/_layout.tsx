@@ -20,6 +20,10 @@ function NativeTabLayout() {
         <Icon sf={{ default: "house", selected: "house.fill" }} />
         <Label>Home</Label>
       </NativeTabs.Trigger>
+      <NativeTabs.Trigger name="preregister">
+        <Icon sf={{ default: "person.badge.plus", selected: "person.badge.plus.fill" }} />
+        <Label>Pre-register</Label>
+      </NativeTabs.Trigger>
     </NativeTabs>
   );
 }
@@ -71,6 +75,18 @@ function ClassicTabLayout() {
               <SymbolView name="house" tintColor={color} size={24} />
             ) : (
               <Feather name="home" size={22} color={color} />
+            ),
+        }}
+      />
+      <Tabs.Screen
+        name="preregister"
+        options={{
+          title: "Pre-register",
+          tabBarIcon: ({ color }) =>
+            isIOS ? (
+              <SymbolView name="person.badge.plus" tintColor={color} size={24} />
+            ) : (
+              <Feather name="user-plus" size={22} color={color} />
             ),
         }}
       />
