@@ -712,35 +712,70 @@ function PermissionMatrix({
         </div>
       </CardHeader>
       <CardContent>
-        <div className="border rounded-md overflow-x-auto max-h-[70vh]">
-          <Table>
-            <TableHeader className="sticky top-0 bg-background z-10">
-              <TableRow>
-                <TableHead className="w-[280px] sticky left-0 bg-background">Permission</TableHead>
+        {/*
+          Why a raw <table> instead of shadcn <Table>:
+          The shadcn Table primitive wraps itself in `<div class="relative w-full overflow-auto">`,
+          which becomes the scroll container. Sticky positioning is relative to the nearest
+          scroll ancestor, so a sticky header inside that wrapper would still scroll out of
+          view if the user scrolled the OUTER container we put around it. By owning the
+          single scroll div here, the role-name header stays pinned to the top while scrolling
+          permission rows, and the "Permission" column stays pinned to the left while
+          scrolling roles horizontally.
+        */}
+        <div
+          className="border rounded-md overflow-auto max-h-[70vh] relative"
+          data-testid="matrix-scroll-container"
+        >
+          <table className="w-full caption-bottom text-sm border-collapse">
+            <thead>
+              <tr className="border-b">
+                <th
+                  className="sticky top-0 left-0 z-30 bg-background border-b border-r p-3 text-left w-[280px] min-w-[280px] font-medium"
+                  scope="col"
+                >
+                  Permission
+                </th>
                 {roles.map(r => (
-                  <TableHead key={r.id} className="text-center min-w-[120px]">
+                  <th
+                    key={r.id}
+                    scope="col"
+                    className="sticky top-0 z-20 bg-background border-b border-r last:border-r-0 p-3 text-center min-w-[140px] font-medium"
+                  >
                     <div className="flex flex-col items-center">
-                      <span className="font-semibold">{r.name}</span>
+                      <span className="font-semibold whitespace-nowrap">{r.name}</span>
                       {isWildcardRole(r) && <Badge variant="outline" className="text-[10px] mt-1">wildcard</Badge>}
                     </div>
-                  </TableHead>
+                  </th>
                 ))}
-              </TableRow>
-            </TableHeader>
-            <TableBody>
+              </tr>
+            </thead>
+            <tbody>
               {groupedPerms.map(([module, perms]) => (
                 <Fragment key={`module-${module}`}>
-                  <TableRow className="bg-muted/40">
-                    <TableCell colSpan={roles.length + 1} className="text-xs font-semibold uppercase text-muted-foreground sticky left-0">
+                  <tr className="bg-muted/60">
+                    {/*
+                      Module band: a single sticky-left cell whose VISUAL width via min-w covers
+                      the visible viewport, then a transparent spacer cell that spans the rest
+                      of the columns so the row's background still extends. This lets the module
+                      label stay visible at the start of the row even when scrolled horizontally.
+                    */}
+                    <th
+                      scope="rowgroup"
+                      className="sticky left-0 z-10 bg-muted/60 p-2 text-xs font-semibold uppercase text-muted-foreground text-left w-[280px] min-w-[280px] border-b"
+                    >
                       {module}
-                    </TableCell>
-                  </TableRow>
+                    </th>
+                    <td colSpan={roles.length} className="bg-muted/60 border-b" />
+                  </tr>
                   {perms.map(p => (
-                    <TableRow key={p.key} data-testid={`matrix-row-${p.key}`}>
-                      <TableCell className="sticky left-0 bg-background">
+                    <tr key={p.key} data-testid={`matrix-row-${p.key}`} className="border-b last:border-b-0 hover:bg-muted/20">
+                      <th
+                        scope="row"
+                        className="sticky left-0 z-10 bg-background border-r p-3 text-left w-[280px] min-w-[280px] font-normal align-top"
+                      >
                         <code className="text-xs font-mono">{p.key}</code>
-                        <p className="text-xs text-muted-foreground">{p.description}</p>
-                      </TableCell>
+                        <p className="text-xs text-muted-foreground mt-0.5">{p.description}</p>
+                      </th>
                       {roles.map(r => {
                         const wildcard = isWildcardRole(r);
                         // Wildcard roles always show as ticked (since "*" implies everything) but disabled.
@@ -748,7 +783,7 @@ function PermissionMatrix({
                         const original = (r.permissions ?? []).includes(p.key) || wildcard;
                         const changed = !wildcard && checked !== original;
                         return (
-                          <TableCell key={r.id} className="text-center">
+                          <td key={r.id} className="text-center p-2 border-r last:border-r-0 align-middle">
                             <div
                               className={`inline-flex items-center justify-center rounded p-1 ${changed ? "bg-amber-100 dark:bg-amber-950" : ""}`}
                               data-testid={`matrix-cell-${p.key}-${r.id}`}
@@ -760,16 +795,19 @@ function PermissionMatrix({
                                 aria-label={`${p.key} for ${r.name}`}
                               />
                             </div>
-                          </TableCell>
+                          </td>
                         );
                       })}
-                    </TableRow>
+                    </tr>
                   ))}
                 </Fragment>
               ))}
-            </TableBody>
-          </Table>
+            </tbody>
+          </table>
         </div>
+        <p className="text-xs text-muted-foreground mt-2">
+          Scroll horizontally to see more roles. The role names stay pinned at the top and the permission column stays pinned to the left.
+        </p>
       </CardContent>
     </Card>
   );
