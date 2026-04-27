@@ -1,4 +1,5 @@
 import { Feather } from "@expo/vector-icons";
+import { useAuth } from "@clerk/expo";
 import * as Location from "expo-location";
 import React, { useState } from "react";
 import {
@@ -17,12 +18,11 @@ import { useColors } from "@/hooks/useColors";
 
 // Resolve the API base. EXPO_PUBLIC_API_URL is the canonical override; otherwise
 // fall back to the workspace dev domain so local web builds at least hit the right host.
-// NOTE: Mobile auth is not yet wired to Clerk — requests to gated endpoints will return 401
-// until the auth bridge lands. The UI flow below is fully functional and ready for that step.
+// The Replit proxy strips "/api-server" before forwarding to the api-server.
 const API_BASE =
   process.env.EXPO_PUBLIC_API_URL ??
-  (typeof process !== "undefined" && (process as any).env?.REPLIT_DEV_DOMAIN
-    ? `https://${(process as any).env.REPLIT_DEV_DOMAIN}/api-server`
+  (process.env.EXPO_PUBLIC_DOMAIN
+    ? `https://${process.env.EXPO_PUBLIC_DOMAIN}/api-server`
     : "");
 
 type Coords = { latitude: number; longitude: number; accuracy: number | null };
@@ -30,6 +30,7 @@ type Coords = { latitude: number; longitude: number; accuracy: number | null };
 export default function PreregisterScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
+  const { getToken } = useAuth();
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("+256");
@@ -70,6 +71,13 @@ export default function PreregisterScreen() {
     }
     setSubmitting(true);
     try {
+      // Attach the Clerk session token so the gated API routes accept the request.
+      const token = await getToken();
+      const authHeaders: Record<string, string> = {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      };
+
       // 1. Pre-register the farmer.
       const farmerBody: Record<string, unknown> = {
         firstName: firstName.trim(),
@@ -82,7 +90,7 @@ export default function PreregisterScreen() {
 
       const farmerRes = await fetch(`${API_BASE}/api/farmers/preregister`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: authHeaders,
         body: JSON.stringify(farmerBody),
       });
       if (!farmerRes.ok) {
@@ -95,7 +103,7 @@ export default function PreregisterScreen() {
       if (coords) {
         const plotRes = await fetch(`${API_BASE}/api/plots`, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: authHeaders,
           body: JSON.stringify({
             farmerId: farmer.id,
             cropType: "Unknown",
@@ -137,14 +145,6 @@ export default function PreregisterScreen() {
       <Text style={[styles.subtitle, { color: colors.mutedForeground }]}>
         Capture the bare minimum in the field. Full KYC details can be completed later from the web console.
       </Text>
-
-      {/* Auth gap warning — mobile API calls will currently 401 until Clerk auth is wired. */}
-      <View style={[styles.warning, { borderColor: "#f59e0b", backgroundColor: "rgba(245, 158, 11, 0.1)" }]}>
-        <Feather name="alert-triangle" size={18} color="#b45309" />
-        <Text style={[styles.warningText, { color: colors.foreground }]}>
-          Mobile sign-in isn't wired up yet — submissions will fail with 401 until that lands. The form is ready for it.
-        </Text>
-      </View>
 
       <Field label="First name *" value={firstName} onChangeText={setFirstName} placeholder="Mary" colors={colors} testID="pre-first-name" />
       <Field label="Last name *" value={lastName} onChangeText={setLastName} placeholder="Nakato" colors={colors} testID="pre-last-name" />
@@ -251,20 +251,6 @@ const styles = StyleSheet.create({
   subtitle: {
     fontSize: 14,
     marginBottom: 8,
-  },
-  warning: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    gap: 10,
-    padding: 12,
-    borderRadius: 8,
-    borderWidth: 1,
-    marginBottom: 8,
-  },
-  warningText: {
-    flex: 1,
-    fontSize: 13,
-    lineHeight: 18,
   },
   field: { gap: 6 },
   fieldLabel: { fontSize: 12, fontWeight: "500", textTransform: "uppercase", letterSpacing: 0.4 },

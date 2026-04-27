@@ -1,6 +1,7 @@
 import { Feather } from "@expo/vector-icons";
+import { useAuth, useUser } from "@clerk/expo";
 import { useRouter } from "expo-router";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useColors } from "@/hooks/useColors";
@@ -21,6 +22,25 @@ export default function HomeScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const { signOut } = useAuth();
+  const { user } = useUser();
+  const userEmail =
+    user?.primaryEmailAddress?.emailAddress ??
+    user?.emailAddresses[0]?.emailAddress ??
+    null;
+
+  const handleSignOut = () => {
+    Alert.alert("Sign out", "Sign out of AgriChain Field?", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Sign out",
+        style: "destructive",
+        onPress: async () => {
+          await signOut();
+        },
+      },
+    ]);
+  };
 
   return (
     <ScrollView
@@ -45,18 +65,32 @@ export default function HomeScreen() {
         </View>
       </View>
 
-      {/* Auth gap notice — keep parity with the Pre-register screen so field officers know
-          submissions are blocked until Clerk auth is wired into the mobile build. */}
+      {/* Signed-in pill: shows the active account and lets the agent sign out. */}
       <View
         style={[
-          styles.warning,
-          { borderColor: "#f59e0b", backgroundColor: "rgba(245, 158, 11, 0.1)" },
+          styles.accountRow,
+          { borderColor: colors.border, backgroundColor: colors.card },
         ]}
       >
-        <Feather name="alert-triangle" size={18} color="#b45309" />
-        <Text style={[styles.warningText, { color: colors.foreground }]}>
-          {"Mobile sign-in isn't wired up yet — anything that talks to the server will fail with 401 until that lands. The screens below are ready for it."}
-        </Text>
+        <View style={[styles.accountIcon, { backgroundColor: colors.accent }]}>
+          <Feather name="user" size={16} color={colors.primary} />
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={[styles.accountLabel, { color: colors.mutedForeground }]}>Signed in</Text>
+          <Text style={[styles.accountEmail, { color: colors.foreground }]} numberOfLines={1}>
+            {userEmail ?? "Active session"}
+          </Text>
+        </View>
+        <Pressable
+          onPress={handleSignOut}
+          style={({ pressed }) => [
+            styles.signOutBtn,
+            { borderColor: colors.border, opacity: pressed ? 0.6 : 1 },
+          ]}
+          testID="home-sign-out"
+        >
+          <Text style={[styles.signOutText, { color: colors.foreground }]}>Sign out</Text>
+        </Pressable>
       </View>
 
       <Text style={[styles.sectionLabel, { color: colors.mutedForeground }]}>Available now</Text>
@@ -178,19 +212,42 @@ const styles = StyleSheet.create({
     fontSize: 13,
     marginTop: 2,
   },
-  warning: {
+  accountRow: {
     flexDirection: "row",
-    alignItems: "flex-start",
-    gap: 10,
-    padding: 12,
-    borderRadius: 8,
+    alignItems: "center",
+    gap: 12,
     borderWidth: 1,
+    borderRadius: 12,
+    padding: 12,
     marginBottom: 4,
   },
-  warningText: {
-    flex: 1,
+  accountIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  accountLabel: {
+    fontSize: 10,
+    fontWeight: "700",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  accountEmail: {
+    fontSize: 13,
+    fontWeight: "500",
+    marginTop: 1,
+  },
+  signOutBtn: {
+    borderWidth: 1,
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  signOutText: {
     fontSize: 12,
-    lineHeight: 17,
+    fontWeight: "600",
   },
   sectionLabel: {
     fontSize: 11,
