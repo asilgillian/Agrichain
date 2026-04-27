@@ -7,14 +7,24 @@ import { SymbolView } from "expo-symbols";
 import { Feather } from "@expo/vector-icons";
 import { setAuthTokenGetter } from "@workspace/api-client-react";
 import React, { useEffect } from "react";
-import { Platform, StyleSheet, View, useColorScheme } from "react-native";
+import { ActivityIndicator, Platform, Pressable, StyleSheet, Text, View, useColorScheme } from "react-native";
 
+import { PendingApprovalScreen } from "@/components/PendingApprovalScreen";
 import { useColors } from "@/hooks/useColors";
+import { useMe } from "@/hooks/useMe";
 
 // IMPORTANT: iOS 26 uses NativeTabs for native tabs with liquid glass support.
 // NativeTabs intentionally does NOT use custom design tokens — liquid glass
 // is a system-level appearance provided by iOS and cannot be overridden.
 // Custom brand colors are applied only on the ClassicTabLayout path (older iOS / Android / web).
+const styles = StyleSheet.create({
+  loader: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+});
+
 function NativeTabLayout() {
   return (
     <NativeTabs>
@@ -96,8 +106,51 @@ function ClassicTabLayout() {
   );
 }
 
+function FullScreenLoader() {
+  const colors = useColors();
+  return (
+    <View style={[styles.loader, { backgroundColor: colors.background }]}>
+      <ActivityIndicator size="large" color={colors.primary} />
+    </View>
+  );
+}
+
+function FullScreenError({ onRetry, onSignOut }: { onRetry: () => void; onSignOut: () => void }) {
+  const colors = useColors();
+  return (
+    <View style={[styles.loader, { backgroundColor: colors.background, paddingHorizontal: 24 }]}>
+      <Feather name="alert-circle" size={42} color={colors.destructive} />
+      <View style={{ height: 12 }} />
+      <View>
+        <Pressable
+          onPress={onRetry}
+          style={({ pressed }) => [
+            { backgroundColor: colors.primary, paddingHorizontal: 18, paddingVertical: 12, borderRadius: 10, opacity: pressed ? 0.8 : 1, marginBottom: 8 },
+          ]}
+          testID="me-retry"
+        >
+          <Text style={{ color: colors.primaryForeground, fontWeight: "600", textAlign: "center" }}>
+            Try again
+          </Text>
+        </Pressable>
+        <Pressable
+          onPress={onSignOut}
+          style={({ pressed }) => [
+            { borderWidth: 1, borderColor: colors.border, paddingHorizontal: 18, paddingVertical: 12, borderRadius: 10, opacity: pressed ? 0.8 : 1 },
+          ]}
+          testID="me-signout"
+        >
+          <Text style={{ color: colors.foreground, fontWeight: "500", textAlign: "center" }}>
+            Sign out
+          </Text>
+        </Pressable>
+      </View>
+    </View>
+  );
+}
+
 export default function TabLayout() {
-  const { isLoaded, isSignedIn, getToken } = useAuth();
+  const { isLoaded, isSignedIn, getToken, signOut } = useAuth();
 
   // Wire the generated API client's token getter to Clerk so any call routed
   // through @workspace/api-client-react automatically gets a fresh Bearer token.
@@ -106,8 +159,20 @@ export default function TabLayout() {
     setAuthTokenGetter(isSignedIn ? () => getToken() : null);
   }, [isLoaded, isSignedIn, getToken]);
 
+  // Resolve the user's server-side role. This is the canonical access gate — Clerk
+  // tells us *who* the user is, but the app database tells us *what they're allowed
+  // to do*. New sign-ups land in the "Pending" role until an admin grants real access.
+  const { me, isLoading: meLoading, isError: meError, refetch } = useMe();
+
   if (!isLoaded) return null;
   if (!isSignedIn) return <Redirect href="/(auth)/sign-in" />;
+  if (meLoading && !me) return <FullScreenLoader />;
+  if (meError && !me) {
+    return <FullScreenError onRetry={refetch} onSignOut={() => signOut()} />;
+  }
+  if (me?.role === "Pending") {
+    return <PendingApprovalScreen onRefresh={refetch} refreshing={meLoading} />;
+  }
 
   if (isLiquidGlassAvailable()) {
     return <NativeTabLayout />;
