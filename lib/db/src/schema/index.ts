@@ -3,6 +3,7 @@ export * from "./country-hierarchies";
 export * from "./roles";
 export * from "./users";
 export * from "./groups";
+export * from "./user-groups";
 export * from "./farmers";
 export * from "./farmer-cards";
 export * from "./plots";

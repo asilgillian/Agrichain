@@ -47,6 +47,7 @@ const PERMISSION_CATALOG: Array<{ key: string; module: string; description: stri
   { key: "groups.leaders.write", module: "Groups", description: "Appoint and end group leaders" },
   { key: "groups.transfer", module: "Groups", description: "Transfer and bulk-reassign farmers between groups" },
   { key: "groups.archive", module: "Groups", description: "Archive a group and redistribute members" },
+  { key: "groups.assigned_only", module: "Groups", description: "Restrict groups/farmers visibility to those assigned to this user" },
   { key: "commodities.read", module: "Commodities", description: "View commodity catalog, types, prices, conversions" },
   { key: "commodities.write", module: "Commodities", description: "Create and edit commodities, types, conversions" },
   { key: "commodities.prices.write", module: "Commodities", description: "Set daily purchase prices per kg" },

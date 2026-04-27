@@ -1,12 +1,13 @@
 import { Router, type IRouter } from "express";
-import { eq, ilike, or, and, desc, sql } from "drizzle-orm";
-import { db, farmersTable, groupsTable, plotsTable, certificationEnrolmentsTable, certificationStreamsTable, surveySubmissionsTable, gapAssessmentsTable, auditLogsTable, usersTable } from "@workspace/db";
+import { eq, ilike, or, and, desc, sql, inArray } from "drizzle-orm";
+import { db, farmersTable, groupsTable, plotsTable, certificationEnrolmentsTable, certificationStreamsTable, surveySubmissionsTable, gapAssessmentsTable, auditLogsTable, usersTable, userGroupsTable } from "@workspace/db";
 import {
   CreateFarmerBody,
   UpdateFarmerBody,
   ListFarmersQueryParams,
 } from "@workspace/api-zod";
-import { requirePermission } from "../middlewares/auth";
+import { requirePermission, type AuthedRequest } from "../middlewares/auth";
+import { checkFarmerAccess, isUserScoped, getAssignedGroupIds } from "../lib/assignment-scope";
 
 const router: IRouter = Router();
 
@@ -25,7 +26,7 @@ async function buildFarmerResponse(farmer: any) {
   };
 }
 
-router.get("/farmers", async (req, res): Promise<void> => {
+router.get("/farmers", async (req: AuthedRequest, res): Promise<void> => {
   const parsed = ListFarmersQueryParams.safeParse(req.query);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
@@ -55,6 +56,24 @@ router.get("/farmers", async (req, res): Promise<void> => {
   if (status) conditions.push(eq(farmersTable.status, status));
   if (registrationStage) conditions.push(eq(farmersTable.registrationStage, registrationStage));
 
+  // Per-user assignment scoping: if the requester has `groups.assigned_only`
+  // (and isn't a wildcard admin), restrict farmers to those whose groupId is
+  // in user_groups for this user. With zero assignments → returns empty.
+  const perms = req.authedUser?.permissions ?? [];
+  const scoped = perms.includes("groups.assigned_only") && !perms.includes("*");
+  if (scoped) {
+    const assigned = await db
+      .select({ groupId: userGroupsTable.groupId })
+      .from(userGroupsTable)
+      .where(eq(userGroupsTable.userId, req.authedUser!.id));
+    const ids = assigned.map(a => a.groupId);
+    if (ids.length === 0) {
+      res.json({ data: [], total: 0, page, limit });
+      return;
+    }
+    conditions.push(inArray(farmersTable.groupId, ids));
+  }
+
   const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
 
   const [farmers, countResult] = await Promise.all([
@@ -77,7 +96,7 @@ router.get("/farmers", async (req, res): Promise<void> => {
 // Requires `farmers.register`. Sets registrationStage='fully_registered'. National ID is
 // expected for full registration (the existing CreateFarmerBody schema enforces required
 // fields). For lighter capture, agents use POST /farmers/preregister below.
-router.post("/farmers", requirePermission("farmers.register"), async (req, res): Promise<void> => {
+router.post("/farmers", requirePermission("farmers.register"), async (req: AuthedRequest, res): Promise<void> => {
   const parsed = CreateFarmerBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
@@ -90,6 +109,15 @@ router.post("/farmers", requirePermission("farmers.register"), async (req, res):
     return;
   }
   const groupId: string = rawGroupId;
+  // Per-user assignment scoping: scoped users may only register farmers into groups
+  // they are explicitly assigned to.
+  if (isUserScoped(req.authedUser)) {
+    const assigned = await getAssignedGroupIds(req.authedUser!.id);
+    if (!assigned.has(groupId)) {
+      res.status(403).json({ error: "You are not assigned to this group" });
+      return;
+    }
+  }
   const [group] = await db.select().from(groupsTable).where(eq(groupsTable.id, groupId));
   if (!group) { res.status(400).json({ error: "Group not found", code: "GROUP_NOT_FOUND" }); return; }
   if (group.status === "archived") {
@@ -114,7 +142,7 @@ router.post("/farmers", requirePermission("farmers.register"), async (req, res):
 // optionally phone/village. National ID and other KYC fields can be added later via
 // /farmers/:farmerId/complete. Status is set to 'pending' so admin/full registration is
 // required before the farmer is treated as active.
-router.post("/farmers/preregister", requirePermission("farmers.preregister"), async (req, res): Promise<void> => {
+router.post("/farmers/preregister", requirePermission("farmers.preregister"), async (req: AuthedRequest, res): Promise<void> => {
   const body = (req.body ?? {}) as Record<string, unknown>;
   const firstName = typeof body.firstName === "string" ? body.firstName.trim() : "";
   const lastName = typeof body.lastName === "string" ? body.lastName.trim() : "";
@@ -132,6 +160,15 @@ router.post("/farmers/preregister", requirePermission("farmers.preregister"), as
   if (Object.keys(fieldErrors).length > 0) {
     res.status(400).json({ error: "Missing required fields", fieldErrors });
     return;
+  }
+  // Per-user assignment scoping: field staff with `groups.assigned_only` may only
+  // pre-register into groups they are assigned to.
+  if (isUserScoped(req.authedUser)) {
+    const assigned = await getAssignedGroupIds(req.authedUser!.id);
+    if (!assigned.has(groupId)) {
+      res.status(403).json({ error: "You are not assigned to this group" });
+      return;
+    }
   }
   const [group] = await db.select().from(groupsTable).where(eq(groupsTable.id, groupId));
   if (!group) { res.status(400).json({ error: "Group not found", code: "GROUP_NOT_FOUND" }); return; }
@@ -161,8 +198,10 @@ router.post("/farmers/preregister", requirePermission("farmers.preregister"), as
 // ---------- POST /farmers/:farmerId/complete (promote pre→full) ----------
 // Promotes a pre_registered farmer to fully_registered. Accepts the missing KYC fields
 // (national ID, sex, DOB, household details, etc.) and marks the farmer 'active'.
-router.post("/farmers/:farmerId/complete", requirePermission("farmers.register"), async (req, res): Promise<void> => {
+router.post("/farmers/:farmerId/complete", requirePermission("farmers.register"), async (req: AuthedRequest, res): Promise<void> => {
   const { farmerId } = req.params;
+  const denied = await checkFarmerAccess(farmerId as string, req.authedUser);
+  if (denied) { res.status(denied.status).json({ error: denied.error }); return; }
   const [existing] = await db.select().from(farmersTable).where(eq(farmersTable.id, farmerId as string));
   if (!existing) { res.status(404).json({ error: "Farmer not found" }); return; }
   if (existing.registrationStage === "fully_registered") {
@@ -200,7 +239,13 @@ router.post("/farmers/:farmerId/complete", requirePermission("farmers.register")
   res.json(result);
 });
 
-router.get("/farmers/duplicates", async (req, res): Promise<void> => {
+router.get("/farmers/duplicates", async (req: AuthedRequest, res): Promise<void> => {
+  // Duplicate review is an admin/data-stewardship task that needs visibility across
+  // the whole farmer corpus. Per-group field staff are not allowed to see this list.
+  if (isUserScoped(req.authedUser)) {
+    res.status(403).json({ error: "Duplicate review is not available for assigned-only users" });
+    return;
+  }
   const farmers = await db.select().from(farmersTable).limit(100);
   const pairs: any[] = [];
   for (let i = 0; i < farmers.length; i++) {
@@ -225,7 +270,12 @@ router.get("/farmers/duplicates", async (req, res): Promise<void> => {
   res.json(pairs.slice(0, 20));
 });
 
-router.post("/farmers/duplicates/:pairId/merge", async (req, res): Promise<void> => {
+router.post("/farmers/duplicates/:pairId/merge", async (req: AuthedRequest, res): Promise<void> => {
+  // Same scope rule as the duplicates list: scoped users can't merge across the corpus.
+  if (isUserScoped(req.authedUser)) {
+    res.status(403).json({ error: "Duplicate merge is not available for assigned-only users" });
+    return;
+  }
   const { masterFarmerId } = req.body;
   if (!masterFarmerId) {
     res.status(400).json({ error: "masterFarmerId required" });
@@ -240,8 +290,10 @@ router.post("/farmers/duplicates/:pairId/merge", async (req, res): Promise<void>
   res.json(result);
 });
 
-router.get("/farmers/:farmerId", async (req, res): Promise<void> => {
+router.get("/farmers/:farmerId", async (req: AuthedRequest, res): Promise<void> => {
   const { farmerId } = req.params;
+  const denied = await checkFarmerAccess(farmerId as string, req.authedUser);
+  if (denied) { res.status(denied.status).json({ error: denied.error }); return; }
   const [farmer] = await db.select().from(farmersTable).where(eq(farmersTable.id, farmerId as string));
   if (!farmer) {
     res.status(404).json({ error: "Farmer not found" });
@@ -272,12 +324,25 @@ router.get("/farmers/:farmerId", async (req, res): Promise<void> => {
   res.json(result);
 });
 
-router.patch("/farmers/:farmerId", async (req, res): Promise<void> => {
+router.patch("/farmers/:farmerId", async (req: AuthedRequest, res): Promise<void> => {
   const { farmerId } = req.params;
+  const denied = await checkFarmerAccess(farmerId as string, req.authedUser);
+  if (denied) { res.status(denied.status).json({ error: denied.error }); return; }
   const parsed = UpdateFarmerBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
     return;
+  }
+  // Defense in depth: if the patch tries to MOVE the farmer into a different group,
+  // the caller must also be assigned to the destination group. Group transfers go
+  // through the dedicated transfer endpoint normally, but PATCH technically allows
+  // a groupId update too.
+  if (isUserScoped(req.authedUser) && typeof (parsed.data as any).groupId === "string") {
+    const assigned = await getAssignedGroupIds(req.authedUser!.id);
+    if (!assigned.has((parsed.data as any).groupId)) {
+      res.status(403).json({ error: "You are not assigned to the destination group" });
+      return;
+    }
   }
   const [farmer] = await db.update(farmersTable).set({ ...parsed.data, updatedAt: new Date() }).where(eq(farmersTable.id, farmerId as string)).returning();
   if (!farmer) {
@@ -288,8 +353,10 @@ router.patch("/farmers/:farmerId", async (req, res): Promise<void> => {
   res.json(result);
 });
 
-router.get("/farmers/:farmerId/card", async (req, res): Promise<void> => {
+router.get("/farmers/:farmerId/card", async (req: AuthedRequest, res): Promise<void> => {
   const { farmerId } = req.params;
+  const denied = await checkFarmerAccess(farmerId as string, req.authedUser);
+  if (denied) { res.status(denied.status).json({ error: denied.error }); return; }
   const [farmer] = await db.select().from(farmersTable).where(eq(farmersTable.id, farmerId as string));
   if (!farmer) {
     res.status(404).json({ error: "Farmer not found" });

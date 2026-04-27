@@ -8,11 +8,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Pencil, Plus, Search, X } from "lucide-react";
+import { Pencil, Plus, Search, X, Users2 } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { DEFAULT_PHONE_CODE } from "@/lib/currency";
+import { ManageUserGroupsDialog } from "@/components/ManageUserGroupsDialog";
 
 const API_BASE = import.meta.env.BASE_URL?.replace(/\/$/, "");
 const NO_REGION = "__none__";
@@ -44,6 +45,7 @@ export default function UsersPage() {
   const [editRegion, setEditRegion] = useState<string>(NO_REGION);
   const [editManager, setEditManager] = useState<string>(NO_MANAGER);
   const [editStatus, setEditStatus] = useState("active");
+  const [groupsUser, setGroupsUser] = useState<UserRecord | null>(null);
   const [search, setSearch] = useState("");
   const [filterRole, setFilterRole] = useState<string>(ALL);
   const [filterRegion, setFilterRegion] = useState<string>(ALL);
@@ -65,6 +67,17 @@ export default function UsersPage() {
     queryFn: async () => {
       const r = await fetch(`${API_BASE}/api/admin/regions`);
       if (!r.ok) throw new Error(`Failed to load regions (${r.status})`);
+      return r.json();
+    },
+  });
+
+  // Per-user counts of assigned groups, fetched in one shot. Used to render
+  // a Groups column in the table without doing N requests.
+  const { data: groupCounts } = useQuery<Record<string, number>>({
+    queryKey: ["/api/users-group-counts"],
+    queryFn: async () => {
+      const r = await fetch(`${API_BASE}/api/users-group-counts`);
+      if (!r.ok) throw new Error(`Failed to load group counts (${r.status})`);
       return r.json();
     },
   });
@@ -294,33 +307,47 @@ export default function UsersPage() {
                 <TableHead>Role</TableHead>
                 <TableHead>Region</TableHead>
                 <TableHead>Reports to</TableHead>
+                <TableHead>Groups</TableHead>
                 <TableHead>Phone</TableHead>
                 <TableHead>Status</TableHead>
-                <TableHead className="w-12"></TableHead>
+                <TableHead className="w-24"></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {isLoading ? (
-                [1, 2, 3].map(i => <TableRow key={i}><TableCell colSpan={8}><Skeleton className="h-10 w-full" /></TableCell></TableRow>)
-              ) : filteredUsers.length > 0 ? filteredUsers.map((u) => (
-                <TableRow key={u.id} data-testid={`user-row-${u.id}`}>
-                  <TableCell className="font-medium">{u.firstName} {u.lastName}</TableCell>
-                  <TableCell className="text-muted-foreground">{u.email}</TableCell>
-                  <TableCell>
-                    <Badge variant={u.role === "Pending" ? "destructive" : "outline"} data-testid={`role-${u.id}`}>{u.role}</Badge>
-                  </TableCell>
-                  <TableCell className="text-muted-foreground">{regionName(u.regionId) ?? "—"}</TableCell>
-                  <TableCell className="text-muted-foreground" data-testid={`manager-${u.id}`}>{managerName(u.managerId) ?? "—"}</TableCell>
-                  <TableCell className="text-muted-foreground">{u.phoneNumber ?? "—"}</TableCell>
-                  <TableCell><Badge variant={u.status === "active" ? "default" : "secondary"}>{u.status}</Badge></TableCell>
-                  <TableCell>
-                    <Button size="sm" variant="ghost" onClick={() => openEdit(u)} data-testid={`edit-user-${u.id}`} title="Edit role / region / manager / status">
-                      <Pencil className="h-4 w-4" />
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              )) : (
-                <TableRow><TableCell colSpan={8} className="py-12 text-center text-muted-foreground">
+                [1, 2, 3].map(i => <TableRow key={i}><TableCell colSpan={9}><Skeleton className="h-10 w-full" /></TableCell></TableRow>)
+              ) : filteredUsers.length > 0 ? filteredUsers.map((u) => {
+                const gCount = groupCounts?.[u.id] ?? 0;
+                return (
+                  <TableRow key={u.id} data-testid={`user-row-${u.id}`}>
+                    <TableCell className="font-medium">{u.firstName} {u.lastName}</TableCell>
+                    <TableCell className="text-muted-foreground">{u.email}</TableCell>
+                    <TableCell>
+                      <Badge variant={u.role === "Pending" ? "destructive" : "outline"} data-testid={`role-${u.id}`}>{u.role}</Badge>
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">{regionName(u.regionId) ?? "—"}</TableCell>
+                    <TableCell className="text-muted-foreground" data-testid={`manager-${u.id}`}>{managerName(u.managerId) ?? "—"}</TableCell>
+                    <TableCell data-testid={`groups-count-${u.id}`}>
+                      {gCount > 0
+                        ? <Badge variant="secondary">{gCount}</Badge>
+                        : <span className="text-muted-foreground">—</span>}
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">{u.phoneNumber ?? "—"}</TableCell>
+                    <TableCell><Badge variant={u.status === "active" ? "default" : "secondary"}>{u.status}</Badge></TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-1">
+                        <Button size="sm" variant="ghost" onClick={() => setGroupsUser(u)} data-testid={`manage-groups-${u.id}`} title="Manage assigned farmer groups">
+                          <Users2 className="h-4 w-4" />
+                        </Button>
+                        <Button size="sm" variant="ghost" onClick={() => openEdit(u)} data-testid={`edit-user-${u.id}`} title="Edit role / region / manager / status">
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                );
+              }) : (
+                <TableRow><TableCell colSpan={9} className="py-12 text-center text-muted-foreground">
                   {hasActiveFilters ? "No users match these filters" : "No users found"}
                 </TableCell></TableRow>
               )}
@@ -390,6 +417,12 @@ export default function UsersPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <ManageUserGroupsDialog
+        user={groupsUser}
+        open={!!groupsUser}
+        onOpenChange={(o) => { if (!o) setGroupsUser(null); }}
+      />
     </div>
   );
 }

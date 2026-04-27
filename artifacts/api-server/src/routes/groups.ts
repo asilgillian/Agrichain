@@ -10,9 +10,12 @@ import {
   deliveriesTable,
   batchesTable,
   auditLogsTable,
+  userGroupsTable,
 } from "@workspace/db";
 import { CreateGroupBody, ListGroupsQueryParams } from "@workspace/api-zod";
 import { requirePermission, type AuthedRequest } from "../middlewares/auth";
+import { validateGroupRegionIsLeaf } from "../lib/region-validation";
+import { checkGroupAccess, isUserScoped, getAssignedGroupIds } from "../lib/assignment-scope";
 
 const router: IRouter = Router();
 
@@ -67,7 +70,7 @@ async function audit(entityId: string, action: string, user: AuthedRequest["auth
 
 // ------------- LIST / CREATE / READ -------------
 
-router.get("/groups", requirePermission("groups.read"), async (req, res): Promise<void> => {
+router.get("/groups", requirePermission("groups.read"), async (req: AuthedRequest, res): Promise<void> => {
   const parsed = ListGroupsQueryParams.safeParse(req.query);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
   const { regionId } = parsed.data;
@@ -80,6 +83,23 @@ router.get("/groups", requirePermission("groups.read"), async (req, res): Promis
   if (parentId === "null") conditions.push(isNull(groupsTable.parentGroupId));
   else if (parentId && UUID_RE.test(parentId)) conditions.push(eq(groupsTable.parentGroupId, parentId));
 
+  // Per-user assignment scoping. Field staff with `groups.assigned_only` only
+  // see groups listed in their user_groups rows. Wildcard (*) bypasses scoping.
+  const perms = req.authedUser?.permissions ?? [];
+  const scoped = perms.includes("groups.assigned_only") && !perms.includes("*");
+  if (scoped) {
+    const assigned = await db
+      .select({ groupId: userGroupsTable.groupId })
+      .from(userGroupsTable)
+      .where(eq(userGroupsTable.userId, req.authedUser!.id));
+    const ids = assigned.map(a => a.groupId);
+    if (ids.length === 0) {
+      res.json([]); // assigned-only with no assignments = empty
+      return;
+    }
+    conditions.push(inArray(groupsTable.id, ids));
+  }
+
   const groups = conditions.length
     ? await db.select().from(groupsTable).where(and(...conditions))
     : await db.select().from(groupsTable);
@@ -91,6 +111,11 @@ router.get("/groups", requirePermission("groups.read"), async (req, res): Promis
 router.post("/groups", requirePermission("groups.write"), async (req: AuthedRequest, res): Promise<void> => {
   const parsed = CreateGroupBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
+  // Enforce: every group must be anchored to the deepest admin level for its
+  // country (e.g. UG/KE Village). This is what makes "groups are linked to
+  // actual administrative units" meaningful.
+  const leafErr = await validateGroupRegionIsLeaf(parsed.data.regionId);
+  if (leafErr) { res.status(400).json({ error: leafErr }); return; }
   const body = req.body as Record<string, unknown>;
   const extras: Record<string, unknown> = {};
   for (const f of ["parish", "subCounty", "district"] as const) {
@@ -101,6 +126,10 @@ router.post("/groups", requirePermission("groups.write"), async (req: AuthedRequ
     if (typeof body.parentGroupId !== "string" || !UUID_RE.test(body.parentGroupId)) {
       res.status(400).json({ error: "Invalid parentGroupId" }); return;
     }
+    // Per-user assignment scoping: scoped users may only attach a new group to a
+    // parent they themselves are assigned to.
+    const parentDenied = await checkGroupAccess(body.parentGroupId, req.authedUser);
+    if (parentDenied) { res.status(parentDenied.status).json({ error: parentDenied.error }); return; }
     const [parent] = await db.select().from(groupsTable).where(eq(groupsTable.id, body.parentGroupId));
     if (!parent) { res.status(400).json({ error: "Parent group not found" }); return; }
     if (parent.status === "archived") { res.status(400).json({ error: "Parent group is archived" }); return; }
@@ -115,11 +144,20 @@ router.post("/groups", requirePermission("groups.write"), async (req: AuthedRequ
 router.patch("/groups/:groupId", requirePermission("groups.write"), async (req: AuthedRequest, res): Promise<void> => {
   const groupId = req.params.groupId as string;
   if (!UUID_RE.test(groupId)) { res.status(400).json({ error: "Invalid group id" }); return; }
+  const denied = await checkGroupAccess(groupId, req.authedUser);
+  if (denied) { res.status(denied.status).json({ error: denied.error }); return; }
   const [current] = await db.select().from(groupsTable).where(eq(groupsTable.id, groupId));
   if (!current) { res.status(404).json({ error: "Group not found" }); return; }
 
   const body = req.body as Record<string, unknown>;
   const patch: Record<string, unknown> = { updatedAt: new Date() };
+  // If the caller is changing region_id, re-validate it must point to a leaf node.
+  if (typeof body.regionId === "string") {
+    if (!UUID_RE.test(body.regionId)) { res.status(400).json({ error: "Invalid regionId" }); return; }
+    const leafErr = await validateGroupRegionIsLeaf(body.regionId);
+    if (leafErr) { res.status(400).json({ error: leafErr }); return; }
+    patch.regionId = body.regionId;
+  }
   for (const f of ["name", "village", "parish", "subCounty", "district"] as const) {
     if (typeof body[f] === "string") patch[f] = (body[f] as string).trim() || null;
   }
@@ -133,6 +171,10 @@ router.patch("/groups/:groupId", requirePermission("groups.write"), async (req: 
       res.status(400).json({ error: "Invalid parentGroupId" }); return;
     }
     if (body.parentGroupId === groupId) { res.status(400).json({ error: "Group cannot be its own parent" }); return; }
+    // Per-user assignment scoping: scoped users may only re-parent under a group
+    // they're assigned to.
+    const parentDenied = await checkGroupAccess(body.parentGroupId, req.authedUser);
+    if (parentDenied) { res.status(parentDenied.status).json({ error: parentDenied.error }); return; }
     const [parentRow] = await db.select().from(groupsTable).where(eq(groupsTable.id, body.parentGroupId));
     if (!parentRow) { res.status(400).json({ error: "Parent group not found" }); return; }
     if (parentRow.status === "archived") { res.status(400).json({ error: "Parent group is archived" }); return; }
@@ -153,9 +195,11 @@ router.patch("/groups/:groupId", requirePermission("groups.write"), async (req: 
   res.json(shapeGroup(updated));
 });
 
-router.get("/groups/:groupId", requirePermission("groups.read"), async (req, res): Promise<void> => {
+router.get("/groups/:groupId", requirePermission("groups.read"), async (req: AuthedRequest, res): Promise<void> => {
   const groupId = req.params.groupId as string;
   if (!UUID_RE.test(groupId)) { res.status(400).json({ error: "Invalid group id" }); return; }
+  const denied = await checkGroupAccess(groupId, req.authedUser);
+  if (denied) { res.status(denied.status).json({ error: denied.error }); return; }
   const [group] = await db.select().from(groupsTable).where(eq(groupsTable.id, groupId));
   if (!group) { res.status(404).json({ error: "Group not found" }); return; }
 
@@ -170,10 +214,17 @@ router.get("/groups/:groupId", requirePermission("groups.read"), async (req, res
     .where(eq(groupLeadersTable.groupId, groupId))
     .orderBy(desc(groupLeadersTable.termStart));
 
-  const [parent] = group.parentGroupId
+  // Filter parent/children visibility by assignment for scoped users — they may
+  // be assigned to THIS group without being assigned to its relatives.
+  const scoped = isUserScoped(req.authedUser);
+  const callerAssigned = scoped ? await getAssignedGroupIds(req.authedUser!.id) : null;
+  const [parent] = group.parentGroupId && (!callerAssigned || callerAssigned.has(group.parentGroupId))
     ? await db.select().from(groupsTable).where(eq(groupsTable.id, group.parentGroupId))
     : [null];
-  const children = await db.select().from(groupsTable).where(eq(groupsTable.parentGroupId, groupId));
+  const allChildren = await db.select().from(groupsTable).where(eq(groupsTable.parentGroupId, groupId));
+  const children = callerAssigned
+    ? allChildren.filter(c => callerAssigned.has(c.id))
+    : allChildren;
 
   const transfers = await db.select().from(groupTransfersTable)
     .where(or(eq(groupTransfersTable.toGroupId, groupId), eq(groupTransfersTable.fromGroupId, groupId)))
@@ -196,6 +247,8 @@ router.get("/groups/:groupId", requirePermission("groups.read"), async (req, res
 router.post("/groups/:groupId/leaders", requirePermission("groups.leaders.write"), async (req: AuthedRequest, res): Promise<void> => {
   const groupId = req.params.groupId as string;
   if (!UUID_RE.test(groupId)) { res.status(400).json({ error: "Invalid group id" }); return; }
+  const denied = await checkGroupAccess(groupId, req.authedUser);
+  if (denied) { res.status(denied.status).json({ error: denied.error }); return; }
   const { farmerId, position, termStart, termEnd } = req.body ?? {};
   if (!UUID_RE.test(String(farmerId ?? ""))) { res.status(400).json({ error: "farmerId required" }); return; }
   if (typeof position !== "string" || !position.trim()) { res.status(400).json({ error: "position required" }); return; }
@@ -240,6 +293,8 @@ router.post("/groups/:groupId/leaders", requirePermission("groups.leaders.write"
 router.patch("/groups/:groupId/leaders/:leaderId/end", requirePermission("groups.leaders.write"), async (req: AuthedRequest, res): Promise<void> => {
   const groupId = req.params.groupId as string; const leaderId = req.params.leaderId as string;
   if (!UUID_RE.test(groupId) || !UUID_RE.test(leaderId)) { res.status(400).json({ error: "Invalid id" }); return; }
+  const denied = await checkGroupAccess(groupId, req.authedUser);
+  if (denied) { res.status(denied.status).json({ error: denied.error }); return; }
   const termEnd = typeof req.body?.termEnd === "string" && /^\d{4}-\d{2}-\d{2}$/.test(req.body.termEnd)
     ? req.body.termEnd : new Date().toISOString().slice(0, 10);
   const [updated] = await db.update(groupLeadersTable)
@@ -256,6 +311,8 @@ router.patch("/groups/:groupId/leaders/:leaderId/end", requirePermission("groups
 router.post("/groups/:toGroupId/transfer", requirePermission("groups.transfer"), async (req: AuthedRequest, res): Promise<void> => {
   const toGroupId = req.params.toGroupId as string;
   if (!UUID_RE.test(toGroupId)) { res.status(400).json({ error: "Invalid group id" }); return; }
+  const denied = await checkGroupAccess(toGroupId, req.authedUser);
+  if (denied) { res.status(denied.status).json({ error: denied.error }); return; }
   const rawIds: unknown[] = Array.isArray(req.body?.farmerIds) ? req.body.farmerIds : [];
   if (rawIds.length === 0) { res.status(400).json({ error: "farmerIds array required" }); return; }
   // Strict validation — reject the whole batch if any id is malformed (audit-grade input).
@@ -272,6 +329,18 @@ router.post("/groups/:toGroupId/transfer", requirePermission("groups.transfer"),
     const farmers = await tx.select().from(farmersTable).where(inArray(farmersTable.id, farmerIds));
     if (farmers.length !== farmerIds.length) {
       return { error: "One or more farmers not found" as const };
+    }
+    // Per-user assignment scoping: a scoped user must also be assigned to EVERY
+    // source group, not just the destination. Otherwise they could yank farmers
+    // out of groups they aren't supposed to see.
+    if (isUserScoped(req.authedUser)) {
+      const assigned = await getAssignedGroupIds(req.authedUser!.id);
+      // Treat orphan farmers (groupId null) as unauthorized for scoped users —
+      // they wouldn't be visible via the normal farmer endpoints either.
+      const unauthorized = farmers.filter(f => !f.groupId || !assigned.has(f.groupId));
+      if (unauthorized.length > 0) {
+        return { error: "You are not assigned to one or more source groups" as const, status: 403 as const };
+      }
     }
     const sameGroup = farmers.filter(f => f.groupId === toGroupId);
     if (sameGroup.length === farmers.length) {
@@ -295,7 +364,11 @@ router.post("/groups/:toGroupId/transfer", requirePermission("groups.transfer"),
     }
     return { moved };
   });
-  if ("error" in result) { res.status(400).json({ error: result.error }); return; }
+  if ("error" in result) {
+    const status = (result as { status?: number }).status ?? 400;
+    res.status(status).json({ error: result.error });
+    return;
+  }
   res.json({ movedCount: result.moved.length, farmerIds: result.moved, toGroupId });
 });
 
@@ -304,6 +377,8 @@ router.post("/groups/:toGroupId/transfer", requirePermission("groups.transfer"),
 router.post("/groups/:groupId/archive", requirePermission("groups.archive"), async (req: AuthedRequest, res): Promise<void> => {
   const groupId = req.params.groupId as string;
   if (!UUID_RE.test(groupId)) { res.status(400).json({ error: "Invalid group id" }); return; }
+  const denied = await checkGroupAccess(groupId, req.authedUser);
+  if (denied) { res.status(denied.status).json({ error: denied.error }); return; }
   const redistributeTo: string | null = typeof req.body?.redistributeToGroupId === "string" && UUID_RE.test(req.body.redistributeToGroupId)
     ? req.body.redistributeToGroupId : null;
   const reason = typeof req.body?.reason === "string" ? req.body.reason.trim() : "archive";
@@ -319,6 +394,11 @@ router.post("/groups/:groupId/archive", requirePermission("groups.archive"), asy
   }
   if (redistributeTo) {
     if (redistributeTo === groupId) { res.status(400).json({ error: "Cannot redistribute members to the same group" }); return; }
+    // Per-user assignment scoping: redistribution destination must also be in the
+    // caller's assigned set when scoped — otherwise farmers could be moved into
+    // groups the caller cannot otherwise see.
+    const denied2 = await checkGroupAccess(redistributeTo, req.authedUser);
+    if (denied2) { res.status(denied2.status).json({ error: denied2.error }); return; }
     const [target] = await db.select().from(groupsTable).where(eq(groupsTable.id, redistributeTo));
     if (!target || target.status !== "active") { res.status(400).json({ error: "Redistribute target not found or archived" }); return; }
   }
@@ -397,9 +477,11 @@ router.post("/groups/:groupId/archive", requirePermission("groups.archive"), asy
 
 // ------------- REPORT (CSV for agents/auditors/cert bodies) -------------
 
-router.get("/groups/:groupId/report", requirePermission("groups.read"), async (req, res): Promise<void> => {
+router.get("/groups/:groupId/report", requirePermission("groups.read"), async (req: AuthedRequest, res): Promise<void> => {
   const groupId = req.params.groupId as string;
   if (!UUID_RE.test(groupId)) { res.status(400).json({ error: "Invalid group id" }); return; }
+  const denied = await checkGroupAccess(groupId, req.authedUser);
+  if (denied) { res.status(denied.status).json({ error: denied.error }); return; }
   const [group] = await db.select().from(groupsTable).where(eq(groupsTable.id, groupId));
   if (!group) { res.status(404).json({ error: "Group not found" }); return; }
 
