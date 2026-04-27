@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { Link } from "wouter";
-import { useListGroups } from "@workspace/api-client-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -16,6 +15,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/hooks/use-toast";
 import { DEFAULT_PHONE_CODE } from "@/lib/currency";
 import { usePermissions } from "@/hooks/use-permissions";
+import { RegionPicker } from "@/components/RegionPicker";
+import { GroupPicker } from "@/components/GroupPicker";
 
 const API_BASE = import.meta.env.BASE_URL?.replace(/\/$/, "");
 
@@ -88,19 +89,6 @@ export default function FarmersList() {
       if (!r.ok) {
         const text = await r.text();
         throw new Error(`Failed to load farmers (${r.status}): ${text.slice(0, 200)}`);
-      }
-      return r.json();
-    },
-  });
-
-  const { data: groups } = useListGroups({});
-  const { data: regions } = useQuery<any[]>({
-    queryKey: ["/api/admin/regions"],
-    queryFn: async () => {
-      const r = await fetch(`${API_BASE}/api/admin/regions`);
-      if (!r.ok) {
-        const text = await r.text();
-        throw new Error(`Failed to load regions (${r.status}): ${text.slice(0, 200)}`);
       }
       return r.json();
     },
@@ -198,22 +186,23 @@ export default function FarmersList() {
                     <div><Label>Village</Label><Input value={preForm.village} onChange={e => setPreForm({ ...preForm, village: e.target.value })} data-testid="pre-input-village" /></div>
                   </div>
                   <div>
-                    <Label>Region *</Label>
-                    <Select value={preForm.regionId} onValueChange={v => setPreForm({ ...preForm, regionId: v })}>
-                      <SelectTrigger data-testid="pre-input-region"><SelectValue placeholder="Select region" /></SelectTrigger>
-                      <SelectContent>
-                        {Array.isArray(regions) && regions.map(r => <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
+                    <Label className="mb-1 block">Administrative unit *</Label>
+                    <RegionPicker
+                      value={preForm.regionId}
+                      onChange={v => setPreForm({ ...preForm, regionId: v, groupId: "" })}
+                      country="UG"
+                      required
+                      testIdPrefix="pre-input-region"
+                    />
                   </div>
                   <div>
-                    <Label>Group *</Label>
-                    <Select value={preForm.groupId} onValueChange={v => setPreForm({ ...preForm, groupId: v })}>
-                      <SelectTrigger data-testid="pre-input-group"><SelectValue placeholder="Select cooperative group" /></SelectTrigger>
-                      <SelectContent>
-                        {groups?.map(g => <SelectItem key={g.id} value={g.id}>{g.name}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
+                    <Label className="mb-1 block">Group *</Label>
+                    <GroupPicker
+                      value={preForm.groupId}
+                      onChange={v => setPreForm({ ...preForm, groupId: v })}
+                      regionId={preForm.regionId}
+                      testId="pre-input-group"
+                    />
                   </div>
                 </div>
                 <DialogFooter>
@@ -259,22 +248,23 @@ export default function FarmersList() {
                     <div><Label>Village</Label><Input value={fullForm.village} onChange={e => setFullForm({ ...fullForm, village: e.target.value })} data-testid="input-village" /></div>
                   </div>
                   <div>
-                    <Label>Region *</Label>
-                    <Select value={fullForm.regionId} onValueChange={v => setFullForm({ ...fullForm, regionId: v })}>
-                      <SelectTrigger data-testid="input-region"><SelectValue placeholder="Select region" /></SelectTrigger>
-                      <SelectContent>
-                        {Array.isArray(regions) && regions.map(r => <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
+                    <Label className="mb-1 block">Administrative unit *</Label>
+                    <RegionPicker
+                      value={fullForm.regionId}
+                      onChange={v => setFullForm({ ...fullForm, regionId: v, groupId: "" })}
+                      country="UG"
+                      required
+                      testIdPrefix="input-region"
+                    />
                   </div>
                   <div>
-                    <Label>Group *</Label>
-                    <Select value={fullForm.groupId} onValueChange={v => setFullForm({ ...fullForm, groupId: v })}>
-                      <SelectTrigger data-testid="input-group"><SelectValue placeholder="Select cooperative group" /></SelectTrigger>
-                      <SelectContent>
-                        {groups?.map(g => <SelectItem key={g.id} value={g.id}>{g.name}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
+                    <Label className="mb-1 block">Group *</Label>
+                    <GroupPicker
+                      value={fullForm.groupId}
+                      onChange={v => setFullForm({ ...fullForm, groupId: v })}
+                      regionId={fullForm.regionId}
+                      testId="input-group"
+                    />
                   </div>
                 </div>
                 <DialogFooter>

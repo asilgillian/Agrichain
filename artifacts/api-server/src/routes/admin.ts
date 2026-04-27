@@ -93,6 +93,8 @@ const PERMISSION_CATALOG: Array<{ key: string; module: string; description: stri
   { key: "activity_funds.approve", module: "Activity Funds", description: "Approve or reject requests" },
   { key: "users.read", module: "Staff", description: "View staff users" },
   { key: "users.write", module: "Staff", description: "Add and edit staff" },
+  { key: "regions.read", module: "Admin", description: "Read administrative regions (for pickers and lookups)" },
+  { key: "hierarchy.read", module: "Admin", description: "Read per-country administrative hierarchies (for pickers)" },
   { key: "admin.regions", module: "Admin", description: "Manage regions" },
   { key: "admin.roles", module: "Admin", description: "Manage roles and permissions" },
   { key: "admin.bulk_upload", module: "Admin", description: "Bulk upload master data (regions, farmers, groups)" },
@@ -116,7 +118,10 @@ function parseCreateRoleBody(body: unknown):
   return { ok: true, data: { name: b.name.trim(), description: b.description as string | undefined, permissions: b.permissions as string[] } };
 }
 
-router.get("/admin/regions", requirePermission("admin.regions"), async (_req, res): Promise<void> => {
+// Read-only list — used by the cascading region picker in every farmer/group form
+// across web and mobile. Gate by the lighter `regions.read` so field staff can
+// populate the picker without granting them write access to admin tables.
+router.get("/admin/regions", requirePermission("regions.read"), async (_req, res): Promise<void> => {
   const regions = await db.select().from(regionsTable);
   res.json(regions);
 });
@@ -189,14 +194,16 @@ async function ensureSeedHierarchiesOnce(): Promise<void> {
   seededOnce = true;
 }
 
-router.get("/admin/country-hierarchies", requirePermission("admin.hierarchy"), async (_req, res): Promise<void> => {
+// Read-only — needed by every cascading region picker to know level names
+// (District / Sub-county / Parish / Village). Lighter `hierarchy.read` perm.
+router.get("/admin/country-hierarchies", requirePermission("hierarchy.read"), async (_req, res): Promise<void> => {
   await ensureSeedHierarchiesOnce();
   const rows = await db.select().from(countryHierarchiesTable);
   rows.sort((a, b) => a.countryName.localeCompare(b.countryName));
   res.json(rows);
 });
 
-router.get("/admin/country-hierarchies/:countryCode", requirePermission("admin.hierarchy"), async (req, res): Promise<void> => {
+router.get("/admin/country-hierarchies/:countryCode", requirePermission("hierarchy.read"), async (req, res): Promise<void> => {
   const code = String(req.params.countryCode).toUpperCase();
   const [row] = await db.select().from(countryHierarchiesTable).where(eq(countryHierarchiesTable.countryCode, code));
   if (!row) { res.status(404).json({ error: "Country hierarchy not found" }); return; }

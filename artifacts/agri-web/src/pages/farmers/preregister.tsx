@@ -1,16 +1,16 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useListGroups } from "@workspace/api-client-react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { DEFAULT_PHONE_CODE } from "@/lib/currency";
 import { usePermissions } from "@/hooks/use-permissions";
 import { UserPlus, ArrowLeft, AlertCircle } from "lucide-react";
+import { RegionPicker } from "@/components/RegionPicker";
+import { GroupPicker } from "@/components/GroupPicker";
 
 const API_BASE = import.meta.env.BASE_URL?.replace(/\/$/, "");
 
@@ -34,12 +34,6 @@ export default function FarmerPreregisterPage() {
   const { has, isLoading: permsLoading } = usePermissions();
   const canPre = has("farmers.preregister");
   const [form, setForm] = useState(empty);
-
-  const { data: groups } = useListGroups({});
-  const { data: regions } = useQuery<any[]>({
-    queryKey: ["/api/admin/regions"],
-    queryFn: () => fetch(`${API_BASE}/api/admin/regions`).then(r => r.json()),
-  });
 
   const mut = useMutation({
     mutationFn: (body: any) =>
@@ -107,24 +101,25 @@ export default function FarmerPreregisterPage() {
             <div><Label>Phone</Label><Input value={form.phoneNumber} onChange={e => setForm({ ...form, phoneNumber: e.target.value })} placeholder="+256..." data-testid="page-pre-phone" /></div>
             <div><Label>Village</Label><Input value={form.village} onChange={e => setForm({ ...form, village: e.target.value })} data-testid="page-pre-village" /></div>
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <div>
-              <Label>Region *</Label>
-              <Select value={form.regionId} onValueChange={v => setForm({ ...form, regionId: v })}>
-                <SelectTrigger data-testid="page-pre-region"><SelectValue placeholder="Select region" /></SelectTrigger>
-                <SelectContent>
-                  {Array.isArray(regions) && regions.map(r => <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>)}
-                </SelectContent>
-              </Select>
+              <Label className="mb-1 block">Administrative unit *</Label>
+              <RegionPicker
+                value={form.regionId}
+                onChange={v => setForm({ ...form, regionId: v, groupId: "" })}
+                country="UG"
+                required
+                testIdPrefix="page-pre-region"
+              />
             </div>
             <div>
-              <Label>Group *</Label>
-              <Select value={form.groupId} onValueChange={v => setForm({ ...form, groupId: v })}>
-                <SelectTrigger data-testid="page-pre-group"><SelectValue placeholder="Select cooperative group" /></SelectTrigger>
-                <SelectContent>
-                  {groups?.map(g => <SelectItem key={g.id} value={g.id}>{g.name}</SelectItem>)}
-                </SelectContent>
-              </Select>
+              <Label className="mb-1 block">Group *</Label>
+              <GroupPicker
+                value={form.groupId}
+                onChange={v => setForm({ ...form, groupId: v })}
+                regionId={form.regionId}
+                testId="page-pre-group"
+              />
             </div>
           </div>
           <div className="flex justify-end gap-2 pt-2">

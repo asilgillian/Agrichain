@@ -14,6 +14,8 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { GroupPicker } from "@/components/GroupPicker";
+import { RegionPicker } from "@/components/RegionPicker";
 import { useColors } from "@/hooks/useColors";
 
 // Resolve the API base. EXPO_PUBLIC_API_URL is the canonical override; otherwise
@@ -151,9 +153,27 @@ export default function PreregisterScreen() {
       <Field label="First name *" value={firstName} onChangeText={setFirstName} placeholder="Mary" colors={colors} testID="pre-first-name" />
       <Field label="Last name *" value={lastName} onChangeText={setLastName} placeholder="Nakato" colors={colors} testID="pre-last-name" />
       <Field label="Phone" value={phoneNumber} onChangeText={setPhoneNumber} placeholder="+256..." keyboardType="phone-pad" colors={colors} testID="pre-phone" />
-      <Field label="Village" value={village} onChangeText={setVillage} placeholder="Kabale" colors={colors} testID="pre-village" />
-      <Field label="Group ID *" value={groupId} onChangeText={setGroupId} placeholder="Paste group UUID" colors={colors} testID="pre-group" />
-      <Field label="Region ID *" value={regionId} onChangeText={setRegionId} placeholder="Paste region UUID" colors={colors} testID="pre-region" />
+      <Field label="Village (free text)" value={village} onChangeText={setVillage} placeholder="Kigungu" colors={colors} testID="pre-village" />
+
+      <View style={styles.field}>
+        <Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>Administrative unit *</Text>
+        <RegionPicker
+          value={regionId}
+          onChange={(v) => { setRegionId(v); setGroupId(""); }}
+          country="UG"
+          testID="pre-region"
+        />
+      </View>
+
+      <View style={styles.field}>
+        <Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>Group *</Text>
+        <GroupPicker
+          value={groupId}
+          onChange={setGroupId}
+          regionId={regionId}
+          testID="pre-group"
+        />
+      </View>
 
       <Text style={[styles.sectionLabel, { color: colors.foreground }]}>Plot location (optional)</Text>
       <Pressable

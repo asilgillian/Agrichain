@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useListGroups, customFetch } from "@workspace/api-client-react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
@@ -10,8 +10,8 @@ import { Label } from "@/components/ui/label";
 import { Link } from "wouter";
 import { Users, MapPin, ChevronRight, Plus } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
+import { RegionPicker } from "@/components/RegionPicker";
 
 const API_BASE = import.meta.env.BASE_URL?.replace(/\/$/, "");
 
@@ -21,11 +21,6 @@ export default function GroupsList() {
   const [form, setForm] = useState({ name: "", regionId: "", village: "" });
   const { toast } = useToast();
   const qc = useQueryClient();
-
-  const { data: regions } = useQuery<any[]>({
-    queryKey: ["/api/admin/regions"],
-    queryFn: () => customFetch<any[]>(`${API_BASE}/api/admin/regions`).then(d => Array.isArray(d) ? d : []),
-  });
 
   const createMut = useMutation({
     mutationFn: (body: any) => customFetch(`${API_BASE}/api/groups`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }),
@@ -59,15 +54,16 @@ export default function GroupsList() {
               <div className="space-y-3">
                 <div><Label>Group Name *</Label><Input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} placeholder="e.g. Kibaale Coffee Cooperative" data-testid="input-name" /></div>
                 <div>
-                  <Label>Region *</Label>
-                  <Select value={form.regionId} onValueChange={v => setForm({ ...form, regionId: v })}>
-                    <SelectTrigger data-testid="input-region"><SelectValue placeholder="Select region" /></SelectTrigger>
-                    <SelectContent>
-                      {(Array.isArray(regions) ? regions : []).map(r => <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
+                  <Label className="mb-1 block">Administrative unit *</Label>
+                  <RegionPicker
+                    value={form.regionId}
+                    onChange={v => setForm({ ...form, regionId: v })}
+                    country="UG"
+                    required
+                    testIdPrefix="input-region"
+                  />
                 </div>
-                <div><Label>Village</Label><Input value={form.village} onChange={e => setForm({ ...form, village: e.target.value })} data-testid="input-village" /></div>
+                <div><Label>Village</Label><Input value={form.village} onChange={e => setForm({ ...form, village: e.target.value })} placeholder="Specific village (optional, for free text)" data-testid="input-village" /></div>
               </div>
               <DialogFooter>
                 <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
