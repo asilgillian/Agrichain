@@ -26,6 +26,7 @@ import activityFundsRouter from "./activity-funds";
 import auditRouter from "./audit";
 import adminRouter from "./admin";
 import regionsRouter from "./regions";
+import orgRegionsRouter from "./org-regions";
 import commoditiesRouter from "./commodities";
 import samplesRouter from "./samples";
 
@@ -60,6 +61,7 @@ router.use(activityFundsRouter);
 router.use(auditRouter);
 router.use(adminRouter);
 router.use(regionsRouter);
+router.use(orgRegionsRouter);
 router.use(commoditiesRouter);
 router.use(samplesRouter);
 

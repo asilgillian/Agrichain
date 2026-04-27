@@ -97,6 +97,7 @@ const PERMISSION_CATALOG: Array<{ key: string; module: string; description: stri
   { key: "regions.read", module: "Admin", description: "Read administrative regions (for pickers and lookups)" },
   { key: "hierarchy.read", module: "Admin", description: "Read per-country administrative hierarchies (for pickers)" },
   { key: "admin.regions", module: "Admin", description: "Manage regions" },
+  { key: "admin.org_regions", module: "Admin", description: "Manage organisational regions (district clusters)" },
   { key: "admin.roles", module: "Admin", description: "Manage roles and permissions" },
   { key: "admin.bulk_upload", module: "Admin", description: "Bulk upload master data (regions, farmers, groups)" },
   { key: "admin.hierarchy", module: "Admin", description: "Configure per-country administrative hierarchies" },

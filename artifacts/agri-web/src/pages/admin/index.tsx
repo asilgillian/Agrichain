@@ -17,6 +17,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { useToast } from "@/hooks/use-toast";
 import { RegionsManager } from "@/components/admin/RegionsManager";
 import { RegionsMap } from "@/components/admin/RegionsMap";
+import { OrgRegionsManager } from "@/components/admin/OrgRegionsManager";
 
 const API_BASE = import.meta.env.BASE_URL?.replace(/\/$/, "");
 
@@ -343,6 +344,7 @@ export default function AdminPage() {
       <Tabs defaultValue="roles">
         <TabsList>
           <TabsTrigger value="regions">Regions</TabsTrigger>
+          <TabsTrigger value="org-regions">Org Regions</TabsTrigger>
           <TabsTrigger value="map">Map</TabsTrigger>
           <TabsTrigger value="hierarchy">Country Hierarchy</TabsTrigger>
           <TabsTrigger value="roles">Roles &amp; Permissions</TabsTrigger>
@@ -353,6 +355,10 @@ export default function AdminPage() {
 
         <TabsContent value="regions" className="mt-4">
           <RegionsManager />
+        </TabsContent>
+
+        <TabsContent value="org-regions" className="mt-4">
+          <OrgRegionsManager />
         </TabsContent>
 
         <TabsContent value="map" className="mt-4">

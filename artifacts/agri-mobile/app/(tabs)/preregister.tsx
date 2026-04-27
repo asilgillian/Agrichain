@@ -14,8 +14,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { GroupPicker } from "@/components/GroupPicker";
-import { RegionPicker } from "@/components/RegionPicker";
+import { OrgRegionGroupVillagePicker } from "@/components/OrgRegionGroupVillagePicker";
 import { useColors } from "@/hooks/useColors";
 
 // Resolve the API base. EXPO_PUBLIC_API_URL is the canonical override; otherwise
@@ -38,9 +37,9 @@ export default function PreregisterScreen() {
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("+256");
-  const [village, setVillage] = useState("");
+  const [orgRegionId, setOrgRegionId] = useState("");
   const [groupId, setGroupId] = useState("");
-  const [regionId, setRegionId] = useState("");
+  const [regionId, setRegionId] = useState(""); // selected village id
   const [coords, setCoords] = useState<Coords | null>(null);
   const [locating, setLocating] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -69,8 +68,8 @@ export default function PreregisterScreen() {
   };
 
   const submit = async () => {
-    if (!firstName.trim() || !lastName.trim() || !groupId.trim() || !regionId.trim()) {
-      Alert.alert("Missing fields", "First name, last name, group id and region id are required.");
+    if (!firstName.trim() || !lastName.trim() || !orgRegionId || !groupId || !regionId) {
+      Alert.alert("Missing fields", "First name, last name, region, group and village are all required.");
       return;
     }
     setSubmitting(true);
@@ -82,15 +81,17 @@ export default function PreregisterScreen() {
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
       };
 
-      // 1. Pre-register the farmer.
+      // 1. Pre-register the farmer. Backend validates that the picked group and
+      // village both fall under the picked org region's mapped districts and
+      // derives the rest of the admin units (parish, sub-county, district).
       const farmerBody: Record<string, unknown> = {
         firstName: firstName.trim(),
         lastName: lastName.trim(),
-        groupId: groupId.trim(),
-        regionId: regionId.trim(),
+        orgRegionId,
+        groupId,
+        regionId, // village id
       };
       if (phoneNumber.trim() && phoneNumber.trim() !== "+256") farmerBody.phoneNumber = phoneNumber.trim();
-      if (village.trim()) farmerBody.village = village.trim();
 
       const farmerRes = await fetch(`${API_BASE}/api/farmers/preregister`, {
         method: "POST",
@@ -123,11 +124,12 @@ export default function PreregisterScreen() {
       }
 
       Alert.alert("Done", `Pre-registered ${farmer.firstName} ${farmer.lastName}`);
-      // Reset for next entry.
+      // Reset for next entry. Keep the picked Region+Group so the next farmer
+      // in the same village can be added quickly; clear village to force a re-pick.
       setFirstName("");
       setLastName("");
       setPhoneNumber("+256");
-      setVillage("");
+      setRegionId("");
       setCoords(null);
     } catch (e: any) {
       Alert.alert("Submission failed", e?.message ?? "Unknown error");
@@ -153,27 +155,18 @@ export default function PreregisterScreen() {
       <Field label="First name *" value={firstName} onChangeText={setFirstName} placeholder="Mary" colors={colors} testID="pre-first-name" />
       <Field label="Last name *" value={lastName} onChangeText={setLastName} placeholder="Nakato" colors={colors} testID="pre-last-name" />
       <Field label="Phone" value={phoneNumber} onChangeText={setPhoneNumber} placeholder="+256..." keyboardType="phone-pad" colors={colors} testID="pre-phone" />
-      <Field label="Village (free text)" value={village} onChangeText={setVillage} placeholder="Kigungu" colors={colors} testID="pre-village" />
 
-      <View style={styles.field}>
-        <Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>Administrative unit *</Text>
-        <RegionPicker
-          value={regionId}
-          onChange={(v) => { setRegionId(v); setGroupId(""); }}
-          country="UG"
-          testID="pre-region"
-        />
-      </View>
-
-      <View style={styles.field}>
-        <Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>Group *</Text>
-        <GroupPicker
-          value={groupId}
-          onChange={setGroupId}
-          regionId={regionId}
-          testID="pre-group"
-        />
-      </View>
+      <OrgRegionGroupVillagePicker
+        orgRegionId={orgRegionId}
+        groupId={groupId}
+        villageId={regionId}
+        onChange={({ orgRegionId: r, groupId: g, villageId: v }) => {
+          setOrgRegionId(r);
+          setGroupId(g);
+          setRegionId(v);
+        }}
+        testIDPrefix="pre"
+      />
 
       <Text style={[styles.sectionLabel, { color: colors.foreground }]}>Plot location (optional)</Text>
       <Pressable

@@ -8,6 +8,7 @@ import {
 } from "@workspace/api-zod";
 import { requirePermission, type AuthedRequest } from "../middlewares/auth";
 import { checkFarmerAccess, isUserScoped, getAssignedGroupIds } from "../lib/assignment-scope";
+import { isLeafInsideOrgRegion, isLeafRegion } from "../lib/org-region-scope";
 
 const router: IRouter = Router();
 
@@ -151,6 +152,7 @@ router.post("/farmers/preregister", requirePermission("farmers.preregister"), as
   const phoneNumber = typeof body.phoneNumber === "string" ? body.phoneNumber.trim() : "";
   const village = typeof body.village === "string" ? body.village.trim() : "";
   const sex = typeof body.sex === "string" ? body.sex : "";
+  const orgRegionId = typeof body.orgRegionId === "string" ? body.orgRegionId.trim() : "";
 
   const fieldErrors: Record<string, string> = {};
   if (!firstName) fieldErrors.firstName = "Required";
@@ -160,6 +162,35 @@ router.post("/farmers/preregister", requirePermission("farmers.preregister"), as
   if (Object.keys(fieldErrors).length > 0) {
     res.status(400).json({ error: "Missing required fields", fieldErrors });
     return;
+  }
+  // Org Region binding (mobile 3-dropdown flow). When supplied, enforce that:
+  //   1. regionId is a true leaf (village) - prevents passing an ancestor that
+  //      would coincidentally pass the "inside org region" check.
+  //   2. The picked village's ancestor district is in the org region.
+  //   3. The picked group's anchor village ancestor district is in the org region.
+  // Forms that don't yet send orgRegionId continue to work for back-compat;
+  // the web back-office still uses the cascading region picker without it.
+  if (orgRegionId) {
+    const [grp] = await db
+      .select({ id: groupsTable.id, regionId: groupsTable.regionId })
+      .from(groupsTable)
+      .where(eq(groupsTable.id, groupId));
+    if (!grp) { res.status(400).json({ error: "Group not found", code: "GROUP_NOT_FOUND" }); return; }
+    const isLeaf = await isLeafRegion(regionId);
+    if (!isLeaf) {
+      res.status(400).json({ error: "Selected village must be at the deepest admin level", code: "REGION_NOT_LEAF" });
+      return;
+    }
+    const villageOk = await isLeafInsideOrgRegion(regionId, orgRegionId);
+    if (!villageOk) {
+      res.status(400).json({ error: "Selected village is not inside the chosen region", code: "VILLAGE_OUT_OF_ORG_REGION" });
+      return;
+    }
+    const groupVillageOk = await isLeafInsideOrgRegion(grp.regionId, orgRegionId);
+    if (!groupVillageOk) {
+      res.status(400).json({ error: "Selected group is not inside the chosen region", code: "GROUP_OUT_OF_ORG_REGION" });
+      return;
+    }
   }
   // Per-user assignment scoping: field staff with `groups.assigned_only` may only
   // pre-register into groups they are assigned to.
