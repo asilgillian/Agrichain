@@ -21,7 +21,7 @@ const ALL = "__all__";
 
 type Role = { id: string; name: string; description?: string; permissions: string[]; isSystem?: boolean };
 type Region = { id: string; name: string };
-type StaffUser = {
+type UserRecord = {
   id: string; firstName: string; lastName: string; email: string;
   phoneNumber?: string | null; role: string;
   regionId?: string | null; managerId?: string | null; status: string;
@@ -35,11 +35,11 @@ const STATUSES = [
 
 const emptyForm = { firstName: "", lastName: "", email: "", phoneNumber: DEFAULT_PHONE_CODE, role: "", regionId: "", managerId: "" };
 
-export default function StaffPage() {
+export default function UsersPage() {
   const { data: users, isLoading } = useListUsers({});
   const [createOpen, setCreateOpen] = useState(false);
   const [createForm, setCreateForm] = useState(emptyForm);
-  const [editUser, setEditUser] = useState<StaffUser | null>(null);
+  const [editUser, setEditUser] = useState<UserRecord | null>(null);
   const [editRole, setEditRole] = useState("");
   const [editRegion, setEditRegion] = useState<string>(NO_REGION);
   const [editManager, setEditManager] = useState<string>(NO_MANAGER);
@@ -72,7 +72,7 @@ export default function StaffPage() {
   const sortedRoles = (roles ?? []).slice().sort((a, b) => a.name.localeCompare(b.name));
   const regionName = (id?: string | null) => regions?.find(r => r.id === id)?.name;
   const userById = useMemo(() => {
-    const m = new Map<string, StaffUser>();
+    const m = new Map<string, UserRecord>();
     (users ?? []).forEach((u: any) => m.set(u.id, u));
     return m;
   }, [users]);
@@ -83,9 +83,9 @@ export default function StaffPage() {
   };
 
   const filteredUsers = useMemo(() => {
-    if (!users) return [] as StaffUser[];
+    if (!users) return [] as UserRecord[];
     const q = search.trim().toLowerCase();
-    return (users as StaffUser[]).filter((u) => {
+    return (users as UserRecord[]).filter((u) => {
       if (filterRole !== ALL && u.role !== filterRole) return false;
       if (filterRegion !== ALL) {
         const rid = u.regionId ?? "";
@@ -109,7 +109,7 @@ export default function StaffPage() {
     }).then(async r => { if (!r.ok) throw new Error((await r.json()).error ?? "Failed"); return r.json(); }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["/api/users"] });
-      toast({ title: "Staff member added" });
+      toast({ title: "User added" });
       setCreateOpen(false);
       setCreateForm(emptyForm);
     },
@@ -122,13 +122,13 @@ export default function StaffPage() {
     }).then(async r => { if (!r.ok) throw new Error((await r.json()).error ?? "Failed"); return r.json(); }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["/api/users"] });
-      toast({ title: "Staff member updated" });
+      toast({ title: "User updated" });
       setEditUser(null);
     },
     onError: (e: any) => toast({ title: "Failed", description: e.message, variant: "destructive" }),
   });
 
-  const openEdit = (u: StaffUser) => {
+  const openEdit = (u: UserRecord) => {
     setEditUser(u);
     setEditRole(u.role);
     setEditRegion(u.regionId ?? NO_REGION);
@@ -154,24 +154,24 @@ export default function StaffPage() {
     updateMut.mutate({ id: editUser.id, body });
   };
 
-  const managerCandidates = (users as StaffUser[] | undefined)?.filter(u => u.id !== editUser?.id) ?? [];
+  const managerCandidates = (users as UserRecord[] | undefined)?.filter(u => u.id !== editUser?.id) ?? [];
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-12">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Staff Management</h1>
+          <h1 className="text-3xl font-bold tracking-tight">User Management</h1>
           <p className="text-muted-foreground mt-1">User accounts, roles, and regional assignments</p>
         </div>
         <div className="flex items-center gap-3">
-          <Badge variant="secondary">{isLoading ? "..." : `${filteredUsers.length}${hasActiveFilters ? ` of ${users?.length ?? 0}` : ""} staff`}</Badge>
+          <Badge variant="secondary">{isLoading ? "..." : `${filteredUsers.length}${hasActiveFilters ? ` of ${users?.length ?? 0}` : ""} users`}</Badge>
           <Dialog open={createOpen} onOpenChange={(o) => { setCreateOpen(o); if (!o) setCreateForm(emptyForm); }}>
             <DialogTrigger asChild>
-              <Button className="gap-2" data-testid="add-staff-btn"><Plus className="h-4 w-4" /> Add Staff</Button>
+              <Button className="gap-2" data-testid="add-user-btn"><Plus className="h-4 w-4" /> Add User</Button>
             </DialogTrigger>
             <DialogContent>
               <DialogHeader>
-                <DialogTitle>Add Staff Member</DialogTitle>
+                <DialogTitle>Add User</DialogTitle>
                 <DialogDescription>Create a new user account with a defined role and region.</DialogDescription>
               </DialogHeader>
               <div className="space-y-3">
@@ -208,7 +208,7 @@ export default function StaffPage() {
                     <SelectTrigger data-testid="input-manager"><SelectValue placeholder="Select manager" /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value={NO_MANAGER}>— None —</SelectItem>
-                      {(users as StaffUser[] | undefined)?.map(m => (
+                      {(users as UserRecord[] | undefined)?.map(m => (
                         <SelectItem key={m.id} value={m.id}>{m.firstName} {m.lastName} · {m.role}</SelectItem>
                       ))}
                     </SelectContent>
@@ -225,7 +225,7 @@ export default function StaffPage() {
                   if (createForm.regionId) body.regionId = createForm.regionId;
                   if (createForm.managerId) body.managerId = createForm.managerId;
                   createMut.mutate(body);
-                }} disabled={createMut.isPending} data-testid="submit-staff">{createMut.isPending ? "Saving..." : "Add"}</Button>
+                }} disabled={createMut.isPending} data-testid="submit-user">{createMut.isPending ? "Saving..." : "Add"}</Button>
               </DialogFooter>
             </DialogContent>
           </Dialog>
@@ -244,7 +244,7 @@ export default function StaffPage() {
                   onChange={(e) => setSearch(e.target.value)}
                   placeholder="Name, email, phone..."
                   className="pl-8"
-                  data-testid="staff-search"
+                  data-testid="user-search"
                 />
               </div>
             </div>
@@ -321,7 +321,7 @@ export default function StaffPage() {
                 </TableRow>
               )) : (
                 <TableRow><TableCell colSpan={8} className="py-12 text-center text-muted-foreground">
-                  {hasActiveFilters ? "No staff match these filters" : "No staff found"}
+                  {hasActiveFilters ? "No users match these filters" : "No users found"}
                 </TableCell></TableRow>
               )}
             </TableBody>

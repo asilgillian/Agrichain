@@ -85,7 +85,7 @@ const financeItems: NavItem[] = [
 ];
 
 const systemItems: NavItem[] = [
-  { title: "Staff", icon: Users, href: "/staff", requiredAny: ["users.read"] },
+  { title: "Users", icon: Users, href: "/users", requiredAny: ["users.read"] },
   { title: "Assets", icon: Package, href: "/assets", requiredAny: ["assets.read"] },
   { title: "Activity Funds", icon: Wallet, href: "/activity-funds", requiredAny: ["activity_funds.read"] },
   { title: "Audit Log", icon: Shield, href: "/audit", requiredAny: ["audit.read"] },

@@ -169,13 +169,13 @@ export default function AssetsPage() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Assign Asset</DialogTitle>
-            <DialogDescription>Hand over this asset to a staff member and record its condition.</DialogDescription>
+            <DialogDescription>Hand over this asset to a user and record its condition.</DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
             <div>
-              <Label>Staff Member *</Label>
+              <Label>User *</Label>
               <Select value={assignForm.userId} onValueChange={v => setAssignForm({ ...assignForm, userId: v })}>
-                <SelectTrigger data-testid="input-assignee"><SelectValue placeholder="Select staff member" /></SelectTrigger>
+                <SelectTrigger data-testid="input-assignee"><SelectValue placeholder="Select user" /></SelectTrigger>
                 <SelectContent>
                   {users?.map(u => <SelectItem key={u.id} value={u.id}>{u.firstName} {u.lastName}</SelectItem>)}
                 </SelectContent>
@@ -196,7 +196,7 @@ export default function AssetsPage() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setAssignId(null)}>Cancel</Button>
-            <Button onClick={() => { if (!assignForm.userId) { toast({ title: "Pick a staff member", variant: "destructive" }); return; } assignMut.mutate({ id: assignId, body: assignForm }); }} disabled={assignMut.isPending} data-testid="submit-assign">{assignMut.isPending ? "Saving..." : "Assign"}</Button>
+            <Button onClick={() => { if (!assignForm.userId) { toast({ title: "Pick a user", variant: "destructive" }); return; } assignMut.mutate({ id: assignId, body: assignForm }); }} disabled={assignMut.isPending} data-testid="submit-assign">{assignMut.isPending ? "Saving..." : "Assign"}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

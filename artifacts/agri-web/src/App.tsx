@@ -33,7 +33,7 @@ import LoanDetail from "@/pages/loans/detail";
 import BuyersPage from "@/pages/buyers/index";
 import SalesPage from "@/pages/sales/index";
 import SalesContractDetail from "@/pages/sales/detail";
-import StaffPage from "@/pages/staff/index";
+import UsersPage from "@/pages/users/index";
 import AssetsPage from "@/pages/assets/index";
 import ActivityFundsPage from "@/pages/activity-funds/index";
 import AuditPage from "@/pages/audit/index";
@@ -165,7 +165,8 @@ function ProtectedRoutes() {
             <Route path="/buyers" component={BuyersPage} />
             <Route path="/sales/:id" component={SalesContractDetail} />
             <Route path="/sales" component={SalesPage} />
-            <Route path="/staff" component={StaffPage} />
+            <Route path="/users" component={UsersPage} />
+            <Route path="/staff"><Redirect to="/users" /></Route>
             <Route path="/assets" component={AssetsPage} />
             <Route path="/activity-funds" component={ActivityFundsPage} />
             <Route path="/audit" component={AuditPage} />
