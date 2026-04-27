@@ -18,11 +18,13 @@ import { useColors } from "@/hooks/useColors";
 
 // Resolve the API base. EXPO_PUBLIC_API_URL is the canonical override; otherwise
 // fall back to the workspace dev domain so local web builds at least hit the right host.
-// The Replit proxy strips "/api-server" before forwarding to the api-server.
+// In Replit's dev workspace the api artifact is reachable directly at the dev
+// domain root (https://<repl>.worf.replit.dev/api/...); there is NO
+// "/api-server" path prefix — that path returns the workspace iframe HTML.
 const API_BASE =
   process.env.EXPO_PUBLIC_API_URL ??
   (process.env.EXPO_PUBLIC_DOMAIN
-    ? `https://${process.env.EXPO_PUBLIC_DOMAIN}/api-server`
+    ? `https://${process.env.EXPO_PUBLIC_DOMAIN}`
     : "");
 
 type Coords = { latitude: number; longitude: number; accuracy: number | null };

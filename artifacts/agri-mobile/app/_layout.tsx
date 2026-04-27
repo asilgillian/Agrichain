@@ -23,12 +23,13 @@ SplashScreen.preventAutoHideAsync();
 
 const queryClient = new QueryClient();
 
-// Wire the generated API client to the workspace's api-server proxy path so
-// every relative path like "/api/farmers" resolves to the correct host. The
-// proxy strips "/api-server" before forwarding, so the api-server sees "/api/...".
+// Wire the generated API client to the workspace's api-server. In Replit's
+// dev workspace the api artifact is reachable directly at the dev domain root
+// (e.g. https://<repl-id>.worf.replit.dev/api/...); there is NO "/api-server"
+// path prefix — that path returns the workspace iframe HTML wrapper.
 const apiDomain = process.env.EXPO_PUBLIC_DOMAIN;
 if (apiDomain) {
-  setBaseUrl(`https://${apiDomain}/api-server`);
+  setBaseUrl(`https://${apiDomain}`);
 }
 
 const publishableKey = process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY;

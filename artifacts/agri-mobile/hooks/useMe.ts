@@ -9,10 +9,13 @@ export type AuthedUser = {
   permissions: string[];
 };
 
+// In Replit's dev workspace the api artifact is reachable directly at the dev
+// domain root (https://<repl>.worf.replit.dev/api/...); there is NO
+// "/api-server" path prefix — that path returns the workspace iframe HTML.
 const API_BASE =
   process.env.EXPO_PUBLIC_API_URL ??
   (process.env.EXPO_PUBLIC_DOMAIN
-    ? `https://${process.env.EXPO_PUBLIC_DOMAIN}/api-server`
+    ? `https://${process.env.EXPO_PUBLIC_DOMAIN}`
     : "");
 
 // Fetches the current user's role + permissions from the API. Mobile uses Bearer
