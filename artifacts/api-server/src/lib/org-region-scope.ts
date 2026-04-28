@@ -88,6 +88,58 @@ export async function isLeafInsideOrgRegion(
 }
 
 /**
+ * Find the District-level ancestor (or the node itself if it IS a district) for
+ * a given region. Returns null if the region doesn't exist or has no district
+ * ancestor in its country's hierarchy.
+ */
+export async function getDistrictAncestorId(regionId: string): Promise<string | null> {
+  const [region] = await db
+    .select({ id: regionsTable.id, countryCode: regionsTable.countryCode })
+    .from(regionsTable)
+    .where(eq(regionsTable.id, regionId));
+  if (!region) return null;
+  const districtLevel = await getDistrictLevelForCountry(region.countryCode ?? "UG");
+  const ancestor = await findAncestorRegionAtLevel(regionId, districtLevel);
+  return ancestor?.id ?? null;
+}
+
+/**
+ * Batched version: resolve district ancestors for many region ids in one go,
+ * deduplicating the input. Used by bulk transfer / archive paths to avoid N+1
+ * per-farmer roundtrips. Returns a Map keyed by the original region id; missing
+ * entries indicate the region wasn't found or had no district ancestor.
+ */
+export async function getDistrictAncestorIdsBatch(
+  regionIds: string[],
+): Promise<Map<string, string | null>> {
+  const out = new Map<string, string | null>();
+  const uniq = Array.from(new Set(regionIds));
+  // Cheap memoization within this call - many farmers usually live in the same village.
+  await Promise.all(
+    uniq.map(async (rid) => {
+      out.set(rid, await getDistrictAncestorId(rid));
+    }),
+  );
+  return out;
+}
+
+/**
+ * True iff two region ids share the same District-level ancestor. Used to
+ * enforce the implicit org-region binding on farmer edit/transfer paths -
+ * after preregister, a farmer's village and their group's anchor village must
+ * remain in the same district. Returns false on any lookup failure (fail-safe).
+ */
+export async function regionsShareDistrict(regionA: string, regionB: string): Promise<boolean> {
+  if (regionA === regionB) return true;
+  const [a, b] = await Promise.all([
+    getDistrictAncestorId(regionA),
+    getDistrictAncestorId(regionB),
+  ]);
+  if (!a || !b) return false;
+  return a === b;
+}
+
+/**
  * True iff the given region row is at the deepest configured admin level for
  * its country (i.e. a "village"). Used by preregister to make sure callers
  * pass a real leaf and not an ancestor inside the org region's districts.

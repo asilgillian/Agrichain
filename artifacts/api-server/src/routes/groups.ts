@@ -15,6 +15,7 @@ import {
 import { CreateGroupBody, ListGroupsQueryParams } from "@workspace/api-zod";
 import { requirePermission, type AuthedRequest } from "../middlewares/auth";
 import { validateGroupRegionIsLeaf } from "../lib/region-validation";
+import { regionsShareDistrict, getDistrictAncestorIdsBatch, getDistrictAncestorId } from "../lib/org-region-scope";
 import { checkGroupAccess, isUserScoped, getAssignedGroupIds } from "../lib/assignment-scope";
 
 const router: IRouter = Router();
@@ -346,6 +347,30 @@ router.post("/groups/:toGroupId/transfer", requirePermission("groups.transfer"),
     if (sameGroup.length === farmers.length) {
       return { error: "All selected farmers are already in the target group" as const };
     }
+    // Org-region consistency: every farmer being moved must already live in a
+    // village that shares a District ancestor with the destination group's
+    // anchor village. This preserves the implicit org-region binding for
+    // mobile-preregistered farmers and prevents cross-district drift via
+    // bulk transfer. Resolved in batch (one ancestor lookup per unique region)
+    // to keep large transfers off an N+1 path.
+    const targetDistrict = await getDistrictAncestorId(target.regionId);
+    const movableFarmers = farmers.filter(f => f.groupId !== toGroupId && f.regionId);
+    const districtMap = await getDistrictAncestorIdsBatch(
+      movableFarmers.map(f => f.regionId as string),
+    );
+    const districtMismatches: string[] = [];
+    for (const f of movableFarmers) {
+      const fd = districtMap.get(f.regionId as string) ?? null;
+      if (!targetDistrict || !fd || fd !== targetDistrict) districtMismatches.push(f.id);
+    }
+    if (districtMismatches.length > 0) {
+      return {
+        error: "One or more farmers live in a different district than the target group" as const,
+        status: 400 as const,
+        code: "TRANSFER_DISTRICT_MISMATCH" as const,
+        farmerIds: districtMismatches,
+      };
+    }
     const moved: string[] = [];
     for (const f of farmers) {
       if (f.groupId === toGroupId) continue;
@@ -365,8 +390,12 @@ router.post("/groups/:toGroupId/transfer", requirePermission("groups.transfer"),
     return { moved };
   });
   if ("error" in result) {
-    const status = (result as { status?: number }).status ?? 400;
-    res.status(status).json({ error: result.error });
+    const r = result as { error: string; status?: number; code?: string; farmerIds?: string[] };
+    const status = r.status ?? 400;
+    const body: Record<string, unknown> = { error: r.error };
+    if (r.code) body.code = r.code;
+    if (r.farmerIds) body.farmerIds = r.farmerIds;
+    res.status(status).json(body);
     return;
   }
   res.json({ movedCount: result.moved.length, farmerIds: result.moved, toGroupId });
@@ -401,6 +430,28 @@ router.post("/groups/:groupId/archive", requirePermission("groups.archive"), asy
     if (denied2) { res.status(denied2.status).json({ error: denied2.error }); return; }
     const [target] = await db.select().from(groupsTable).where(eq(groupsTable.id, redistributeTo));
     if (!target || target.status !== "active") { res.status(400).json({ error: "Redistribute target not found or archived" }); return; }
+    // Org-region consistency: every member being redistributed must share a
+    // District ancestor with the new group's anchor village. We pre-check here
+    // (outside the transaction) so admins get a clear error before any rows move.
+    // Batch the ancestor lookups so large groups don't hit N+1 latency.
+    const targetDistrict = await getDistrictAncestorId(target.regionId);
+    const checkable = members.filter(m => m.regionId);
+    const districtMap = await getDistrictAncestorIdsBatch(
+      checkable.map(m => m.regionId as string),
+    );
+    const districtMismatches: string[] = [];
+    for (const f of checkable) {
+      const fd = districtMap.get(f.regionId as string) ?? null;
+      if (!targetDistrict || !fd || fd !== targetDistrict) districtMismatches.push(f.id);
+    }
+    if (districtMismatches.length > 0) {
+      res.status(400).json({
+        error: "One or more members live in a different district than the redistribute target — move them individually first",
+        code: "REDISTRIBUTE_DISTRICT_MISMATCH",
+        farmerIds: districtMismatches,
+      });
+      return;
+    }
   }
 
   const today = new Date().toISOString().slice(0, 10);

@@ -8,7 +8,7 @@ import {
 } from "@workspace/api-zod";
 import { requirePermission, type AuthedRequest } from "../middlewares/auth";
 import { checkFarmerAccess, isUserScoped, getAssignedGroupIds } from "../lib/assignment-scope";
-import { isLeafInsideOrgRegion, isLeafRegion } from "../lib/org-region-scope";
+import { isLeafInsideOrgRegion, isLeafRegion, regionsShareDistrict } from "../lib/org-region-scope";
 
 const router: IRouter = Router();
 
@@ -368,11 +368,39 @@ router.patch("/farmers/:farmerId", async (req: AuthedRequest, res): Promise<void
   // the caller must also be assigned to the destination group. Group transfers go
   // through the dedicated transfer endpoint normally, but PATCH technically allows
   // a groupId update too.
-  if (isUserScoped(req.authedUser) && typeof (parsed.data as any).groupId === "string") {
+  const patchData = parsed.data as { groupId?: string; regionId?: string };
+  if (isUserScoped(req.authedUser) && typeof patchData.groupId === "string") {
     const assigned = await getAssignedGroupIds(req.authedUser!.id);
-    if (!assigned.has((parsed.data as any).groupId)) {
+    if (!assigned.has(patchData.groupId)) {
       res.status(403).json({ error: "You are not assigned to the destination group" });
       return;
+    }
+  }
+  // Org-region consistency: if either groupId or regionId is being changed, the
+  // resulting (farmer.regionId, farmer.group.regionId) pair must still share
+  // the same District ancestor. This preserves the implicit org-region binding
+  // established at preregister time. Edits that don't touch either field skip
+  // the check (e.g. updating phone number).
+  if (typeof patchData.groupId === "string" || typeof patchData.regionId === "string") {
+    const [existing] = await db
+      .select({ groupId: farmersTable.groupId, regionId: farmersTable.regionId })
+      .from(farmersTable)
+      .where(eq(farmersTable.id, farmerId as string));
+    if (!existing) { res.status(404).json({ error: "Farmer not found" }); return; }
+    const nextGroupId = patchData.groupId ?? existing.groupId;
+    const nextRegionId = patchData.regionId ?? existing.regionId;
+    if (nextGroupId && nextRegionId) {
+      const [grp] = await db
+        .select({ regionId: groupsTable.regionId })
+        .from(groupsTable)
+        .where(eq(groupsTable.id, nextGroupId));
+      if (grp && !(await regionsShareDistrict(nextRegionId, grp.regionId))) {
+        res.status(400).json({
+          error: "Farmer's village and group's anchor village must be in the same district",
+          code: "FARMER_GROUP_DISTRICT_MISMATCH",
+        });
+        return;
+      }
     }
   }
   const [farmer] = await db.update(farmersTable).set({ ...parsed.data, updatedAt: new Date() }).where(eq(farmersTable.id, farmerId as string)).returning();
