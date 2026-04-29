@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { eq, ilike, or, and, desc, sql, inArray } from "drizzle-orm";
-import { db, farmersTable, groupsTable, plotsTable, certificationEnrolmentsTable, certificationStreamsTable, surveySubmissionsTable, gapAssessmentsTable, auditLogsTable, usersTable, userGroupsTable } from "@workspace/db";
+import { db, farmersTable, groupsTable, plotsTable, certificationEnrolmentsTable, certificationStreamsTable, surveySubmissionsTable, gapAssessmentsTable, auditLogsTable, usersTable, userGroupsTable, farmerCropsTable, commoditiesTable } from "@workspace/db";
 import {
   CreateFarmerBody,
   UpdateFarmerBody,
@@ -14,6 +14,82 @@ const router: IRouter = Router();
 
 function generateRefNumber(): string {
   return "F" + Date.now().toString(36).toUpperCase() + Math.random().toString(36).substring(2, 5).toUpperCase();
+}
+
+// ---------- Farm + livelihood patch builder (shared by /farmers and /complete) ----------
+// Pulls the optional livelihood + activities fields off req.body. We accept loose
+// types and clamp/strip — these are mobile-form inputs and we don't want a typo on a
+// fuel-type chip to fail the whole registration. Returns only the fields actually present.
+const ACTIVITY_CHIPS = new Set(["livestock", "fishing", "beekeeping", "trading", "carpentry", "other"]);
+const INCOME_SOURCES = new Set(["none", "trading", "wage_labour", "remittance", "other"]);
+const EDUCATION_LEVELS = new Set(["none", "primary", "secondary", "tertiary"]);
+const COOKING_FUELS = new Set(["firewood", "charcoal", "lpg", "electricity", "other"]);
+
+function pickLivelihoodPatch(body: Record<string, unknown>): Record<string, unknown> {
+  const patch: Record<string, unknown> = {};
+  // otherActivities[] — accept any array of strings, lowercase + filter to known chips.
+  if (Array.isArray(body.otherActivities)) {
+    const cleaned = (body.otherActivities as unknown[])
+      .filter((v): v is string => typeof v === "string")
+      .map(v => v.trim().toLowerCase())
+      .filter(v => ACTIVITY_CHIPS.has(v));
+    patch.otherActivities = Array.from(new Set(cleaned));
+  }
+  // numerics — accept number; numeric() column wants a string for Drizzle.
+  if (typeof body.cultivatedLandHa === "number" && body.cultivatedLandHa >= 0) {
+    patch.cultivatedLandHa = String(body.cultivatedLandHa);
+  }
+  if (typeof body.offFarmIncomeSource === "string" && INCOME_SOURCES.has(body.offFarmIncomeSource)) {
+    patch.offFarmIncomeSource = body.offFarmIncomeSource;
+  }
+  if (typeof body.offFarmIncomeMonthlyUgx === "number" && body.offFarmIncomeMonthlyUgx >= 0) {
+    patch.offFarmIncomeMonthlyUgx = Math.round(body.offFarmIncomeMonthlyUgx);
+  }
+  if (typeof body.monthsOfFoodShortage === "number" && body.monthsOfFoodShortage >= 0 && body.monthsOfFoodShortage <= 12) {
+    patch.monthsOfFoodShortage = Math.round(body.monthsOfFoodShortage);
+  }
+  if (typeof body.educationLevelHead === "string" && EDUCATION_LEVELS.has(body.educationLevelHead)) {
+    patch.educationLevelHead = body.educationLevelHead;
+  }
+  if (typeof body.accessCleanWater === "boolean") patch.accessCleanWater = body.accessCleanWater;
+  if (typeof body.accessElectricity === "boolean") patch.accessElectricity = body.accessElectricity;
+  if (typeof body.primaryCookingFuel === "string" && COOKING_FUELS.has(body.primaryCookingFuel)) {
+    patch.primaryCookingFuel = body.primaryCookingFuel;
+  }
+  return patch;
+}
+
+// Parse + sanitize crops[] from the body. Returns either a clean array of crop rows or an
+// error string. Empty input returns []. lastHarvestKg/Date are optional per row.
+type ParsedCrop = { commodityId: string; lastHarvestKg: string | null; lastHarvestDate: string | null };
+function parseCropsInput(body: Record<string, unknown>): ParsedCrop[] | { error: string } {
+  if (body.crops === undefined || body.crops === null) return [];
+  if (!Array.isArray(body.crops)) return { error: "crops must be an array" };
+  const out: ParsedCrop[] = [];
+  for (const raw of body.crops as unknown[]) {
+    if (!raw || typeof raw !== "object") return { error: "each crop must be an object" };
+    const c = raw as Record<string, unknown>;
+    const commodityId = typeof c.commodityId === "string" ? c.commodityId.trim() : "";
+    if (!commodityId) return { error: "crops[].commodityId is required" };
+    const kg = (typeof c.lastHarvestKg === "number" && c.lastHarvestKg >= 0) ? String(c.lastHarvestKg) : null;
+    const date = (typeof c.lastHarvestDate === "string" && /^\d{4}-\d{2}-\d{2}$/.test(c.lastHarvestDate)) ? c.lastHarvestDate : null;
+    out.push({ commodityId, lastHarvestKg: kg, lastHarvestDate: date });
+  }
+  // Dedupe by commodityId — the unique index would reject duplicates anyway.
+  const seen = new Set<string>();
+  return out.filter(c => seen.has(c.commodityId) ? false : (seen.add(c.commodityId), true));
+}
+
+// Validates that every commodityId exists. Returns null on success or an error string.
+async function validateCommodityIds(ids: string[]): Promise<string | null> {
+  if (ids.length === 0) return null;
+  const found = await db.select({ id: commoditiesTable.id }).from(commoditiesTable).where(inArray(commoditiesTable.id, ids));
+  if (found.length !== ids.length) {
+    const foundSet = new Set(found.map(r => r.id));
+    const missing = ids.filter(id => !foundSet.has(id));
+    return `Unknown commodityId(s): ${missing.join(", ")}`;
+  }
+  return null;
 }
 
 async function buildFarmerResponse(farmer: any) {
@@ -153,15 +229,40 @@ router.post("/farmers", requirePermission("farmers.register"), async (req: Authe
       return;
     }
   }
+  // Optional farm + livelihood capture (mobile full-register form)
+  const livelihoodPatch = pickLivelihoodPatch(req.body as Record<string, unknown>);
+  const cropsParsed = parseCropsInput(req.body as Record<string, unknown>);
+  if (!Array.isArray(cropsParsed)) {
+    res.status(400).json({ error: cropsParsed.error });
+    return;
+  }
+  const cropCommodityIds = cropsParsed.map(c => c.commodityId);
+  const commodityErr = await validateCommodityIds(cropCommodityIds);
+  if (commodityErr) { res.status(400).json({ error: commodityErr, code: "UNKNOWN_COMMODITY" }); return; }
+
   const referenceNumber = generateRefNumber();
   const now = new Date();
-  const [farmer] = await db.insert(farmersTable).values({
-    ...parsed.data,
-    referenceNumber,
-    registrationStage: "fully_registered",
-    fullyRegisteredAt: now,
-    preRegisteredAt: now, // For audit symmetry — full registration always passes through "pre" implicitly.
-  }).returning();
+  // Transaction so the farmer + crops insert atomically. If any crop row fails
+  // (e.g. unique constraint), the farmer insert is rolled back too.
+  const farmer = await db.transaction(async (tx) => {
+    const [created] = await tx.insert(farmersTable).values({
+      ...parsed.data,
+      ...livelihoodPatch,
+      referenceNumber,
+      registrationStage: "fully_registered",
+      fullyRegisteredAt: now,
+      preRegisteredAt: now, // For audit symmetry — full registration always passes through "pre" implicitly.
+    }).returning();
+    if (cropsParsed.length > 0) {
+      await tx.insert(farmerCropsTable).values(cropsParsed.map(c => ({
+        farmerId: created.id,
+        commodityId: c.commodityId,
+        lastHarvestKg: c.lastHarvestKg,
+        lastHarvestDate: c.lastHarvestDate,
+      })));
+    }
+    return created;
+  });
   const result = await buildFarmerResponse(farmer);
   res.status(201).json(result);
 });
@@ -293,7 +394,36 @@ router.post("/farmers/:farmerId/complete", requirePermission("farmers.register")
   if (typeof body.village === "string" && body.village.trim()) patch.village = body.village.trim();
   if (typeof body.phoneNumber === "string" && body.phoneNumber.trim()) patch.phoneNumber = body.phoneNumber.trim();
 
-  const [updated] = await db.update(farmersTable).set(patch).where(eq(farmersTable.id, farmerId as string)).returning();
+  // Merge in farm + livelihood fields.
+  Object.assign(patch, pickLivelihoodPatch(body));
+
+  // crops[]: when provided, REPLACE the farmer's crop set (the form is the authoritative
+  // snapshot at completion time). When omitted, leave existing crops untouched.
+  const cropsKeyPresent = Object.prototype.hasOwnProperty.call(body, "crops");
+  let cropsParsed: ParsedCrop[] = [];
+  if (cropsKeyPresent) {
+    const result = parseCropsInput(body);
+    if (!Array.isArray(result)) { res.status(400).json({ error: result.error }); return; }
+    cropsParsed = result;
+    const commodityErr = await validateCommodityIds(cropsParsed.map(c => c.commodityId));
+    if (commodityErr) { res.status(400).json({ error: commodityErr, code: "UNKNOWN_COMMODITY" }); return; }
+  }
+
+  const updated = await db.transaction(async (tx) => {
+    const [row] = await tx.update(farmersTable).set(patch).where(eq(farmersTable.id, farmerId as string)).returning();
+    if (cropsKeyPresent) {
+      await tx.delete(farmerCropsTable).where(eq(farmerCropsTable.farmerId, farmerId as string));
+      if (cropsParsed.length > 0) {
+        await tx.insert(farmerCropsTable).values(cropsParsed.map(c => ({
+          farmerId: farmerId as string,
+          commodityId: c.commodityId,
+          lastHarvestKg: c.lastHarvestKg,
+          lastHarvestDate: c.lastHarvestDate,
+        })));
+      }
+    }
+    return row;
+  });
   const result = await buildFarmerResponse(updated);
   res.json(result);
 });

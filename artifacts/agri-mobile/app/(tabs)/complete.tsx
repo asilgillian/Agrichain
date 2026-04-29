@@ -34,8 +34,44 @@ type PendingFarmer = {
   phoneNumber: string | null;
   registrationStage: string;
 };
+type Commodity = { id: string; name: string; defaultUnit?: string | null };
+type AddedCrop = { commodityId: string; name: string; lastHarvestKg?: string; lastHarvestDate?: string };
 
 type ListResp = { data: PendingFarmer[]; total: number };
+
+// Chip option lists shared with the Register tab (mirrors API enum sets).
+const ACTIVITY_OPTIONS: { value: string; label: string }[] = [
+  { value: "livestock", label: "Livestock" },
+  { value: "fishing", label: "Fishing" },
+  { value: "beekeeping", label: "Beekeeping" },
+  { value: "trading", label: "Trading" },
+  { value: "carpentry", label: "Carpentry" },
+  { value: "other", label: "Other" },
+];
+const INCOME_SOURCE_OPTIONS = [
+  { value: "none", label: "None" },
+  { value: "trading", label: "Trading" },
+  { value: "wage_labour", label: "Wage labour" },
+  { value: "remittance", label: "Remittance" },
+  { value: "other", label: "Other" },
+];
+const EDUCATION_OPTIONS = [
+  { value: "none", label: "None" },
+  { value: "primary", label: "Primary" },
+  { value: "secondary", label: "Secondary" },
+  { value: "tertiary", label: "Tertiary" },
+];
+const COOKING_FUEL_OPTIONS = [
+  { value: "firewood", label: "Firewood" },
+  { value: "charcoal", label: "Charcoal" },
+  { value: "lpg", label: "LPG" },
+  { value: "electricity", label: "Electricity" },
+  { value: "other", label: "Other" },
+];
+const YES_NO_OPTIONS = [
+  { value: "yes", label: "Yes" },
+  { value: "no", label: "No" },
+];
 
 export default function CompleteScreen() {
   const colors = useColors();
@@ -476,7 +512,7 @@ function ChoiceField({
   label: string;
   value: string;
   onChange: (v: string) => void;
-  options: string[];
+  options: { value: string; label: string }[];
   colors: ReturnType<typeof useColors>;
   testIDPrefix?: string;
 }) {
@@ -485,11 +521,11 @@ function ChoiceField({
       <Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>{label}</Text>
       <View style={styles.chipRow}>
         {options.map((opt) => {
-          const active = value === opt;
+          const active = value === opt.value;
           return (
             <Pressable
-              key={opt}
-              onPress={() => onChange(active ? "" : opt)}
+              key={opt.value}
+              onPress={() => onChange(active ? "" : opt.value)}
               style={({ pressed }) => [
                 styles.chip,
                 {
@@ -498,7 +534,7 @@ function ChoiceField({
                   opacity: pressed ? 0.7 : 1,
                 },
               ]}
-              testID={testIDPrefix ? `${testIDPrefix}-${opt}` : undefined}
+              testID={testIDPrefix ? `${testIDPrefix}-${opt.value}` : undefined}
             >
               <Text
                 style={{
@@ -506,7 +542,57 @@ function ChoiceField({
                   fontWeight: active ? "600" : "500",
                 }}
               >
-                {opt}
+                {opt.label}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </View>
+    </View>
+  );
+}
+
+// Multi-select chip row. Like ChoiceField but holds an array of values; tapping a chip
+// toggles its membership. Used for "Other on-farm activities".
+function MultiChoiceField({
+  values,
+  onToggle,
+  options,
+  colors,
+  testIDPrefix,
+}: {
+  values: string[];
+  onToggle: (v: string) => void;
+  options: { value: string; label: string }[];
+  colors: ReturnType<typeof useColors>;
+  testIDPrefix?: string;
+}) {
+  return (
+    <View style={styles.field}>
+      <View style={styles.chipRow}>
+        {options.map((opt) => {
+          const active = values.includes(opt.value);
+          return (
+            <Pressable
+              key={opt.value}
+              onPress={() => onToggle(opt.value)}
+              style={({ pressed }) => [
+                styles.chip,
+                {
+                  borderColor: active ? colors.primary : colors.border,
+                  backgroundColor: active ? colors.primary : colors.card,
+                  opacity: pressed ? 0.7 : 1,
+                },
+              ]}
+              testID={testIDPrefix ? `${testIDPrefix}-${opt.value}` : undefined}
+            >
+              <Text
+                style={{
+                  color: active ? colors.primaryForeground : colors.foreground,
+                  fontWeight: active ? "600" : "500",
+                }}
+              >
+                {opt.label}
               </Text>
             </Pressable>
           );

@@ -1,4 +1,4 @@
-import { pgTable, text, uuid, timestamp, date, integer, boolean } from "drizzle-orm/pg-core";
+import { pgTable, text, uuid, timestamp, date, integer, boolean, numeric } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -30,6 +30,20 @@ export const farmersTable = pgTable("farmers", {
   registrationDate: date("registration_date"),
   approvedAt: timestamp("approved_at", { withTimezone: true }),
   approvedById: uuid("approved_by_id"),
+  // ----- Farm activities + livelihood (captured at full registration; nullable for back-compat) -----
+  // otherActivities is a Postgres text[] of free chips (Livestock, Fishing, Beekeeping, ...).
+  // text[] is preferred over jsonb here because (a) values are short scalars, (b) it lets us
+  // GIN-index later for "farmers who do livestock" queries without parsing JSON.
+  otherActivities: text("other_activities").array(),
+  cultivatedLandHa: numeric("cultivated_land_ha", { precision: 8, scale: 3 }),
+  // Free text but front-end uses fixed chips. Kept as text so we can add new sources without a migration.
+  offFarmIncomeSource: text("off_farm_income_source"),
+  offFarmIncomeMonthlyUgx: integer("off_farm_income_monthly_ugx"),
+  monthsOfFoodShortage: integer("months_of_food_shortage"),
+  educationLevelHead: text("education_level_head"),
+  accessCleanWater: boolean("access_clean_water"),
+  accessElectricity: boolean("access_electricity"),
+  primaryCookingFuel: text("primary_cooking_fuel"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });

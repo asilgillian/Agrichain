@@ -7,6 +7,7 @@ export * from "./groups";
 export * from "./user-groups";
 export * from "./farmers";
 export * from "./farmer-cards";
+export * from "./farmer-crops";
 export * from "./plots";
 export * from "./certifications";
 export * from "./surveys";

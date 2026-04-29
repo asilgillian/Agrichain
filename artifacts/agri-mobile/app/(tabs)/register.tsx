@@ -1,7 +1,7 @@
 import { Feather } from "@expo/vector-icons";
 import { useAuth } from "@clerk/expo";
 import * as Location from "expo-location";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -24,6 +24,43 @@ const API_BASE =
     : "");
 
 type Coords = { latitude: number; longitude: number; accuracy: number | null };
+type Commodity = { id: string; name: string; defaultUnit?: string | null };
+type AddedCrop = { commodityId: string; name: string; lastHarvestKg?: string; lastHarvestDate?: string };
+
+// Chip option lists for the farm + livelihood section. Values are kept in lower_snake_case
+// to match the API enum sets (see pickLivelihoodPatch on the server).
+const ACTIVITY_OPTIONS: { value: string; label: string }[] = [
+  { value: "livestock", label: "Livestock" },
+  { value: "fishing", label: "Fishing" },
+  { value: "beekeeping", label: "Beekeeping" },
+  { value: "trading", label: "Trading" },
+  { value: "carpentry", label: "Carpentry" },
+  { value: "other", label: "Other" },
+];
+const INCOME_SOURCE_OPTIONS = [
+  { value: "none", label: "None" },
+  { value: "trading", label: "Trading" },
+  { value: "wage_labour", label: "Wage labour" },
+  { value: "remittance", label: "Remittance" },
+  { value: "other", label: "Other" },
+];
+const EDUCATION_OPTIONS = [
+  { value: "none", label: "None" },
+  { value: "primary", label: "Primary" },
+  { value: "secondary", label: "Secondary" },
+  { value: "tertiary", label: "Tertiary" },
+];
+const COOKING_FUEL_OPTIONS = [
+  { value: "firewood", label: "Firewood" },
+  { value: "charcoal", label: "Charcoal" },
+  { value: "lpg", label: "LPG" },
+  { value: "electricity", label: "Electricity" },
+  { value: "other", label: "Other" },
+];
+const YES_NO_OPTIONS = [
+  { value: "yes", label: "Yes" },
+  { value: "no", label: "No" },
+];
 
 // One-shot full registration: agent captures everything (location pick + KYC) in one
 // visit and the resulting farmer is immediately marked fully_registered. Compare to
@@ -52,10 +89,53 @@ export default function RegisterScreen() {
   const [headOfHousehold, setHeadOfHousehold] = useState("");
   const [landTenure, setLandTenure] = useState<"" | "Owned" | "Rented" | "Inherited" | "Other">("");
 
+  // Farm — crops grown (multi from commodity master, with last harvest)
+  const [commodities, setCommodities] = useState<Commodity[]>([]);
+  const [crops, setCrops] = useState<AddedCrop[]>([]);
+  const [showAddCrop, setShowAddCrop] = useState(false);
+  const [pendingCommodityId, setPendingCommodityId] = useState("");
+  const [pendingHarvestKg, setPendingHarvestKg] = useState("");
+  const [pendingHarvestDate, setPendingHarvestDate] = useState("");
+
+  // Farm — other on-farm activities (multi-select chips)
+  const [otherActivities, setOtherActivities] = useState<string[]>([]);
+
+  // Livelihood — for living-income tracking
+  const [cultivatedLandHa, setCultivatedLandHa] = useState("");
+  const [offFarmIncomeSource, setOffFarmIncomeSource] = useState("");
+  const [offFarmIncomeMonthlyUgx, setOffFarmIncomeMonthlyUgx] = useState("");
+  const [monthsOfFoodShortage, setMonthsOfFoodShortage] = useState("");
+  const [educationLevelHead, setEducationLevelHead] = useState("");
+  const [accessCleanWater, setAccessCleanWater] = useState<"" | "yes" | "no">("");
+  const [accessElectricity, setAccessElectricity] = useState<"" | "yes" | "no">("");
+  const [primaryCookingFuel, setPrimaryCookingFuel] = useState("");
+
   // Optional GPS pin → becomes a single-Point plot for the new farmer.
   const [coords, setCoords] = useState<Coords | null>(null);
   const [locating, setLocating] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+
+  // Load active commodities once on mount. Failure is non-fatal — the agent can still
+  // register the farmer; the crops section will just show an empty picker.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const token = await getToken();
+        const res = await fetch(`${API_BASE}/api/commodities?status=active`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
+        if (!res.ok) return;
+        const rows = await res.json();
+        if (!cancelled && Array.isArray(rows)) {
+          setCommodities(rows.map((r: any) => ({ id: r.id, name: r.name, defaultUnit: r.defaultUnit })));
+        }
+      } catch {
+        /* non-fatal */
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [getToken]);
 
   const useMyLocation = async () => {
     try {
@@ -153,6 +233,34 @@ export default function RegisterScreen() {
       if (headOfHousehold.trim()) body.headOfHousehold = headOfHousehold.trim();
       if (landTenure) body.landTenure = landTenure;
 
+      // Farm + livelihood (only include fields with a value — server-side
+      // pickLivelihoodPatch ignores anything missing or wrongly-typed).
+      if (otherActivities.length > 0) body.otherActivities = otherActivities;
+      if (cultivatedLandHa.trim()) {
+        const n = Number(cultivatedLandHa.trim());
+        if (Number.isFinite(n) && n >= 0) body.cultivatedLandHa = n;
+      }
+      if (offFarmIncomeSource) body.offFarmIncomeSource = offFarmIncomeSource;
+      if (offFarmIncomeMonthlyUgx.trim()) {
+        const n = parseInt(offFarmIncomeMonthlyUgx.trim(), 10);
+        if (Number.isFinite(n) && n >= 0) body.offFarmIncomeMonthlyUgx = n;
+      }
+      if (monthsOfFoodShortage.trim()) {
+        const n = parseInt(monthsOfFoodShortage.trim(), 10);
+        if (Number.isFinite(n) && n >= 0 && n <= 12) body.monthsOfFoodShortage = n;
+      }
+      if (educationLevelHead) body.educationLevelHead = educationLevelHead;
+      if (accessCleanWater) body.accessCleanWater = accessCleanWater === "yes";
+      if (accessElectricity) body.accessElectricity = accessElectricity === "yes";
+      if (primaryCookingFuel) body.primaryCookingFuel = primaryCookingFuel;
+      if (crops.length > 0) {
+        body.crops = crops.map((c) => ({
+          commodityId: c.commodityId,
+          ...(c.lastHarvestKg ? { lastHarvestKg: Number(c.lastHarvestKg) } : {}),
+          ...(c.lastHarvestDate ? { lastHarvestDate: c.lastHarvestDate } : {}),
+        }));
+      }
+
       const farmerRes = await fetch(`${API_BASE}/api/farmers`, {
         method: "POST",
         headers: authHeaders,
@@ -208,6 +316,20 @@ export default function RegisterScreen() {
       setDependants("");
       setHeadOfHousehold("");
       setLandTenure("");
+      setCrops([]);
+      setShowAddCrop(false);
+      setPendingCommodityId("");
+      setPendingHarvestKg("");
+      setPendingHarvestDate("");
+      setOtherActivities([]);
+      setCultivatedLandHa("");
+      setOffFarmIncomeSource("");
+      setOffFarmIncomeMonthlyUgx("");
+      setMonthsOfFoodShortage("");
+      setEducationLevelHead("");
+      setAccessCleanWater("");
+      setAccessElectricity("");
+      setPrimaryCookingFuel("");
       setCoords(null);
     } catch (e: any) {
       Alert.alert("Submission failed", e?.message ?? "Unknown error");
@@ -326,6 +448,236 @@ export default function RegisterScreen() {
         ]}
         colors={colors}
         testIDPrefix="reg-land-tenure"
+      />
+
+      {/* ---------------- Crops grown ---------------- */}
+      <Text style={[styles.sectionLabel, { color: colors.foreground }]}>Crops grown</Text>
+      {crops.length === 0 && !showAddCrop && (
+        <Text style={{ color: colors.mutedForeground, fontSize: 13 }}>
+          No crops added yet. Tap &quot;Add crop&quot; to record what this farmer grows.
+        </Text>
+      )}
+      {crops.map((c, idx) => (
+        <View
+          key={`${c.commodityId}-${idx}`}
+          style={[styles.cropRow, { borderColor: colors.border, backgroundColor: colors.card }]}
+        >
+          <View style={{ flex: 1 }}>
+            <Text style={{ color: colors.foreground, fontWeight: "600" }}>{c.name}</Text>
+            <Text style={{ color: colors.mutedForeground, fontSize: 12, marginTop: 2 }}>
+              {c.lastHarvestKg ? `Last harvest: ${c.lastHarvestKg} kg` : "No harvest recorded"}
+              {c.lastHarvestDate ? ` · ${c.lastHarvestDate}` : ""}
+            </Text>
+          </View>
+          <Pressable
+            onPress={() => setCrops((prev) => prev.filter((_, i) => i !== idx))}
+            style={({ pressed }) => [styles.removeBtn, { opacity: pressed ? 0.6 : 1 }]}
+            testID={`reg-crop-remove-${idx}`}
+          >
+            <Feather name="x" size={18} color={colors.mutedForeground} />
+          </Pressable>
+        </View>
+      ))}
+      {showAddCrop ? (
+        <View style={[styles.addCropCard, { borderColor: colors.border, backgroundColor: colors.card }]}>
+          <Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>Pick a commodity</Text>
+          {commodities.length === 0 ? (
+            <Text style={{ color: colors.mutedForeground, fontSize: 13 }}>
+              No commodities available. Ask an admin to add some.
+            </Text>
+          ) : (
+            <View style={styles.chipRow}>
+              {commodities
+                .filter((c) => !crops.some((added) => added.commodityId === c.id))
+                .map((c) => {
+                  const active = pendingCommodityId === c.id;
+                  return (
+                    <Pressable
+                      key={c.id}
+                      onPress={() => setPendingCommodityId(active ? "" : c.id)}
+                      style={({ pressed }) => [
+                        styles.chip,
+                        {
+                          borderColor: active ? colors.primary : colors.border,
+                          backgroundColor: active ? colors.primary : colors.background,
+                          opacity: pressed ? 0.7 : 1,
+                        },
+                      ]}
+                      testID={`reg-commodity-${c.id}`}
+                    >
+                      <Text style={{ color: active ? colors.primaryForeground : colors.foreground, fontWeight: active ? "600" : "500" }}>
+                        {c.name}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+            </View>
+          )}
+          <Field
+            label="Last harvest (kg, optional)"
+            value={pendingHarvestKg}
+            onChangeText={setPendingHarvestKg}
+            placeholder="120"
+            keyboardType="number-pad"
+            colors={colors}
+            testID="reg-pending-harvest-kg"
+          />
+          <Field
+            label="Last harvest date (YYYY-MM-DD, optional)"
+            value={pendingHarvestDate}
+            onChangeText={setPendingHarvestDate}
+            placeholder="2025-12-10"
+            keyboardType="numbers-and-punctuation"
+            autoCapitalize="none"
+            colors={colors}
+            testID="reg-pending-harvest-date"
+          />
+          <View style={{ flexDirection: "row", gap: 8, marginTop: 4 }}>
+            <Pressable
+              onPress={() => {
+                if (!pendingCommodityId) {
+                  Alert.alert("Pick a commodity", "Tap one of the commodities above first.");
+                  return;
+                }
+                if (pendingHarvestDate.trim() && !/^\d{4}-\d{2}-\d{2}$/.test(pendingHarvestDate.trim())) {
+                  Alert.alert("Invalid date", "Use YYYY-MM-DD format (e.g. 2025-12-10).");
+                  return;
+                }
+                const commodity = commodities.find((c) => c.id === pendingCommodityId);
+                if (!commodity) return;
+                setCrops((prev) => [
+                  ...prev,
+                  {
+                    commodityId: commodity.id,
+                    name: commodity.name,
+                    lastHarvestKg: pendingHarvestKg.trim() || undefined,
+                    lastHarvestDate: pendingHarvestDate.trim() || undefined,
+                  },
+                ]);
+                setPendingCommodityId("");
+                setPendingHarvestKg("");
+                setPendingHarvestDate("");
+                setShowAddCrop(false);
+              }}
+              style={({ pressed }) => [
+                styles.smallBtn,
+                { backgroundColor: colors.primary, opacity: pressed ? 0.7 : 1 },
+              ]}
+              testID="reg-save-crop"
+            >
+              <Text style={{ color: colors.primaryForeground, fontWeight: "600" }}>Save crop</Text>
+            </Pressable>
+            <Pressable
+              onPress={() => {
+                setPendingCommodityId("");
+                setPendingHarvestKg("");
+                setPendingHarvestDate("");
+                setShowAddCrop(false);
+              }}
+              style={({ pressed }) => [
+                styles.smallBtn,
+                { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, opacity: pressed ? 0.7 : 1 },
+              ]}
+              testID="reg-cancel-crop"
+            >
+              <Text style={{ color: colors.foreground, fontWeight: "500" }}>Cancel</Text>
+            </Pressable>
+          </View>
+        </View>
+      ) : (
+        <Pressable
+          onPress={() => setShowAddCrop(true)}
+          style={({ pressed }) => [
+            styles.addBtn,
+            { borderColor: colors.border, backgroundColor: colors.card, opacity: pressed ? 0.7 : 1 },
+          ]}
+          testID="reg-add-crop"
+        >
+          <Feather name="plus" size={18} color={colors.primary} />
+          <Text style={{ color: colors.foreground, fontWeight: "500" }}>Add crop</Text>
+        </Pressable>
+      )}
+
+      {/* ---------------- Other on-farm activities ---------------- */}
+      <Text style={[styles.sectionLabel, { color: colors.foreground }]}>Other on-farm activities</Text>
+      <MultiChoiceField
+        values={otherActivities}
+        onToggle={(v) =>
+          setOtherActivities((prev) => (prev.includes(v) ? prev.filter((x) => x !== v) : [...prev, v]))
+        }
+        options={ACTIVITY_OPTIONS}
+        colors={colors}
+        testIDPrefix="reg-activity"
+      />
+
+      {/* ---------------- Livelihood (for living-income tracking) ---------------- */}
+      <Text style={[styles.sectionLabel, { color: colors.foreground }]}>Livelihood</Text>
+      <Field
+        label="Cultivated land (hectares)"
+        value={cultivatedLandHa}
+        onChangeText={setCultivatedLandHa}
+        placeholder="1.5"
+        keyboardType="numbers-and-punctuation"
+        colors={colors}
+        testID="reg-cultivated-land"
+      />
+      <ChoiceField
+        label="Main off-farm income source"
+        value={offFarmIncomeSource}
+        onChange={setOffFarmIncomeSource}
+        options={INCOME_SOURCE_OPTIONS}
+        colors={colors}
+        testIDPrefix="reg-income-source"
+      />
+      <Field
+        label="Off-farm income, monthly (UGX)"
+        value={offFarmIncomeMonthlyUgx}
+        onChangeText={setOffFarmIncomeMonthlyUgx}
+        placeholder="150000"
+        keyboardType="number-pad"
+        colors={colors}
+        testID="reg-off-farm-income"
+      />
+      <Field
+        label="Months of food shortage per year (0–12)"
+        value={monthsOfFoodShortage}
+        onChangeText={setMonthsOfFoodShortage}
+        placeholder="2"
+        keyboardType="number-pad"
+        colors={colors}
+        testID="reg-food-shortage"
+      />
+      <ChoiceField
+        label="Education of head of household"
+        value={educationLevelHead}
+        onChange={setEducationLevelHead}
+        options={EDUCATION_OPTIONS}
+        colors={colors}
+        testIDPrefix="reg-education"
+      />
+      <ChoiceField
+        label="Access to clean water"
+        value={accessCleanWater}
+        onChange={(v) => setAccessCleanWater(v as typeof accessCleanWater)}
+        options={YES_NO_OPTIONS}
+        colors={colors}
+        testIDPrefix="reg-water"
+      />
+      <ChoiceField
+        label="Access to electricity"
+        value={accessElectricity}
+        onChange={(v) => setAccessElectricity(v as typeof accessElectricity)}
+        options={YES_NO_OPTIONS}
+        colors={colors}
+        testIDPrefix="reg-electricity"
+      />
+      <ChoiceField
+        label="Primary cooking fuel"
+        value={primaryCookingFuel}
+        onChange={setPrimaryCookingFuel}
+        options={COOKING_FUEL_OPTIONS}
+        colors={colors}
+        testIDPrefix="reg-cooking-fuel"
       />
 
       <Text style={[styles.sectionLabel, { color: colors.foreground }]}>Plot location (optional)</Text>
@@ -467,6 +819,56 @@ function ChoiceField({
   );
 }
 
+// Multi-select chip row. Like ChoiceField but holds an array of values; tapping a chip
+// toggles its membership. Used for "Other on-farm activities".
+function MultiChoiceField({
+  values,
+  onToggle,
+  options,
+  colors,
+  testIDPrefix,
+}: {
+  values: string[];
+  onToggle: (v: string) => void;
+  options: { value: string; label: string }[];
+  colors: ReturnType<typeof useColors>;
+  testIDPrefix?: string;
+}) {
+  return (
+    <View style={styles.field}>
+      <View style={styles.chipRow}>
+        {options.map((opt) => {
+          const active = values.includes(opt.value);
+          return (
+            <Pressable
+              key={opt.value}
+              onPress={() => onToggle(opt.value)}
+              style={({ pressed }) => [
+                styles.chip,
+                {
+                  borderColor: active ? colors.primary : colors.border,
+                  backgroundColor: active ? colors.primary : colors.card,
+                  opacity: pressed ? 0.7 : 1,
+                },
+              ]}
+              testID={testIDPrefix ? `${testIDPrefix}-${opt.value}` : undefined}
+            >
+              <Text
+                style={{
+                  color: active ? colors.primaryForeground : colors.foreground,
+                  fontWeight: active ? "600" : "500",
+                }}
+              >
+                {opt.label}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </View>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   container: { paddingHorizontal: 20, gap: 12 },
   title: { fontSize: 24, fontWeight: "700" },
@@ -483,6 +885,40 @@ const styles = StyleSheet.create({
   sectionLabel: { fontSize: 14, fontWeight: "600", marginTop: 8 },
   chipRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   chip: { borderWidth: 1, borderRadius: 999, paddingHorizontal: 14, paddingVertical: 8 },
+  cropRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+  },
+  removeBtn: { padding: 6 },
+  addCropCard: {
+    borderWidth: 1,
+    borderRadius: 8,
+    padding: 12,
+    gap: 10,
+  },
+  addBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    borderWidth: 1,
+    borderStyle: "dashed",
+    borderRadius: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    justifyContent: "center",
+  },
+  smallBtn: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 8,
+    paddingVertical: 10,
+  },
   locationBtn: {
     flexDirection: "row",
     alignItems: "center",
