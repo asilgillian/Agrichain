@@ -36,6 +36,14 @@ function NativeTabLayout() {
         <Icon sf={{ default: "person.badge.plus", selected: "person.badge.plus.fill" }} />
         <Label>Pre-register</Label>
       </NativeTabs.Trigger>
+      <NativeTabs.Trigger name="register">
+        <Icon sf={{ default: "person.crop.circle.badge.checkmark", selected: "person.crop.circle.badge.checkmark" }} />
+        <Label>Register</Label>
+      </NativeTabs.Trigger>
+      <NativeTabs.Trigger name="complete">
+        <Icon sf={{ default: "checkmark.seal", selected: "checkmark.seal.fill" }} />
+        <Label>Complete</Label>
+      </NativeTabs.Trigger>
     </NativeTabs>
   );
 }
@@ -99,6 +107,30 @@ function ClassicTabLayout() {
               <SymbolView name="person.badge.plus" tintColor={color} size={24} />
             ) : (
               <Feather name="user-plus" size={22} color={color} />
+            ),
+        }}
+      />
+      <Tabs.Screen
+        name="register"
+        options={{
+          title: "Register",
+          tabBarIcon: ({ color }) =>
+            isIOS ? (
+              <SymbolView name="person.crop.circle.badge.checkmark" tintColor={color} size={24} />
+            ) : (
+              <Feather name="user-check" size={22} color={color} />
+            ),
+        }}
+      />
+      <Tabs.Screen
+        name="complete"
+        options={{
+          title: "Complete",
+          tabBarIcon: ({ color }) =>
+            isIOS ? (
+              <SymbolView name="checkmark.seal" tintColor={color} size={24} />
+            ) : (
+              <Feather name="check-circle" size={22} color={color} />
             ),
         }}
       />

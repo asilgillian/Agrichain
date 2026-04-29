@@ -125,6 +125,34 @@ router.post("/farmers", requirePermission("farmers.register"), async (req: Authe
     res.status(400).json({ error: "Cannot register farmer into an archived group", code: "GROUP_ARCHIVED" });
     return;
   }
+  // Org Region binding (mobile 3-dropdown flow). Mirrors the checks applied on
+  // /preregister so the one-shot full-register entry point on mobile gets the
+  // same containment guarantees. Back-compat: when orgRegionId is absent the
+  // existing web full-register path is unaffected.
+  const orgRegionIdRaw = (req.body as any)?.orgRegionId;
+  const orgRegionId = typeof orgRegionIdRaw === "string" ? orgRegionIdRaw.trim() : "";
+  if (orgRegionId) {
+    const farmerRegionId = (parsed.data as any).regionId as string | undefined;
+    if (!farmerRegionId) {
+      res.status(400).json({ error: "regionId is required when orgRegionId is supplied", code: "REGION_REQUIRED" });
+      return;
+    }
+    const isLeaf = await isLeafRegion(farmerRegionId);
+    if (!isLeaf) {
+      res.status(400).json({ error: "Selected village must be at the deepest admin level", code: "REGION_NOT_LEAF" });
+      return;
+    }
+    const villageOk = await isLeafInsideOrgRegion(farmerRegionId, orgRegionId);
+    if (!villageOk) {
+      res.status(400).json({ error: "Selected village is not inside the chosen region", code: "VILLAGE_OUT_OF_ORG_REGION" });
+      return;
+    }
+    const groupVillageOk = await isLeafInsideOrgRegion(group.regionId, orgRegionId);
+    if (!groupVillageOk) {
+      res.status(400).json({ error: "Selected group is not inside the chosen region", code: "GROUP_OUT_OF_ORG_REGION" });
+      return;
+    }
+  }
   const referenceNumber = generateRefNumber();
   const now = new Date();
   const [farmer] = await db.insert(farmersTable).values({
