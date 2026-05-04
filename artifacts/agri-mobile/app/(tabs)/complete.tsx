@@ -15,7 +15,9 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import CustomFieldsSection from "@/components/CustomFieldsSection";
 import { useColors } from "@/hooks/useColors";
+import { useActiveTemplate } from "@/lib/registration-template";
 
 const API_BASE =
   process.env.EXPO_PUBLIC_API_URL ??
@@ -98,7 +100,7 @@ export default function CompleteScreen() {
     try {
       const headers = await authHeaders();
       const res = await fetch(
-        `${API_BASE}/api/farmers?registrationStage=pre_registered&limit=50`,
+        `${API_BASE}/api/farmers?registrationStage=pre_registered,partially_registered&limit=50`,
         { headers },
       );
       if (!res.ok) {
@@ -296,6 +298,10 @@ function CompleteFarmerForm({
 
   const [submitting, setSubmitting] = useState(false);
 
+  // Admin-defined custom registration fields, mirrored from register.tsx.
+  const { data: template } = useActiveTemplate();
+  const [customValues, setCustomValues] = useState<Record<string, string>>({});
+
   // Load active commodities once. Failure is non-fatal — the agent can still complete
   // the registration; the crops section will just show an empty picker.
   useEffect(() => {
@@ -393,6 +399,14 @@ function CompleteFarmerForm({
           ...(c.lastHarvestDate ? { lastHarvestDate: c.lastHarvestDate } : {}),
         }));
       }
+      // Admin-defined custom fields. Drop blanks; the server validates keys
+      // against the active template and rejects unknown ones.
+      const trimmedCustom: Record<string, string> = {};
+      for (const [k, v] of Object.entries(customValues)) {
+        const t = (v ?? "").trim();
+        if (t) trimmedCustom[k] = t;
+      }
+      if (Object.keys(trimmedCustom).length > 0) body.customFieldValues = trimmedCustom;
 
       const res = await fetch(`${API_BASE}/api/farmers/${farmer.id}/complete`, {
         method: "POST",
@@ -755,6 +769,14 @@ function CompleteFarmerForm({
         options={COOKING_FUEL_OPTIONS}
         colors={colors}
         testIDPrefix="complete-cooking-fuel"
+      />
+
+      <CustomFieldsSection
+        fields={template.fields}
+        values={customValues}
+        onChange={(k, v) => setCustomValues((prev) => ({ ...prev, [k]: v }))}
+        colors={colors}
+        testIDPrefix="complete-custom"
       />
 
       <Pressable

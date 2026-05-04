@@ -39,6 +39,14 @@ type FarmerDetailResponse = {
   certifications: Array<{ id: string; streamName: string; status: string; enrolmentDate: string }>;
   recentSurveys: Array<{ id: string; templateName?: string; agentName?: string; submittedAt: string; status: string }>;
   gapScore: number | null;
+  // Custom field values populated by the active registration template. Keyed by
+  // the admin-defined field key. Server returns the parsed values where it can
+  // (numbers/dates) and strings otherwise; we render them as-is.
+  customFieldValues?: Record<string, string | number | boolean | null>;
+  // registrationStage may also be 'partially_registered' (any required field
+  // missing) under the active survey template — keep the type loose so badges
+  // render whatever the server returns.
+  registrationStage?: "pre_registered" | "partially_registered" | "fully_registered" | string;
 };
 
 export default function FarmerDetail() {
@@ -317,6 +325,27 @@ export default function FarmerDetail() {
           </CardContent>
         </Card>
       </div>
+
+      {farmer.customFieldValues && Object.keys(farmer.customFieldValues).length > 0 && (
+        <Card data-testid="custom-fields-card">
+          <CardHeader>
+            <CardTitle className="text-lg">Additional Information</CardTitle>
+            <CardDescription>Custom registration fields captured for this farmer</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <dl className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-3">
+              {Object.entries(farmer.customFieldValues).map(([k, v]) => (
+                <div key={k} className="flex flex-col">
+                  <dt className="text-xs uppercase text-muted-foreground">{k.replace(/_/g, " ")}</dt>
+                  <dd className="text-sm font-medium" data-testid={`custom-${k}`}>
+                    {v == null || v === "" ? <span className="text-muted-foreground">—</span> : String(v)}
+                  </dd>
+                </div>
+              ))}
+            </dl>
+          </CardContent>
+        </Card>
+      )}
 
       <Tabs defaultValue="plots" className="w-full">
         <TabsList className="grid w-full max-w-md grid-cols-3">

@@ -2,6 +2,8 @@ import { Router, type IRouter } from "express";
 import { eq, and, desc, sql } from "drizzle-orm";
 import { db, paymentsTable, farmersTable } from "@workspace/db";
 import { InitiatePaymentBody, ListPaymentsQueryParams } from "@workspace/api-zod";
+import { checkFarmerStageForTxn } from "../lib/transaction-access";
+import { requirePermission } from "../middlewares/auth";
 
 const router: IRouter = Router();
 
@@ -33,12 +35,15 @@ router.get("/payments", async (req, res): Promise<void> => {
   res.json(enriched);
 });
 
-router.post("/payments", async (req, res): Promise<void> => {
+router.post("/payments", requirePermission("payments.write"), async (req, res): Promise<void> => {
   const parsed = InitiatePaymentBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
     return;
   }
+  // Admin-controlled gate: farmer must meet the registration-stage rule for "payment".
+  const denial = await checkFarmerStageForTxn(parsed.data.farmerId, "payment");
+  if (denial) { res.status(denial.status).json(denial.body); return; }
   const [payment] = await db.insert(paymentsTable).values({
     farmerId: parsed.data.farmerId,
     deliveryId: parsed.data.deliveryId,

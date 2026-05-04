@@ -101,6 +101,8 @@ const PERMISSION_CATALOG: Array<{ key: string; module: string; description: stri
   { key: "admin.roles", module: "Admin", description: "Manage roles and permissions" },
   { key: "admin.bulk_upload", module: "Admin", description: "Bulk upload master data (regions, farmers, groups)" },
   { key: "admin.hierarchy", module: "Admin", description: "Configure per-country administrative hierarchies" },
+  { key: "admin.registration_templates", module: "Admin", description: "Manage farmer registration survey templates" },
+  { key: "admin.transaction_access", module: "Admin", description: "Configure registration-stage gates for transactions" },
   { key: "audit.read", module: "Audit", description: "View audit log" },
   { key: "*", module: "Admin", description: "Wildcard — full system access" },
 ];

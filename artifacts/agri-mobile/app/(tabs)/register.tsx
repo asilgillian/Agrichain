@@ -14,8 +14,10 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import CustomFieldsSection from "@/components/CustomFieldsSection";
 import { OrgRegionGroupVillagePicker } from "@/components/OrgRegionGroupVillagePicker";
 import { useColors } from "@/hooks/useColors";
+import { useActiveTemplate } from "@/lib/registration-template";
 
 const API_BASE =
   process.env.EXPO_PUBLIC_API_URL ??
@@ -114,6 +116,12 @@ export default function RegisterScreen() {
   const [coords, setCoords] = useState<Coords | null>(null);
   const [locating, setLocating] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+
+  // Admin-defined custom registration fields. Values are kept as strings here
+  // (CustomFieldsSection serializes multichoice with comma-join) and only sent
+  // to the server when non-empty so the upsert helper can drop blanks.
+  const { data: template } = useActiveTemplate();
+  const [customValues, setCustomValues] = useState<Record<string, string>>({});
 
   // Load active commodities once on mount. Failure is non-fatal — the agent can still
   // register the farmer; the crops section will just show an empty picker.
@@ -260,6 +268,14 @@ export default function RegisterScreen() {
           ...(c.lastHarvestDate ? { lastHarvestDate: c.lastHarvestDate } : {}),
         }));
       }
+      // Admin-defined custom fields. Drop blanks; the server validates keys
+      // against the active template and rejects unknown ones.
+      const trimmedCustom: Record<string, string> = {};
+      for (const [k, v] of Object.entries(customValues)) {
+        const t = (v ?? "").trim();
+        if (t) trimmedCustom[k] = t;
+      }
+      if (Object.keys(trimmedCustom).length > 0) body.customFieldValues = trimmedCustom;
 
       const farmerRes = await fetch(`${API_BASE}/api/farmers`, {
         method: "POST",
@@ -330,6 +346,7 @@ export default function RegisterScreen() {
       setAccessCleanWater("");
       setAccessElectricity("");
       setPrimaryCookingFuel("");
+      setCustomValues({});
       setCoords(null);
     } catch (e: any) {
       Alert.alert("Submission failed", e?.message ?? "Unknown error");
@@ -709,6 +726,14 @@ export default function RegisterScreen() {
           )}
         </View>
       )}
+
+      <CustomFieldsSection
+        fields={template.fields}
+        values={customValues}
+        onChange={(k, v) => setCustomValues((prev) => ({ ...prev, [k]: v }))}
+        colors={colors}
+        testIDPrefix="register-custom"
+      />
 
       <Pressable
         onPress={submit}

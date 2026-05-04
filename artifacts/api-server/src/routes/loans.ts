@@ -2,6 +2,8 @@ import { Router } from "express";
 import { db } from "@workspace/db";
 import { loansTable, loanRepaymentsTable, loanGuarantorsTable } from "@workspace/db";
 import { farmersTable, groupsTable } from "@workspace/db";
+import { checkFarmerStageForTxn } from "../lib/transaction-access";
+import { requirePermission } from "../middlewares/auth";
 import { eq, desc, and, sql } from "drizzle-orm";
 
 const router = Router();
@@ -64,9 +66,15 @@ router.get("/loans/:id", async (req, res): Promise<void> => {
   res.json({ ...loan[0], farmer, repayments, guarantors });
 });
 
-router.post("/loans", async (req, res): Promise<void> => {
+router.post("/loans", requirePermission("loans.write"), async (req, res): Promise<void> => {
   const { farmerId, groupId, loanType, principalAmount, interestRatePct, purpose, collateral, dueDate, notes } = req.body;
   if (!loanType || !principalAmount) { res.status(400).json({ error: "loanType and principalAmount are required" }); return; }
+  // Admin-controlled gate: farmer (when supplied — group loans may omit) must
+  // meet the registration-stage rule for "loan".
+  if (typeof farmerId === "string" && farmerId) {
+    const denial = await checkFarmerStageForTxn(farmerId, "loan");
+    if (denial) { res.status(denial.status).json(denial.body); return; }
+  }
 
   const seq = await db.select({ count: sql<number>`count(*)::int` }).from(loansTable);
   const loanNumber = `LN${new Date().getFullYear()}${String((seq[0]?.count ?? 0) + 1).padStart(4, "0")}`;

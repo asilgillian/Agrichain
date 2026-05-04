@@ -29,3 +29,6 @@ export * from "./activity-funds";
 export * from "./audit";
 export * from "./commodities";
 export * from "./samples";
+export * from "./registration-templates";
+export * from "./farmer-custom-field-values";
+export * from "./transaction-access-rules";

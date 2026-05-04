@@ -2,6 +2,8 @@ import { Router, type IRouter } from "express";
 import { eq, and } from "drizzle-orm";
 import { db, certificationStreamsTable, certificationEnrolmentsTable, farmersTable } from "@workspace/db";
 import { CreateEnrolmentBody, ListEnrolmentsQueryParams } from "@workspace/api-zod";
+import { checkFarmerStageForTxn } from "../lib/transaction-access";
+import { requirePermission } from "../middlewares/auth";
 
 const router: IRouter = Router();
 
@@ -38,12 +40,15 @@ router.get("/certifications/enrolments", async (req, res): Promise<void> => {
   res.json(enrolments.map(e => ({ ...e.enrolment, streamName: e.streamName ?? "Unknown" })));
 });
 
-router.post("/certifications/enrolments", async (req, res): Promise<void> => {
+router.post("/certifications/enrolments", requirePermission("certifications.write"), async (req, res): Promise<void> => {
   const parsed = CreateEnrolmentBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
     return;
   }
+  // Admin-controlled gate: farmer must meet the registration-stage rule for "certification".
+  const denial = await checkFarmerStageForTxn(parsed.data.farmerId, "certification");
+  if (denial) { res.status(denial.status).json(denial.body); return; }
   const [enrolment] = await db.insert(certificationEnrolmentsTable).values(parsed.data).returning();
   const [stream] = await db.select().from(certificationStreamsTable).where(eq(certificationStreamsTable.id, enrolment.streamId));
   res.status(201).json({ ...enrolment, streamName: stream?.name ?? "Unknown" });

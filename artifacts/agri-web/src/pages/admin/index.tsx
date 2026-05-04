@@ -18,6 +18,8 @@ import { useToast } from "@/hooks/use-toast";
 import { RegionsManager } from "@/components/admin/RegionsManager";
 import { RegionsMap } from "@/components/admin/RegionsMap";
 import { OrgRegionsManager } from "@/components/admin/OrgRegionsManager";
+import { RegistrationTemplatesManager } from "@/components/admin/RegistrationTemplatesManager";
+import { TransactionAccessManager } from "@/components/admin/TransactionAccessManager";
 
 const API_BASE = import.meta.env.BASE_URL?.replace(/\/$/, "");
 
@@ -350,6 +352,8 @@ export default function AdminPage() {
           <TabsTrigger value="roles">Roles &amp; Permissions</TabsTrigger>
           <TabsTrigger value="matrix">Permission Matrix</TabsTrigger>
           <TabsTrigger value="bulk">Bulk Upload</TabsTrigger>
+          <TabsTrigger value="registration-templates">Registration Templates</TabsTrigger>
+          <TabsTrigger value="transaction-access">Transaction Access</TabsTrigger>
           <TabsTrigger value="sync">Sync Queue</TabsTrigger>
         </TabsList>
 
@@ -549,6 +553,14 @@ export default function AdminPage() {
             permissions={permissions ?? []}
             isLoading={isLoadingRoles || !permissions}
           />
+        </TabsContent>
+
+        <TabsContent value="registration-templates" className="mt-4">
+          <RegistrationTemplatesManager />
+        </TabsContent>
+
+        <TabsContent value="transaction-access" className="mt-4">
+          <TransactionAccessManager />
         </TabsContent>
 
         <TabsContent value="sync" className="mt-4">

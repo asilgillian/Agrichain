@@ -9,6 +9,12 @@ import {
 import { requirePermission, type AuthedRequest } from "../middlewares/auth";
 import { checkFarmerAccess, isUserScoped, getAssignedGroupIds } from "../lib/assignment-scope";
 import { isLeafInsideOrgRegion, isLeafRegion, regionsShareDistrict } from "../lib/org-region-scope";
+import { getActiveTemplate, computeStageFromTemplate, type RegistrationStage } from "../lib/registration-stage";
+import {
+  parseCustomFieldValues,
+  replaceFarmerCustomFieldValues,
+  loadFarmerCustomFieldValues,
+} from "../lib/custom-field-values";
 
 const router: IRouter = Router();
 
@@ -114,7 +120,13 @@ router.get("/farmers", async (req: AuthedRequest, res): Promise<void> => {
   // (codegen'd) ListFarmersQueryParams schema yet. Whitelist the two valid values
   // so callers can't smuggle arbitrary SQL fragments in.
   const stageRaw = typeof req.query.registrationStage === "string" ? req.query.registrationStage : "";
-  const registrationStage = (stageRaw === "pre_registered" || stageRaw === "fully_registered") ? stageRaw : undefined;
+  // Accept comma-separated stages so completion UIs can fetch both
+  // pre_registered AND partially_registered in one call.
+  const allowedStages = new Set(["pre_registered", "partially_registered", "fully_registered"]);
+  const stageList = stageRaw
+    .split(",")
+    .map((s) => s.trim())
+    .filter((s) => allowedStages.has(s)) as Array<"pre_registered" | "partially_registered" | "fully_registered">;
   const offset = (page - 1) * limit;
 
   const conditions: any[] = [];
@@ -131,7 +143,11 @@ router.get("/farmers", async (req: AuthedRequest, res): Promise<void> => {
   if (groupId) conditions.push(eq(farmersTable.groupId, groupId));
   if (regionId) conditions.push(eq(farmersTable.regionId, regionId));
   if (status) conditions.push(eq(farmersTable.status, status));
-  if (registrationStage) conditions.push(eq(farmersTable.registrationStage, registrationStage));
+  if (stageList.length === 1) {
+    conditions.push(eq(farmersTable.registrationStage, stageList[0]));
+  } else if (stageList.length > 1) {
+    conditions.push(inArray(farmersTable.registrationStage, stageList));
+  }
 
   // Per-user assignment scoping: if the requester has `groups.assigned_only`
   // (and isn't a wildcard admin), restrict farmers to those whose groupId is
@@ -242,16 +258,38 @@ router.post("/farmers", requirePermission("farmers.register"), async (req: Authe
 
   const referenceNumber = generateRefNumber();
   const now = new Date();
-  // Transaction so the farmer + crops insert atomically. If any crop row fails
-  // (e.g. unique constraint), the farmer insert is rolled back too.
+  // Compute stage from the active template. If no template is published, keep the
+  // legacy behaviour: a successful POST /api/farmers (which Zod-validates the
+  // bedrock fields) lands as "fully_registered". When a template IS active the
+  // computed result wins — a "partially_registered" first registration is allowed
+  // (the form gathers what it can; mandatory misses just downgrade the stage).
+  // App is Uganda-localized — prefer the UG template, falling back to global
+  // automatically inside getActiveTemplate when no UG template exists.
+  const tpl = await getActiveTemplate("UG");
+  // Custom field values (validated against the active template's custom field
+  // catalog). Without a template, custom values are silently dropped so legacy
+  // tenants don't get rejected.
+  const customParse = parseCustomFieldValues(req.body, tpl?.fields ?? []);
+  if ("error" in customParse) {
+    res.status(400).json({ error: customParse.error });
+    return;
+  }
+  const customValues = customParse.values;
+  const mergedForStage: Record<string, unknown> = { ...parsed.data, ...livelihoodPatch };
+  const computedStage: RegistrationStage = tpl
+    ? (computeStageFromTemplate(tpl.fields, mergedForStage, customValues, cropsParsed.length) ?? "fully_registered")
+    : "fully_registered";
+  // Transaction so the farmer + crops + custom values insert atomically. If
+  // any sub-insert fails the whole farmer creation is rolled back.
   const farmer = await db.transaction(async (tx) => {
     const [created] = await tx.insert(farmersTable).values({
       ...parsed.data,
       ...livelihoodPatch,
       referenceNumber,
-      registrationStage: "fully_registered",
-      fullyRegisteredAt: now,
+      registrationStage: computedStage,
+      fullyRegisteredAt: computedStage === "fully_registered" ? now : null,
       preRegisteredAt: now, // For audit symmetry — full registration always passes through "pre" implicitly.
+      status: computedStage === "fully_registered" ? "active" : "pending",
     }).returning();
     if (cropsParsed.length > 0) {
       await tx.insert(farmerCropsTable).values(cropsParsed.map(c => ({
@@ -261,6 +299,7 @@ router.post("/farmers", requirePermission("farmers.register"), async (req: Authe
         lastHarvestDate: c.lastHarvestDate,
       })));
     }
+    await replaceFarmerCustomFieldValues(tx, created.id, customValues);
     return created;
   });
   const result = await buildFarmerResponse(farmer);
@@ -369,20 +408,24 @@ router.post("/farmers/:farmerId/complete", requirePermission("farmers.register")
     return;
   }
   const body = (req.body ?? {}) as Record<string, unknown>;
-  // National ID is the minimum KYC requirement to qualify as "fully registered".
-  // The DB schema doesn't enforce it (legacy farmers may lack it), so we enforce it here.
+  // Decide what the minimum required fields are. When an admin has published a
+  // registration template, IT is the source of truth — we just collect whatever
+  // the form submits and let the stage computation below decide partially vs
+  // fully. When NO template exists, fall back to the legacy "nationalId required
+  // to be fully_registered" rule so behaviour is unchanged for existing tenants.
+  const tplForComplete = await getActiveTemplate("UG");
   const nationalId = typeof body.nationalId === "string" ? body.nationalId.trim() : "";
-  if (!nationalId) {
+  if (!tplForComplete && !nationalId) {
     res.status(400).json({ error: "nationalId is required to complete registration", code: "NATIONAL_ID_REQUIRED" });
     return;
   }
+  // Build the patch WITHOUT the stage fields; we'll fill those in after we know
+  // the merged farmer state and crops count (so stage reflects the post-write
+  // reality, not the pre-write one).
   const patch: Record<string, unknown> = {
-    registrationStage: "fully_registered",
-    fullyRegisteredAt: new Date(),
-    status: "active",
-    nationalId,
     updatedAt: new Date(),
   };
+  if (nationalId) patch.nationalId = nationalId;
   // Selectively accept the rest of the KYC fields. We deliberately don't allow overwriting
   // groupId here — group transfers go through their own endpoint with the correct audit trail.
   if (typeof body.dateOfBirth === "string" && /^\d{4}-\d{2}-\d{2}$/.test(body.dateOfBirth)) patch.dateOfBirth = body.dateOfBirth;
@@ -416,6 +459,45 @@ router.post("/farmers/:farmerId/complete", requirePermission("farmers.register")
     if (commodityErr) { res.status(400).json({ error: commodityErr, code: "UNKNOWN_COMMODITY" }); return; }
   }
 
+  // Compute the post-write stage. Crops live in their own table — when the form
+  // doesn't include `crops`, count what's already stored so a re-submit that just
+  // adds livelihood fields doesn't accidentally downgrade a farmer who already
+  // has crops on file. When crops IS in the body, the new submitted set wins
+  // (REPLACE-semantics applied below in the transaction).
+  let cropsCountForStage = cropsParsed.length;
+  if (!cropsKeyPresent) {
+    const [{ count: existingCropsCount } = { count: 0 }] = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(farmerCropsTable)
+      .where(eq(farmerCropsTable.farmerId, farmerId as string));
+    cropsCountForStage = Number(existingCropsCount) || 0;
+  }
+  // Custom field values: validated against the active template's custom field
+  // catalog. When the body OMITS `customFieldValues`, treat as "no change" —
+  // we fall back to the existing values stored for this farmer so the stage
+  // calculation isn't accidentally downgraded by a partial-submit form.
+  const bodyHasCustomValues = (req.body as Record<string, unknown>)?.customFieldValues !== undefined;
+  const customParse = parseCustomFieldValues(req.body, tplForComplete?.fields ?? []);
+  if ("error" in customParse) {
+    res.status(400).json({ error: customParse.error });
+    return;
+  }
+  const submittedCustomValues = customParse.values;
+  const customValuesForStage: Record<string, string> = bodyHasCustomValues
+    ? submittedCustomValues
+    : await loadFarmerCustomFieldValues(farmerId as string);
+
+  const mergedFarmer: Record<string, unknown> = { ...existing, ...patch };
+  let computedCompleteStage: RegistrationStage = "fully_registered";
+  if (tplForComplete) {
+    computedCompleteStage =
+      computeStageFromTemplate(tplForComplete.fields, mergedFarmer, customValuesForStage, cropsCountForStage) ??
+      "fully_registered";
+  }
+  patch.registrationStage = computedCompleteStage;
+  patch.status = computedCompleteStage === "fully_registered" ? "active" : "pending";
+  if (computedCompleteStage === "fully_registered") patch.fullyRegisteredAt = new Date();
+
   const updated = await db.transaction(async (tx) => {
     const [row] = await tx.update(farmersTable).set(patch).where(eq(farmersTable.id, farmerId as string)).returning();
     if (cropsKeyPresent) {
@@ -428,6 +510,10 @@ router.post("/farmers/:farmerId/complete", requirePermission("farmers.register")
           lastHarvestDate: c.lastHarvestDate,
         })));
       }
+    }
+    if (bodyHasCustomValues) {
+      // Replace-all semantics: blanking a field in the form actually clears it.
+      await replaceFarmerCustomFieldValues(tx, farmerId as string, submittedCustomValues);
     }
     return row;
   });
@@ -495,7 +581,7 @@ router.get("/farmers/:farmerId", async (req: AuthedRequest, res): Promise<void> 
     res.status(404).json({ error: "Farmer not found" });
     return;
   }
-  const [plots, enrolments, surveys, gapScores] = await Promise.all([
+  const [plots, enrolments, surveys, gapScores, customFieldValues] = await Promise.all([
     db.select().from(plotsTable).where(eq(plotsTable.farmerId, farmerId as string)),
     db.select({
       enrolment: certificationEnrolmentsTable,
@@ -505,6 +591,7 @@ router.get("/farmers/:farmerId", async (req: AuthedRequest, res): Promise<void> 
       .where(eq(certificationEnrolmentsTable.farmerId, farmerId as string)),
     db.select().from(surveySubmissionsTable).where(eq(surveySubmissionsTable.farmerId, farmerId as string)).orderBy(desc(surveySubmissionsTable.submittedAt)).limit(5),
     db.select().from(gapAssessmentsTable).where(eq(gapAssessmentsTable.farmerId, farmerId as string)).orderBy(desc(gapAssessmentsTable.assessedAt)).limit(1),
+    loadFarmerCustomFieldValues(farmerId as string),
   ]);
   const group = farmer.groupId
     ? await db.select().from(groupsTable).where(eq(groupsTable.id, farmer.groupId)).limit(1)
@@ -516,6 +603,7 @@ router.get("/farmers/:farmerId", async (req: AuthedRequest, res): Promise<void> 
     certifications: enrolments.map(e => ({ ...e.enrolment, streamName: e.streamName ?? "Unknown" })),
     recentSurveys: surveys.map(s => ({ ...s, templateName: "Survey", agentName: "Agent", farmerName: `${farmer.firstName} ${farmer.lastName}` })),
     gapScore: gapScores[0] ? parseFloat(gapScores[0].overallScore ?? "0") : null,
+    customFieldValues,
   };
   res.json(result);
 });

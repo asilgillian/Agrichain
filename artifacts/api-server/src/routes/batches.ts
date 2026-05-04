@@ -3,6 +3,7 @@ import { eq, and, desc } from "drizzle-orm";
 import { db, batchesTable } from "@workspace/db";
 import { CreateBatchBody, ListBatchesQueryParams } from "@workspace/api-zod";
 import { requirePermission, type AuthedRequest } from "../middlewares/auth";
+import { checkFarmersStageForTxn } from "../lib/transaction-access";
 
 const router: IRouter = Router();
 
@@ -69,6 +70,21 @@ router.post("/batches", requirePermission("procurement.write"), async (req: Auth
       res.status(400).json({ error: "farmerContributions must be an array" }); return;
     }
     farmerContributions = req.body.farmerContributions;
+  }
+
+  // Admin-controlled gate: every contributing farmer must meet the
+  // registration-stage rule for "delivery" (batches are this codebase's
+  // farmer-level delivery aggregation primitive).
+  const contributingFarmerIds = Array.from(
+    new Set(
+      farmerContributions
+        .map((c: any) => (c && typeof c === "object" ? c.farmerId : null))
+        .filter((id: unknown): id is string => typeof id === "string" && UUID_RE.test(id)),
+    ),
+  );
+  if (contributingFarmerIds.length > 0) {
+    const denial = await checkFarmersStageForTxn(contributingFarmerIds, "delivery");
+    if (denial) { res.status(denial.status).json(denial.body); return; }
   }
 
   let qualifyingStreams: string[] = [];

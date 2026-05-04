@@ -4,6 +4,8 @@ import meRouter from "./me";
 import { requireAuth } from "../middlewares/auth";
 import dashboardRouter from "./dashboard";
 import farmersRouter from "./farmers";
+import registrationTemplatesRouter from "./registration-templates";
+import transactionAccessRouter from "./transaction-access";
 import groupsRouter from "./groups";
 import plotsRouter from "./plots";
 import certificationsRouter from "./certifications";
@@ -63,6 +65,8 @@ router.use(adminRouter);
 router.use(regionsRouter);
 router.use(orgRegionsRouter);
 router.use(commoditiesRouter);
+router.use(registrationTemplatesRouter);
+router.use(transactionAccessRouter);
 router.use(samplesRouter);
 
 export default router;
