@@ -266,13 +266,57 @@ function CompleteFarmerForm({
 
   const [nationalId, setNationalId] = useState("");
   const [dateOfBirth, setDateOfBirth] = useState(""); // YYYY-MM-DD
-  const [sex, setSex] = useState<"" | "M" | "F" | "Other">("");
+  const [sex, setSex] = useState<"" | "male" | "female" | "other">("");
   const [phoneNumber, setPhoneNumber] = useState(farmer.phoneNumber ?? "+256");
   const [householdSize, setHouseholdSize] = useState("");
   const [dependants, setDependants] = useState("");
   const [headOfHousehold, setHeadOfHousehold] = useState("");
   const [landTenure, setLandTenure] = useState<"" | "Owned" | "Rented" | "Inherited" | "Other">("");
+
+  // Farm — crops grown (multi from commodity master, with last harvest)
+  const [commodities, setCommodities] = useState<Commodity[]>([]);
+  const [crops, setCrops] = useState<AddedCrop[]>([]);
+  const [showAddCrop, setShowAddCrop] = useState(false);
+  const [pendingCommodityId, setPendingCommodityId] = useState("");
+  const [pendingHarvestKg, setPendingHarvestKg] = useState("");
+  const [pendingHarvestDate, setPendingHarvestDate] = useState("");
+
+  // Farm — other on-farm activities
+  const [otherActivities, setOtherActivities] = useState<string[]>([]);
+
+  // Livelihood — for living-income tracking
+  const [cultivatedLandHa, setCultivatedLandHa] = useState("");
+  const [offFarmIncomeSource, setOffFarmIncomeSource] = useState("");
+  const [offFarmIncomeMonthlyUgx, setOffFarmIncomeMonthlyUgx] = useState("");
+  const [monthsOfFoodShortage, setMonthsOfFoodShortage] = useState("");
+  const [educationLevelHead, setEducationLevelHead] = useState("");
+  const [accessCleanWater, setAccessCleanWater] = useState<"" | "yes" | "no">("");
+  const [accessElectricity, setAccessElectricity] = useState<"" | "yes" | "no">("");
+  const [primaryCookingFuel, setPrimaryCookingFuel] = useState("");
+
   const [submitting, setSubmitting] = useState(false);
+
+  // Load active commodities once. Failure is non-fatal — the agent can still complete
+  // the registration; the crops section will just show an empty picker.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const token = await getToken();
+        const res = await fetch(`${API_BASE}/api/commodities?status=active`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
+        if (!res.ok) return;
+        const rows = await res.json();
+        if (!cancelled && Array.isArray(rows)) {
+          setCommodities(rows.map((r: any) => ({ id: r.id, name: r.name, defaultUnit: r.defaultUnit })));
+        }
+      } catch {
+        /* non-fatal */
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [getToken]);
 
   // Translate server error codes into language a field agent can act on.
   const friendlyError = (code?: string, fallback?: string) => {
@@ -318,6 +362,37 @@ function CompleteFarmerForm({
       }
       if (headOfHousehold.trim()) body.headOfHousehold = headOfHousehold.trim();
       if (landTenure) body.landTenure = landTenure;
+
+      // Farm + livelihood (only include fields with a value)
+      if (otherActivities.length > 0) body.otherActivities = otherActivities;
+      if (cultivatedLandHa.trim()) {
+        const n = Number(cultivatedLandHa.trim());
+        if (Number.isFinite(n) && n >= 0) body.cultivatedLandHa = n;
+      }
+      if (offFarmIncomeSource) body.offFarmIncomeSource = offFarmIncomeSource;
+      if (offFarmIncomeMonthlyUgx.trim()) {
+        const n = parseInt(offFarmIncomeMonthlyUgx.trim(), 10);
+        if (Number.isFinite(n) && n >= 0) body.offFarmIncomeMonthlyUgx = n;
+      }
+      if (monthsOfFoodShortage.trim()) {
+        const n = parseInt(monthsOfFoodShortage.trim(), 10);
+        if (Number.isFinite(n) && n >= 0 && n <= 12) body.monthsOfFoodShortage = n;
+      }
+      if (educationLevelHead) body.educationLevelHead = educationLevelHead;
+      if (accessCleanWater) body.accessCleanWater = accessCleanWater === "yes";
+      if (accessElectricity) body.accessElectricity = accessElectricity === "yes";
+      if (primaryCookingFuel) body.primaryCookingFuel = primaryCookingFuel;
+      // crops[]: send only when the agent added at least one. Server REPLACES the
+      // existing crop set, so only include when the form had crops in it (the user
+      // can also explicitly send an empty array later via PATCH if they ever need
+      // to clear; not needed here since we only ever ADD on the complete form).
+      if (crops.length > 0) {
+        body.crops = crops.map((c) => ({
+          commodityId: c.commodityId,
+          ...(c.lastHarvestKg ? { lastHarvestKg: Number(c.lastHarvestKg) } : {}),
+          ...(c.lastHarvestDate ? { lastHarvestDate: c.lastHarvestDate } : {}),
+        }));
+      }
 
       const res = await fetch(`${API_BASE}/api/farmers/${farmer.id}/complete`, {
         method: "POST",
@@ -393,7 +468,11 @@ function CompleteFarmerForm({
         label="Sex"
         value={sex}
         onChange={(v) => setSex(v as typeof sex)}
-        options={["M", "F", "Other"]}
+        options={[
+          { value: "male", label: "Male" },
+          { value: "female", label: "Female" },
+          { value: "other", label: "Other" },
+        ]}
         colors={colors}
         testIDPrefix="complete-sex"
       />
@@ -438,9 +517,244 @@ function CompleteFarmerForm({
         label="Land tenure"
         value={landTenure}
         onChange={(v) => setLandTenure(v as typeof landTenure)}
-        options={["Owned", "Rented", "Inherited", "Other"]}
+        options={[
+          { value: "Owned", label: "Owned" },
+          { value: "Rented", label: "Rented" },
+          { value: "Inherited", label: "Inherited" },
+          { value: "Other", label: "Other" },
+        ]}
         colors={colors}
         testIDPrefix="complete-land-tenure"
+      />
+
+      {/* ---------------- Crops grown ---------------- */}
+      <Text style={[styles.sectionLabel, { color: colors.foreground }]}>Crops grown</Text>
+      {crops.length === 0 && !showAddCrop && (
+        <Text style={{ color: colors.mutedForeground, fontSize: 13 }}>
+          No crops added yet. Tap &quot;Add crop&quot; to record what this farmer grows.
+        </Text>
+      )}
+      {crops.map((c, idx) => (
+        <View
+          key={`${c.commodityId}-${idx}`}
+          style={[styles.cropRow, { borderColor: colors.border, backgroundColor: colors.card }]}
+        >
+          <View style={{ flex: 1 }}>
+            <Text style={{ color: colors.foreground, fontWeight: "600" }}>{c.name}</Text>
+            <Text style={{ color: colors.mutedForeground, fontSize: 12, marginTop: 2 }}>
+              {c.lastHarvestKg ? `Last harvest: ${c.lastHarvestKg} kg` : "No harvest recorded"}
+              {c.lastHarvestDate ? ` · ${c.lastHarvestDate}` : ""}
+            </Text>
+          </View>
+          <Pressable
+            onPress={() => setCrops((prev) => prev.filter((_, i) => i !== idx))}
+            style={({ pressed }) => [styles.removeBtn, { opacity: pressed ? 0.6 : 1 }]}
+            testID={`complete-crop-remove-${idx}`}
+          >
+            <Feather name="x" size={18} color={colors.mutedForeground} />
+          </Pressable>
+        </View>
+      ))}
+      {showAddCrop ? (
+        <View style={[styles.addCropCard, { borderColor: colors.border, backgroundColor: colors.card }]}>
+          <Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>Pick a commodity</Text>
+          {commodities.length === 0 ? (
+            <Text style={{ color: colors.mutedForeground, fontSize: 13 }}>
+              No commodities available. Ask an admin to add some.
+            </Text>
+          ) : (
+            <View style={styles.chipRow}>
+              {commodities
+                .filter((c) => !crops.some((added) => added.commodityId === c.id))
+                .map((c) => {
+                  const active = pendingCommodityId === c.id;
+                  return (
+                    <Pressable
+                      key={c.id}
+                      onPress={() => setPendingCommodityId(active ? "" : c.id)}
+                      style={({ pressed }) => [
+                        styles.chip,
+                        {
+                          borderColor: active ? colors.primary : colors.border,
+                          backgroundColor: active ? colors.primary : colors.background,
+                          opacity: pressed ? 0.7 : 1,
+                        },
+                      ]}
+                      testID={`complete-commodity-${c.id}`}
+                    >
+                      <Text style={{ color: active ? colors.primaryForeground : colors.foreground, fontWeight: active ? "600" : "500" }}>
+                        {c.name}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+            </View>
+          )}
+          <Field
+            label="Last harvest (kg, optional)"
+            value={pendingHarvestKg}
+            onChangeText={setPendingHarvestKg}
+            placeholder="120"
+            keyboardType="number-pad"
+            colors={colors}
+            testID="complete-pending-harvest-kg"
+          />
+          <Field
+            label="Last harvest date (YYYY-MM-DD, optional)"
+            value={pendingHarvestDate}
+            onChangeText={setPendingHarvestDate}
+            placeholder="2025-12-10"
+            keyboardType="numbers-and-punctuation"
+            autoCapitalize="none"
+            colors={colors}
+            testID="complete-pending-harvest-date"
+          />
+          <View style={{ flexDirection: "row", gap: 8, marginTop: 4 }}>
+            <Pressable
+              onPress={() => {
+                if (!pendingCommodityId) {
+                  Alert.alert("Pick a commodity", "Tap one of the commodities above first.");
+                  return;
+                }
+                if (pendingHarvestDate.trim() && !/^\d{4}-\d{2}-\d{2}$/.test(pendingHarvestDate.trim())) {
+                  Alert.alert("Invalid date", "Use YYYY-MM-DD format (e.g. 2025-12-10).");
+                  return;
+                }
+                const commodity = commodities.find((c) => c.id === pendingCommodityId);
+                if (!commodity) return;
+                setCrops((prev) => [
+                  ...prev,
+                  {
+                    commodityId: commodity.id,
+                    name: commodity.name,
+                    lastHarvestKg: pendingHarvestKg.trim() || undefined,
+                    lastHarvestDate: pendingHarvestDate.trim() || undefined,
+                  },
+                ]);
+                setPendingCommodityId("");
+                setPendingHarvestKg("");
+                setPendingHarvestDate("");
+                setShowAddCrop(false);
+              }}
+              style={({ pressed }) => [
+                styles.smallBtn,
+                { backgroundColor: colors.primary, opacity: pressed ? 0.7 : 1 },
+              ]}
+              testID="complete-save-crop"
+            >
+              <Text style={{ color: colors.primaryForeground, fontWeight: "600" }}>Save crop</Text>
+            </Pressable>
+            <Pressable
+              onPress={() => {
+                setPendingCommodityId("");
+                setPendingHarvestKg("");
+                setPendingHarvestDate("");
+                setShowAddCrop(false);
+              }}
+              style={({ pressed }) => [
+                styles.smallBtn,
+                { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, opacity: pressed ? 0.7 : 1 },
+              ]}
+              testID="complete-cancel-crop"
+            >
+              <Text style={{ color: colors.foreground, fontWeight: "500" }}>Cancel</Text>
+            </Pressable>
+          </View>
+        </View>
+      ) : (
+        <Pressable
+          onPress={() => setShowAddCrop(true)}
+          style={({ pressed }) => [
+            styles.addBtn,
+            { borderColor: colors.border, backgroundColor: colors.card, opacity: pressed ? 0.7 : 1 },
+          ]}
+          testID="complete-add-crop"
+        >
+          <Feather name="plus" size={18} color={colors.primary} />
+          <Text style={{ color: colors.foreground, fontWeight: "500" }}>Add crop</Text>
+        </Pressable>
+      )}
+
+      {/* ---------------- Other on-farm activities ---------------- */}
+      <Text style={[styles.sectionLabel, { color: colors.foreground }]}>Other on-farm activities</Text>
+      <MultiChoiceField
+        values={otherActivities}
+        onToggle={(v) =>
+          setOtherActivities((prev) => (prev.includes(v) ? prev.filter((x) => x !== v) : [...prev, v]))
+        }
+        options={ACTIVITY_OPTIONS}
+        colors={colors}
+        testIDPrefix="complete-activity"
+      />
+
+      {/* ---------------- Livelihood ---------------- */}
+      <Text style={[styles.sectionLabel, { color: colors.foreground }]}>Livelihood</Text>
+      <Field
+        label="Cultivated land (hectares)"
+        value={cultivatedLandHa}
+        onChangeText={setCultivatedLandHa}
+        placeholder="1.5"
+        keyboardType="numbers-and-punctuation"
+        colors={colors}
+        testID="complete-cultivated-land"
+      />
+      <ChoiceField
+        label="Main off-farm income source"
+        value={offFarmIncomeSource}
+        onChange={setOffFarmIncomeSource}
+        options={INCOME_SOURCE_OPTIONS}
+        colors={colors}
+        testIDPrefix="complete-income-source"
+      />
+      <Field
+        label="Off-farm income, monthly (UGX)"
+        value={offFarmIncomeMonthlyUgx}
+        onChangeText={setOffFarmIncomeMonthlyUgx}
+        placeholder="150000"
+        keyboardType="number-pad"
+        colors={colors}
+        testID="complete-off-farm-income"
+      />
+      <Field
+        label="Months of food shortage per year (0–12)"
+        value={monthsOfFoodShortage}
+        onChangeText={setMonthsOfFoodShortage}
+        placeholder="2"
+        keyboardType="number-pad"
+        colors={colors}
+        testID="complete-food-shortage"
+      />
+      <ChoiceField
+        label="Education of head of household"
+        value={educationLevelHead}
+        onChange={setEducationLevelHead}
+        options={EDUCATION_OPTIONS}
+        colors={colors}
+        testIDPrefix="complete-education"
+      />
+      <ChoiceField
+        label="Access to clean water"
+        value={accessCleanWater}
+        onChange={(v) => setAccessCleanWater(v as typeof accessCleanWater)}
+        options={YES_NO_OPTIONS}
+        colors={colors}
+        testIDPrefix="complete-water"
+      />
+      <ChoiceField
+        label="Access to electricity"
+        value={accessElectricity}
+        onChange={(v) => setAccessElectricity(v as typeof accessElectricity)}
+        options={YES_NO_OPTIONS}
+        colors={colors}
+        testIDPrefix="complete-electricity"
+      />
+      <ChoiceField
+        label="Primary cooking fuel"
+        value={primaryCookingFuel}
+        onChange={setPrimaryCookingFuel}
+        options={COOKING_FUEL_OPTIONS}
+        colors={colors}
+        testIDPrefix="complete-cooking-fuel"
       />
 
       <Pressable
@@ -646,6 +960,40 @@ const styles = StyleSheet.create({
   sectionLabel: { fontSize: 14, fontWeight: "600", marginTop: 8 },
   chipRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   chip: { borderWidth: 1, borderRadius: 999, paddingHorizontal: 14, paddingVertical: 8 },
+  cropRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+  },
+  removeBtn: { padding: 6 },
+  addCropCard: {
+    borderWidth: 1,
+    borderRadius: 8,
+    padding: 12,
+    gap: 10,
+  },
+  addBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    borderWidth: 1,
+    borderStyle: "dashed",
+    borderRadius: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    justifyContent: "center",
+  },
+  smallBtn: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 8,
+    paddingVertical: 10,
+  },
   submitBtn: {
     flexDirection: "row",
     alignItems: "center",

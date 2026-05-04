@@ -397,9 +397,16 @@ router.post("/farmers/:farmerId/complete", requirePermission("farmers.register")
   // Merge in farm + livelihood fields.
   Object.assign(patch, pickLivelihoodPatch(body));
 
-  // crops[]: when provided, REPLACE the farmer's crop set (the form is the authoritative
-  // snapshot at completion time). When omitted, leave existing crops untouched.
-  const cropsKeyPresent = Object.prototype.hasOwnProperty.call(body, "crops");
+  // crops[]: when provided as an array, REPLACE the farmer's crop set (the form is the
+  // authoritative snapshot at completion time). When omitted OR explicitly null, leave
+  // existing crops untouched — never wipe on accident. Any other type (string, object,
+  // number, etc.) is rejected so callers get an explicit error instead of silent data loss.
+  const rawCrops = (body as Record<string, unknown>).crops;
+  const cropsKeyPresent = Array.isArray(rawCrops);
+  if (rawCrops !== undefined && rawCrops !== null && !Array.isArray(rawCrops)) {
+    res.status(400).json({ error: "crops must be an array" });
+    return;
+  }
   let cropsParsed: ParsedCrop[] = [];
   if (cropsKeyPresent) {
     const result = parseCropsInput(body);
