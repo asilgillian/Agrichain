@@ -18,7 +18,22 @@ const VALID_SOURCES = new Set(["core_farmer", "core_livelihood", "custom"]);
 // Mobile + web back-office both call this so they can show admins what knobs
 // exist without hardcoding the catalog client-side.
 router.get("/registration-templates/core-fields", async (_req, res): Promise<void> => {
-  res.json(KNOWN_CORE_FIELDS);
+  // Normalize catalog shape to match the DB-returned template field rows
+  // (`fieldKey` rather than `key`). Both the web admin builder and the mobile
+  // dynamic form rely on a consistent `{fieldKey, label, fieldType, source,
+  // options, alwaysRequired}` contract — without this mapping, clicking a
+  // core-field chip in the admin pushes a row with `fieldKey: undefined`,
+  // which the PUT /fields endpoint then rejects with 400.
+  res.json(
+    KNOWN_CORE_FIELDS.map((f) => ({
+      fieldKey: f.key,
+      label: f.label,
+      fieldType: f.fieldType,
+      source: f.source,
+      options: f.options ?? null,
+      alwaysRequired: !!f.alwaysRequired,
+    })),
+  );
 });
 
 // ---------- PUBLIC: fetch the active template for a country ----------
