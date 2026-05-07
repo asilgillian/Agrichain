@@ -11,7 +11,7 @@ const colors = {
     text: "#173626",
     tint: "#265940",
 
-    background: "#f8faf8",
+    background: "#ffffff",
     foreground: "#173626",
 
     card: "#ffffff",
