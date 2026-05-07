@@ -43,7 +43,13 @@ if (!publishableKey) {
 
 function RootLayoutNav() {
   return (
-    <Stack screenOptions={{ headerBackTitle: "Back", headerShown: false }}>
+    <Stack
+      screenOptions={{
+        headerBackTitle: "Back",
+        headerShown: false,
+        contentStyle: { backgroundColor: "#ffffff" },
+      }}
+    >
       <Stack.Screen name="(auth)" />
       <Stack.Screen name="(tabs)" />
     </Stack>
