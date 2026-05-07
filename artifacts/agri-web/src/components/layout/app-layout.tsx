@@ -89,7 +89,7 @@ const systemItems: NavItem[] = [
   { title: "Assets", icon: Package, href: "/assets", requiredAny: ["assets.read"] },
   { title: "Activity Funds", icon: Wallet, href: "/activity-funds", requiredAny: ["activity_funds.read"] },
   { title: "Audit Log", icon: Shield, href: "/audit", requiredAny: ["audit.read"] },
-  { title: "Admin", icon: Settings, href: "/admin", requiredAny: ["admin.roles", "admin.regions", "admin.hierarchy", "admin.bulk_upload"] },
+  { title: "Admin", icon: Settings, href: "/admin", requiredAny: ["admin.roles", "admin.regions", "admin.hierarchy", "admin.bulk_upload", "admin.registration_templates", "admin.transaction_access"] },
 ];
 
 function NavGroup({ label, items, location }: { label: string; items: NavItem[]; location: string }) {
