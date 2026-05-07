@@ -133,6 +133,14 @@ export default function SignInScreen() {
           )}
         </Pressable>
 
+        <View style={[styles.linkRow, { marginTop: 12 }]}>
+          <Link href="/(auth)/forgot-password">
+            <Text style={[styles.link, { color: colors.primary }]}>
+              Forgot password?
+            </Text>
+          </Link>
+        </View>
+
         <View style={styles.linkRow}>
           <Text style={{ color: colors.mutedForeground }}>{"Don't have an account? "}</Text>
           <Link href="/(auth)/sign-up" replace>
