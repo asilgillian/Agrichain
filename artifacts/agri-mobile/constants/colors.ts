@@ -1,58 +1,70 @@
 /**
  * Semantic design tokens for the mobile app.
  *
- * These tokens mirror the naming conventions used in web artifacts (index.css)
- * so that multi-artifact projects share a cohesive visual identity.
- *
- * Replace the placeholder values below with values that match the project's
- * brand. If a sibling web artifact exists, read its index.css and convert the
- * HSL values to hex so both artifacts use the same palette.
- *
- * To add dark mode, add a `dark` key with the same token names.
- * The useColors() hook will automatically pick it up.
+ * These tokens mirror agri-web's index.css palette (Mtandeo green + amber
+ * brand) so the two artifacts share a cohesive identity. HSL values from
+ * the web theme are converted to hex here.
  */
 
 const colors = {
   light: {
-    // Legacy aliases (kept for backward compatibility)
-    text: "#0a0a0a",
-    tint: "#2f95dc",
+    text: "#173626",
+    tint: "#265940",
 
-    // Core surfaces
-    background: "#ffffff",
-    foreground: "#0a0a0a",
+    background: "#f8faf8",
+    foreground: "#173626",
 
-    // Cards / elevated surfaces
-    card: "#f9f9f9",
-    cardForeground: "#0a0a0a",
+    card: "#ffffff",
+    cardForeground: "#173626",
 
-    // Primary action color (buttons, links, active states)
-    primary: "#2f95dc",
+    primary: "#265940",
     primaryForeground: "#ffffff",
 
-    // Secondary / less-emphasis interactive surfaces
-    secondary: "#f0f0f0",
-    secondaryForeground: "#1a1a1a",
+    secondary: "#f2930d",
+    secondaryForeground: "#173626",
 
-    // Muted / subdued elements (dividers, timestamps, placeholders)
-    muted: "#f0f0f0",
-    mutedForeground: "#737373",
+    muted: "#edf2f0",
+    mutedForeground: "#5c8a73",
 
-    // Accent highlights (badges, selected items, focus rings)
-    accent: "#f0f0f0",
-    accentForeground: "#1a1a1a",
+    accent: "#e2e9e6",
+    accentForeground: "#173626",
 
-    // Destructive actions (delete, error states)
     destructive: "#ef4444",
     destructiveForeground: "#ffffff",
 
-    // Borders and input outlines
-    border: "#e5e5e5",
-    input: "#e5e5e5",
+    border: "#e0eae6",
+    input: "#d1e0d9",
   },
 
-  // Border radius (in px). Sync from the sibling web artifact's --radius
-  // CSS variable. This value applies to cards, buttons, inputs, and modals.
+  dark: {
+    text: "#f8faf8",
+    tint: "#48a37d",
+
+    background: "#172620",
+    foreground: "#f8faf8",
+
+    card: "#1f3a2e",
+    cardForeground: "#f8faf8",
+
+    primary: "#48a37d",
+    primaryForeground: "#ffffff",
+
+    secondary: "#f2930d",
+    secondaryForeground: "#173626",
+
+    muted: "#26403a",
+    mutedForeground: "#a8bfb6",
+
+    accent: "#2c4a3e",
+    accentForeground: "#f8faf8",
+
+    destructive: "#7f1d1d",
+    destructiveForeground: "#fafafa",
+
+    border: "#2c4a3e",
+    input: "#2c4a3e",
+  },
+
   radius: 8,
 };
 
