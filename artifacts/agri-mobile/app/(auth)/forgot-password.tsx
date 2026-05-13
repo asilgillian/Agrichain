@@ -36,11 +36,14 @@ export default function ForgotPasswordScreen() {
   const requestCode = async () => {
     if (!emailAddress.trim()) return;
     setInfo(null);
-    const { error } = await signIn.create({
-      strategy: "reset_password_email_code",
-      identifier: emailAddress.trim(),
-    });
-    if (error) return;
+    // Clerk Future API: first establish the identifier on the SignIn resource,
+    // then trigger the reset-password email-code flow. The legacy
+    // `signIn.create({ strategy: "reset_password_email_code" })` shape isn't
+    // available on SignInFutureResource.
+    const created = await signIn.create({ identifier: emailAddress.trim() });
+    if (created.error) return;
+    const sent = await signIn.resetPasswordEmailCode.sendCode();
+    if (sent.error) return;
     setStep("reset");
     setInfo("We emailed you a 6-digit code. Enter it below with your new password.");
   };
@@ -48,12 +51,13 @@ export default function ForgotPasswordScreen() {
   const resetPassword = async () => {
     if (!code.trim() || newPassword.length < 8) return;
     setInfo(null);
-    const { error } = await signIn.attemptFirstFactor({
-      strategy: "reset_password_email_code",
-      code: code.trim(),
-      password: newPassword,
-    });
-    if (error) return;
+    // Two-step in the Future API: verify the code (advances signIn.status to
+    // 'needs_new_password'), then submit the new password (advances to
+    // 'complete').
+    const verified = await signIn.resetPasswordEmailCode.verifyCode({ code: code.trim() });
+    if (verified.error) return;
+    const submitted = await signIn.resetPasswordEmailCode.submitPassword({ password: newPassword });
+    if (submitted.error) return;
 
     if (signIn.status === "complete") {
       await signIn.finalize({
