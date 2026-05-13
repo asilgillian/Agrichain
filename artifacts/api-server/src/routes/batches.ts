@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
-import { eq, and, desc } from "drizzle-orm";
-import { db, batchesTable } from "@workspace/db";
-import { CreateBatchBody, ListBatchesQueryParams } from "@workspace/api-zod";
+import { eq, and, desc, sql, inArray, isNull } from "drizzle-orm";
+import { db, batchesTable, deliveriesTable } from "@workspace/db";
+import { ListBatchesQueryParams } from "@workspace/api-zod";
 import { requirePermission, type AuthedRequest } from "../middlewares/auth";
 import { checkFarmersStageForTxn } from "../lib/transaction-access";
 
@@ -10,7 +10,13 @@ const router: IRouter = Router();
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function generateBatchTag(): string {
-  return "B" + Date.now().toString(36).toUpperCase();
+  // System-generated batch number, e.g. B-20260513-XXXX. The trailing chunk
+  // uses a base36 timestamp slice so concurrent batches in the same second
+  // don't collide on the unique index.
+  const d = new Date();
+  const ymd = `${d.getUTCFullYear()}${String(d.getUTCMonth() + 1).padStart(2, "0")}${String(d.getUTCDate()).padStart(2, "0")}`;
+  const tail = Date.now().toString(36).slice(-5).toUpperCase();
+  return `B-${ymd}-${tail}`;
 }
 
 router.get("/batches", requirePermission("procurement.read"), async (req, res): Promise<void> => {
@@ -35,88 +41,120 @@ router.get("/batches", requirePermission("procurement.read"), async (req, res): 
   })));
 });
 
-router.post("/batches", requirePermission("procurement.write"), async (req: AuthedRequest, res): Promise<void> => {
-  const parsed = CreateBatchBody.safeParse(req.body);
-  if (!parsed.success) {
-    res.status(400).json({ error: parsed.error.message });
-    return;
-  }
-  const batchTag = generateBatchTag();
-  // Always derive agentId from the authed user — never trust client-supplied agentId
-  const agentId = req.authedUser!.id;
+// LEGACY route. The platform is now delivery-first: agents capture per-farmer
+// deliveries via POST /procurement/deliveries (mobile), then group selected
+// captured deliveries into a batch via POST /batches/from-deliveries. Direct
+// batch creation with farmerContributions is no longer supported.
+router.post("/batches", requirePermission("procurement.write"), async (_req, res): Promise<void> => {
+  res.status(410).json({
+    error: "POST /batches is deprecated. Capture deliveries first, then group with POST /batches/from-deliveries.",
+  });
+});
 
-  // Validate optional body fields that aren't in CreateBatchBody (codegen drift workaround)
-  const rawGroupId = req.body.groupId;
+// NEW: group captured deliveries into a batch.
+// Body: { deliveryIds: string[], harvestDate?: string, groupId?: string }
+// Server validates: every id exists, every delivery is unbatched
+// (status=captured AND batch_id IS NULL), and ALL deliveries share the same
+// cropType. The batch's cropType, farmerCount, totalWeightKg, qualifyingStreams
+// and agentId are derived server-side — clients can't spoof them.
+router.post("/batches/from-deliveries", requirePermission("procurement.write"), async (req: AuthedRequest, res): Promise<void> => {
+  const userId = req.authedUser?.id;
+  if (!userId) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  const rawIds = req.body?.deliveryIds;
+  if (!Array.isArray(rawIds) || rawIds.length === 0) {
+    res.status(400).json({ error: "deliveryIds must be a non-empty array of UUIDs" }); return;
+  }
+  const deliveryIds = Array.from(new Set(rawIds.map(s => typeof s === "string" ? s.toLowerCase() : "")));
+  if (!deliveryIds.every(id => UUID_RE.test(id))) {
+    res.status(400).json({ error: "deliveryIds must all be UUIDs" }); return;
+  }
+
   let groupId: string | null = null;
-  if (rawGroupId != null) {
-    if (typeof rawGroupId !== "string" || !UUID_RE.test(rawGroupId)) {
+  if (req.body?.groupId != null) {
+    if (typeof req.body.groupId !== "string" || !UUID_RE.test(req.body.groupId)) {
       res.status(400).json({ error: "groupId must be a UUID" }); return;
     }
-    groupId = rawGroupId;
+    groupId = req.body.groupId;
   }
 
-  let farmerCount = 0;
-  if (req.body.farmerCount != null) {
-    const n = Number(req.body.farmerCount);
-    if (!Number.isInteger(n) || n < 0 || n > 100000) {
-      res.status(400).json({ error: "farmerCount must be a non-negative integer" }); return;
-    }
-    farmerCount = n;
+  let harvestDate: string;
+  if (typeof req.body?.harvestDate === "string" && /^\d{4}-\d{2}-\d{2}$/.test(req.body.harvestDate)) {
+    harvestDate = req.body.harvestDate;
+  } else {
+    const d = new Date();
+    harvestDate = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")}`;
   }
 
-  let farmerContributions: any[] = [];
-  if (req.body.farmerContributions != null) {
-    if (!Array.isArray(req.body.farmerContributions)) {
-      res.status(400).json({ error: "farmerContributions must be an array" }); return;
-    }
-    const raw = req.body.farmerContributions as any[];
-    // Strict per-entry validation. Anything missing a uuid farmerId or a
-    // finite non-negative weightKg is a 400 — silently dropping invalid rows
-    // would let a caller skew the multi-farmer payment split.
-    if (!raw.every(c => c && typeof c === "object" && typeof c.farmerId === "string" && UUID_RE.test(c.farmerId) && Number.isFinite(Number(c.weightKg)) && Number(c.weightKg) >= 0)) {
-      res.status(400).json({ error: "farmerContributions entries must be { farmerId: uuid, weightKg: number>=0 }" }); return;
-    }
-    // Canonicalize UUIDs to lowercase BEFORE dedup; otherwise the same logical
-    // farmer in mixed case would slip through and inflate the split divisor.
-    for (const c of raw) c.farmerId = c.farmerId.toLowerCase();
-    // Reject duplicate farmerIds outright.
-    const seen = new Set<string>();
-    for (const c of raw) {
-      if (seen.has(c.farmerId)) {
-        res.status(400).json({ error: `Duplicate farmerId in farmerContributions: ${c.farmerId}` }); return;
-      }
-      seen.add(c.farmerId);
-    }
-    farmerContributions = raw;
-  }
-
-  // Admin-controlled gate: every contributing farmer must meet the
-  // registration-stage rule for "delivery" (batches are this codebase's
-  // farmer-level delivery aggregation primitive).
-  const contributingFarmerIds = Array.from(
-    new Set(
-      farmerContributions
-        .map((c: any) => (c && typeof c === "object" ? c.farmerId : null))
-        .filter((id: unknown): id is string => typeof id === "string" && UUID_RE.test(id)),
-    ),
-  );
-  if (contributingFarmerIds.length > 0) {
-    const denial = await checkFarmersStageForTxn(contributingFarmerIds, "delivery");
+  // Pre-check farmer stage gate BEFORE opening the tx — saves us from rolling
+  // back the batch insert if any farmer fails the registration-stage rule.
+  const preFarmerIds = Array.from(new Set(
+    (await db.select({ farmerId: deliveriesTable.farmerId })
+      .from(deliveriesTable)
+      .where(inArray(deliveriesTable.id, deliveryIds))
+    ).map(r => r.farmerId)
+  ));
+  if (preFarmerIds.length > 0) {
+    const denial = await checkFarmersStageForTxn(preFarmerIds, "delivery");
     if (denial) { res.status(denial.status).json(denial.body); return; }
   }
 
-  let qualifyingStreams: string[] = [];
-  if (req.body.qualifyingStreams != null) {
-    if (!Array.isArray(req.body.qualifyingStreams) || !req.body.qualifyingStreams.every((s: unknown) => typeof s === "string")) {
-      res.status(400).json({ error: "qualifyingStreams must be an array of strings" }); return;
+  const result = await db.transaction(async (tx) => {
+    // Re-read deliveries inside the tx and lock implicitly via the guarded
+    // UPDATE below. Validate existence + unbatched + same-crop here.
+    const rows = await tx.select().from(deliveriesTable).where(inArray(deliveriesTable.id, deliveryIds));
+    if (rows.length !== deliveryIds.length) {
+      const found = new Set(rows.map(r => r.id));
+      const missing = deliveryIds.filter(id => !found.has(id));
+      return { status: 404, body: { error: "One or more deliveries not found", missing } } as const;
     }
-    qualifyingStreams = req.body.qualifyingStreams;
-  }
+    const notCaptured = rows.filter(r => r.status !== "captured" || r.batchId !== null);
+    if (notCaptured.length > 0) {
+      return { status: 409, body: { error: "All deliveries must be unbatched (status=captured)", offending: notCaptured.map(r => ({ id: r.id, status: r.status, batchId: r.batchId })) } } as const;
+    }
+    const crops = new Set(rows.map(r => r.cropType));
+    if (crops.size !== 1) {
+      return { status: 400, body: { error: "All deliveries in a batch must share the same cropType", crops: [...crops] } } as const;
+    }
+    const cropType = rows[0]!.cropType;
+    const totalWeightKg = rows.reduce((s, r) => s + Number(r.capturedWeightKg ?? 0), 0);
+    const farmerCount = new Set(rows.map(r => r.farmerId)).size;
+    const qualifyingStreams = Array.from(new Set(rows.flatMap(r => r.qualifyingStreams ?? [])));
 
-  const [batch] = await db.insert(batchesTable).values({
-    ...parsed.data, batchTag, agentId, groupId, farmerCount, farmerContributions, qualifyingStreams,
-  }).returning();
-  res.status(201).json({ ...batch, totalWeightKg: parseFloat(batch.totalWeightKg ?? "0"), agentName: "Field Agent" });
+    const batchTag = generateBatchTag();
+    const [batch] = await tx.insert(batchesTable).values({
+      batchTag, agentId: userId, groupId, cropType,
+      totalWeightKg: String(totalWeightKg),
+      farmerCount,
+      qualifyingStreams,
+      status: "open",
+      harvestDate,
+      farmerContributions: [],
+    }).returning();
+
+    // Atomic guarded UPDATE: only flip deliveries that are still captured AND
+    // unbatched. If a concurrent /from-deliveries grabbed any of them first,
+    // we'll see a row-count mismatch and roll back.
+    const updated = await tx.update(deliveriesTable)
+      .set({ batchId: batch.id, status: "pending_weight_submit", updatedAt: new Date() })
+      .where(and(
+        inArray(deliveriesTable.id, deliveryIds),
+        eq(deliveriesTable.status, "captured"),
+        isNull(deliveriesTable.batchId),
+      ))
+      .returning({ id: deliveriesTable.id });
+    if (updated.length !== deliveryIds.length) {
+      throw Object.assign(new Error("CONCURRENT_BATCH"), { code: "CONCURRENT_BATCH" });
+    }
+    return { status: 201, body: { ...batch, totalWeightKg: parseFloat(batch.totalWeightKg ?? "0"), agentName: "Field Agent", deliveryIds } } as const;
+  }).catch(err => {
+    if (err && (err as any).code === "CONCURRENT_BATCH") {
+      return { status: 409, body: { error: "One or more deliveries were concurrently batched by another request" } } as const;
+    }
+    throw err;
+  });
+
+  res.status(result.status).json(result.body);
 });
 
 router.get("/batches/:batchId", requirePermission("procurement.read"), async (req, res): Promise<void> => {
@@ -126,73 +164,72 @@ router.get("/batches/:batchId", requirePermission("procurement.read"), async (re
     res.status(404).json({ error: "Batch not found" });
     return;
   }
+  // Surface the per-farmer deliveries that compose this batch (replaces the
+  // legacy farmerContributions jsonb column for the new flow).
+  const deliveries = await db.select().from(deliveriesTable)
+    .where(eq(deliveriesTable.batchId, batchId as string))
+    .orderBy(desc(deliveriesTable.createdAt));
   res.json({
     ...batch,
     totalWeightKg: parseFloat(batch.totalWeightKg ?? "0"),
     agentName: "Field Agent",
-    farmerContributions: (batch.farmerContributions as any[]) ?? [],
+    deliveries: deliveries.map(d => ({
+      id: d.id,
+      deliveryNumber: d.deliveryNumber,
+      farmerId: d.farmerId,
+      cropType: d.cropType,
+      capturedWeightKg: parseFloat(d.capturedWeightKg ?? "0"),
+      status: d.status,
+    })),
   });
 });
 
-// PATCH lets a field agent edit an OPEN batch's contributions / weight before
-// locking. Permission-gated; locked or delivered batches are immutable here so
-// downstream lot/QC math stays trustworthy.
-router.patch("/batches/:batchId", requirePermission("procurement.write"), async (req: AuthedRequest, res): Promise<void> => {
-  const { batchId } = req.params;
+// Remove a delivery from an OPEN batch. The delivery returns to 'captured'
+// and can be regrouped. Locked/delivered batches are immutable.
+router.delete("/batches/:batchId/deliveries/:deliveryId", requirePermission("procurement.write"), async (req: AuthedRequest, res): Promise<void> => {
+  const { batchId, deliveryId } = req.params;
   const userId = req.authedUser?.id;
   if (!userId) { res.status(401).json({ error: "Unauthorized" }); return; }
-
-  // Pre-validate the patch payload BEFORE we hit the DB, so we can return
-  // crisp 400s. Ownership + open-status checks happen atomically in the
-  // UPDATE's WHERE clause to avoid TOCTOU races with /lock.
-  const patch: Record<string, unknown> = {};
-  if (Array.isArray(req.body.farmerContributions)) {
-    const contribs = req.body.farmerContributions as any[];
-    if (!contribs.every(c => c && typeof c === "object" && typeof c.farmerId === "string" && UUID_RE.test(c.farmerId) && Number.isFinite(Number(c.weightKg)) && Number(c.weightKg) >= 0)) {
-      res.status(400).json({ error: "farmerContributions entries must be { farmerId: uuid, weightKg: number>=0 }" }); return;
-    }
-    // Canonicalize before dedup (see POST /batches).
-    for (const c of contribs) c.farmerId = c.farmerId.toLowerCase();
-    // Reject duplicate farmerIds — see POST /batches for rationale (split-divisor
-    // attack via repeated rows).
-    const seen = new Set<string>();
-    for (const c of contribs) {
-      if (seen.has(c.farmerId)) {
-        res.status(400).json({ error: `Duplicate farmerId in farmerContributions: ${c.farmerId}` }); return;
-      }
-      seen.add(c.farmerId);
-    }
-    const denial = await checkFarmersStageForTxn(Array.from(seen), "delivery");
-    if (denial) { res.status(denial.status).json(denial.body); return; }
-    patch.farmerContributions = contribs;
-    patch.farmerCount = seen.size;
-    patch.totalWeightKg = String(contribs.reduce((s, c) => s + Number(c.weightKg || 0), 0));
+  if (!UUID_RE.test(batchId as string) || !UUID_RE.test(deliveryId as string)) {
+    res.status(400).json({ error: "Invalid id" }); return;
   }
-  if (typeof req.body.commodityType === "string") patch.commodityType = req.body.commodityType;
-  if (typeof req.body.cropType === "string") patch.cropType = req.body.cropType;
-  if (Object.keys(patch).length === 0) { res.status(400).json({ error: "No editable fields supplied" }); return; }
-  patch.updatedAt = new Date();
 
-  // Atomic guarded UPDATE — ownership AND open-status are part of the WHERE.
-  // If a concurrent /lock fires between two of our PATCH calls, this update
-  // matches zero rows and we report 409.
-  const updated = await db.update(batchesTable)
-    .set(patch as any)
-    .where(and(
-      eq(batchesTable.id, batchId as string),
-      eq(batchesTable.status, "open"),
-      eq(batchesTable.agentId, userId),
-    ))
-    .returning();
-  if (updated.length === 0) {
-    // Distinguish the cases for a useful error.
-    const [existing] = await db.select().from(batchesTable).where(eq(batchesTable.id, batchId as string));
-    if (!existing) { res.status(404).json({ error: "Batch not found" }); return; }
-    if (existing.agentId !== userId) { res.status(403).json({ error: "You do not own this batch" }); return; }
-    res.status(409).json({ error: `Batch is not open (status: ${existing.status})` }); return;
-  }
-  const batch = updated[0];
-  res.json({ ...batch, totalWeightKg: parseFloat(batch.totalWeightKg ?? "0"), agentName: "Field Agent" });
+  const result = await db.transaction(async (tx) => {
+    const [batch] = await tx.select().from(batchesTable).where(eq(batchesTable.id, batchId as string));
+    if (!batch) return { status: 404, body: { error: "Batch not found" } } as const;
+    if (batch.agentId !== userId) return { status: 403, body: { error: "You do not own this batch" } } as const;
+    if (batch.status !== "open") return { status: 409, body: { error: `Batch is not open (status: ${batch.status})` } } as const;
+
+    // Atomic guarded unlink.
+    const updated = await tx.update(deliveriesTable)
+      .set({ batchId: null, status: "captured", updatedAt: new Date() })
+      .where(and(
+        eq(deliveriesTable.id, deliveryId as string),
+        eq(deliveriesTable.batchId, batchId as string),
+      ))
+      .returning({ id: deliveriesTable.id, capturedWeightKg: deliveriesTable.capturedWeightKg, farmerId: deliveriesTable.farmerId });
+    if (updated.length === 0) {
+      return { status: 404, body: { error: "Delivery not in this batch" } } as const;
+    }
+
+    // Recompute aggregates from remaining rows.
+    const [agg] = await tx.select({
+      total: sql<string>`COALESCE(SUM(${deliveriesTable.capturedWeightKg}), 0)::text`,
+      farmers: sql<number>`COUNT(DISTINCT ${deliveriesTable.farmerId})::int`,
+    }).from(deliveriesTable).where(eq(deliveriesTable.batchId, batchId as string));
+    const remaining = agg?.farmers ?? 0;
+    if (remaining === 0) {
+      // Removing the last delivery dissolves the batch — otherwise we'd leave
+      // an empty "ghost batch" sitting on the agent's open list forever.
+      await tx.delete(batchesTable).where(eq(batchesTable.id, batchId as string));
+      return { status: 200, body: { ok: true, batchDissolved: true } } as const;
+    }
+    await tx.update(batchesTable)
+      .set({ totalWeightKg: agg?.total ?? "0", farmerCount: remaining, updatedAt: new Date() })
+      .where(eq(batchesTable.id, batchId as string));
+    return { status: 200, body: { ok: true } } as const;
+  });
+  res.status(result.status).json(result.body);
 });
 
 router.post("/batches/:batchId/lock", requirePermission("procurement.write"), async (req: AuthedRequest, res): Promise<void> => {

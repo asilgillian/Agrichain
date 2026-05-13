@@ -5,7 +5,24 @@ import { z } from "zod/v4";
 export const deliveriesTable = pgTable("deliveries", {
   id: uuid("id").primaryKey().defaultRandom(),
   lotTag: text("lot_tag").notNull().unique(),
-  batchId: uuid("batch_id").notNull(),
+  // Human-readable system-generated delivery number issued at capture time
+  // (e.g. DLV-20260513-0007). Used by the field UI and printed receipts.
+  deliveryNumber: text("delivery_number").notNull().unique(),
+  // Per-farmer drop-off model: every delivery now belongs to exactly one
+  // farmer and carries an explicit cropType chosen from the master commodity
+  // catalog. `batchId` is nullable — a delivery starts life "captured" and is
+  // attached to a batch later (only with other same-crop deliveries).
+  farmerId: uuid("farmer_id").notNull(),
+  cropType: text("crop_type").notNull(),
+  // Captured weight at intake (kg). Stays distinct from grossWeightKg /
+  // netWeightKg, which are recorded later by the station scale.
+  capturedWeightKg: numeric("captured_weight_kg", { precision: 12, scale: 3 }).notNull(),
+  // Audit trail: who captured this delivery in the field, and when. Used
+  // to scope the mobile "my captured deliveries" list and to filter the
+  // batch-grouping picker by agent.
+  capturedById: uuid("captured_by_id"),
+  capturedAt: timestamp("captured_at", { withTimezone: true }).defaultNow(),
+  batchId: uuid("batch_id"),
   stationId: uuid("station_id"),
   truckPlate: text("truck_plate"),
   driverName: text("driver_name"),
@@ -52,10 +69,14 @@ export const deliveriesTable = pgTable("deliveries", {
   workflowId: uuid("workflow_id"),
   currentStageOrder: integer("current_stage_order").notNull().default(0),
 
-  // status state machine: pending_weight_submit, pending_weight_approve, pending_qc_submit,
+  // status state machine. Adds `captured` (unbatched, freshly recorded by the
+  // field agent) as the new initial state; once attached to a batch and that
+  // batch is sent to a station, the existing weight/QC/pricing/approval flow
+  // takes over.
+  // captured, pending_weight_submit, pending_weight_approve, pending_qc_submit,
   // pending_qc_approve, pending_pricing_propose, pending_pricing_approve, approved,
   // rejected_correction, rejected_commodity, rejected_escalate, partial_rejection, suspended
-  status: text("status").notNull().default("pending_weight_submit"),
+  status: text("status").notNull().default("captured"),
   rejectionType: text("rejection_type"), // CORRECTION | COMMODITY | ESCALATE | PARTIAL | SUSPEND
   rejectionStage: text("rejection_stage"), // weight | qc | pricing | final
   rejectionReason: text("rejection_reason"),

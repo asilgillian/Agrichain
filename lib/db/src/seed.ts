@@ -115,25 +115,29 @@ async function seed() {
     { farmerId: f3.id, agentId: agent2.id, scheduledDate: "2025-04-18", priority: "low", status: "completed", completedAt: new Date() },
   ]);
 
-  // Batches
+  // Batches (delivery-first model: created later by grouping captured deliveries)
   const [batch1, batch2] = await db.insert(batchesTable).values([
-    { batchTag: "B2504A", agentId: agent1.id, cropType: "coffee", totalWeightKg: "450.0", farmerCount: 3, qualifyingStreams: ["EUDR", "Rainforest Alliance"], status: "locked", harvestDate: "2025-04-10", farmerContributions: [{ farmerId: f1.id, weightKg: 180 }, { farmerId: f2.id, weightKg: 270 }] },
-    { batchTag: "B2504B", agentId: agent2.id, cropType: "coffee", totalWeightKg: "220.5", farmerCount: 2, qualifyingStreams: ["EUDR"], status: "open", harvestDate: "2025-04-12", farmerContributions: [{ farmerId: f3.id, weightKg: 220.5 }] },
+    { batchTag: "B2504A", agentId: agent1.id, cropType: "coffee", totalWeightKg: "450.0", farmerCount: 2, qualifyingStreams: ["EUDR", "Rainforest Alliance"], status: "locked", harvestDate: "2025-04-10", farmerContributions: [] },
+    { batchTag: "B2504B", agentId: agent2.id, cropType: "coffee", totalWeightKg: "220.5", farmerCount: 1, qualifyingStreams: ["EUDR"], status: "open", harvestDate: "2025-04-12", farmerContributions: [] },
   ]).returning();
 
-  // Deliveries
+  // Deliveries (per-farmer drop-offs; new model)
   const [del1, del2] = await db.insert(deliveriesTable).values([
     {
       lotTag: "L2504A-001",
+      deliveryNumber: "DLV-20250410-0001",
+      farmerId: f1.id, cropType: "coffee", capturedWeightKg: "180.0",
       batchId: batch1.id,
-      grossWeightKg: "462.0", tareWeightKg: "12.0", netWeightKg: "450.0",
+      grossWeightKg: "185.0", tareWeightKg: "5.0", netWeightKg: "180.0",
       moistureContent: "11.5", defectCount: "1.0", cupScore: "82.5", grade: "AA",
-      pricePerKg: "420.00", totalValue: "189000.00",
+      pricePerKg: "420.00", totalValue: "75600.00",
       qualifyingStreams: ["EUDR", "Rainforest Alliance"],
       weightApproved: true, qcApproved: true, status: "approved",
     },
     {
       lotTag: "L2504B-001",
+      deliveryNumber: "DLV-20250412-0001",
+      farmerId: f3.id, cropType: "coffee", capturedWeightKg: "220.5",
       batchId: batch2.id,
       grossWeightKg: "235.0", tareWeightKg: "14.5", netWeightKg: "220.5",
       qualifyingStreams: ["EUDR"],

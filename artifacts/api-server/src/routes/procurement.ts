@@ -10,6 +10,7 @@ import {
   usersTable,
 } from "@workspace/db";
 import { resolveWorkflowForDelivery, getWorkflowStages, DEFAULT_STAGE_PERMISSION } from "./procurement-workflows";
+import { checkFarmerStageForTxn } from "../lib/transaction-access";
 import {
   CreateDeliveryBody,
   SubmitDeliveryWeightBody,
@@ -24,6 +25,19 @@ const router: IRouter = Router();
 
 function generateLotTag(): string {
   return "L" + Date.now().toString(36).toUpperCase();
+}
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+// System-generated, human-readable delivery number (e.g. DLV-20260513-A1B2).
+// Backed by a UNIQUE column at the DB level — collisions raise a 23505 which
+// would surface as a 500; the base36(now) tail makes that effectively
+// impossible at field-agent throughput.
+function generateDeliveryNumber(): string {
+  const d = new Date();
+  const ymd = `${d.getUTCFullYear()}${String(d.getUTCMonth() + 1).padStart(2, "0")}${String(d.getUTCDate()).padStart(2, "0")}`;
+  const tail = Date.now().toString(36).slice(-5).toUpperCase();
+  return `DLV-${ymd}-${tail}`;
 }
 
 function determineGrade(moisture: number, defects: number, cupScore?: number): string {
@@ -181,6 +195,9 @@ async function writeAuditWarning(
 
 // ---------- LIST / GET / CREATE ----------
 
+// LIST deliveries. Filters now include the delivery-first essentials —
+// cropType, farmerId, agentId, unbatched (= captured + batchId IS NULL) — so
+// the mobile capture list and the batch-grouping picker can narrow precisely.
 router.get("/procurement/deliveries", requirePermission("procurement.read"), async (req, res): Promise<void> => {
   const parsed = ListDeliveriesQueryParams.safeParse(req.query);
   if (!parsed.success) {
@@ -191,6 +208,17 @@ router.get("/procurement/deliveries", requirePermission("procurement.read"), asy
   const conditions: any[] = [];
   if (status) conditions.push(eq(deliveriesTable.status, status));
   if (stationId) conditions.push(eq(deliveriesTable.stationId, stationId));
+  // Codegen drift: cropType/farmerId/agentId/unbatched aren't in the OpenAPI
+  // ListDeliveriesQueryParams yet, so we read them straight off req.query.
+  const cropType = typeof req.query.cropType === "string" ? req.query.cropType : null;
+  const farmerId = typeof req.query.farmerId === "string" && UUID_RE.test(req.query.farmerId) ? req.query.farmerId : null;
+  const agentId = typeof req.query.agentId === "string" && UUID_RE.test(req.query.agentId) ? req.query.agentId : null;
+  if (cropType) conditions.push(eq(deliveriesTable.cropType, cropType));
+  if (farmerId) conditions.push(eq(deliveriesTable.farmerId, farmerId));
+  if (agentId) conditions.push(eq(deliveriesTable.capturedById, agentId));
+  if (req.query.unbatched === "true") {
+    conditions.push(eq(deliveriesTable.status, "captured"));
+  }
   const deliveries = conditions.length
     ? await db.select().from(deliveriesTable).where(and(...conditions)).orderBy(desc(deliveriesTable.createdAt))
     : await db.select().from(deliveriesTable).orderBy(desc(deliveriesTable.createdAt));
@@ -201,48 +229,57 @@ router.get("/procurement/deliveries", requirePermission("procurement.read"), asy
   res.json(deliveries.map(d => shapeDelivery(d, names)));
 });
 
+// Per-farmer capture (delivery-first model). Mobile field agent records
+// every drop-off as its own delivery row. NO batch is required at capture
+// time — that's a separate step (POST /batches/from-deliveries).
+//
+// Body: { farmerId: uuid, cropType: string, weightKg: number > 0 }
+//
+// We deliberately do NOT consume the legacy CreateDeliveryBody zod schema
+// (which expects batchTag/truckPlate/etc.) — that shape no longer applies.
 router.post("/procurement/deliveries", requirePermission("procurement.write"), async (req: AuthedRequest, res): Promise<void> => {
-  const parsed = CreateDeliveryBody.safeParse(req.body);
-  if (!parsed.success) {
-    res.status(400).json({ error: parsed.error.message });
-    return;
-  }
+  const userId = req.authedUser?.id;
+  if (!userId) { res.status(401).json({ error: "Unauthorized" }); return; }
+  const rawFarmerId = typeof req.body?.farmerId === "string" ? req.body.farmerId : "";
+  const cropType = typeof req.body?.cropType === "string" ? req.body.cropType.trim() : "";
+  const weightKg = Number(req.body?.weightKg);
+  if (!UUID_RE.test(rawFarmerId)) { res.status(400).json({ error: "farmerId must be a UUID" }); return; }
+  if (!cropType) { res.status(400).json({ error: "cropType is required" }); return; }
+  if (!Number.isFinite(weightKg) || weightKg <= 0) { res.status(400).json({ error: "weightKg must be a positive number" }); return; }
+  const farmerId = rawFarmerId.toLowerCase();
+
+  // Admin-controlled gate: farmer must meet the registration-stage rule for
+  // "delivery" before we'll record one for them.
+  const denial = await checkFarmerStageForTxn(farmerId, "delivery");
+  if (denial) { res.status(denial.status).json(denial.body); return; }
+
+  const lotTag = generateLotTag();
+  const deliveryNumber = generateDeliveryNumber();
   const result = await db.transaction(async (tx) => {
-    const [batch] = await tx.select().from(batchesTable).where(eq(batchesTable.batchTag, parsed.data.batchTag));
-    if (!batch) return { error: "Batch not found" as const };
-    // Resolve workflow OUTSIDE the inner transaction (it does its own seed-on-empty txn).
-    // Then pin its first active stage on the new delivery.
-    const lotTag = generateLotTag();
-    const workflow = await resolveWorkflowForDelivery(batch.cropType ?? null);
-    const stages = await getWorkflowStages(workflow.id);
-    const firstStage = stages.find((s) => s.isActive);
-    if (!firstStage) return { error: "Resolved workflow has no active stages — cannot create delivery" as const };
-    const initialStatus = STATUS_FOR_KIND[firstStage.stageKind] ?? "pending_weight_submit";
     const [delivery] = await tx.insert(deliveriesTable).values({
       lotTag,
-      batchId: batch.id,
-      stationId: parsed.data.stationId,
-      truckPlate: parsed.data.truckPlate,
-      driverName: parsed.data.driverName,
-      preOffloadSampleTaken: parsed.data.preOffloadSampleTaken ?? false,
-      qualifyingStreams: batch.qualifyingStreams,
-      workflowId: workflow.id,
-      currentStageOrder: firstStage.orderIdx,
-      status: initialStatus,
+      deliveryNumber,
+      farmerId,
+      cropType,
+      capturedWeightKg: String(weightKg),
+      capturedById: userId,
+      capturedAt: new Date(),
+      batchId: null,
+      status: "captured",
+      qualifyingStreams: [],
     }).returning();
     await tx.insert(auditLogsTable).values({
       entityType: "delivery",
       entityId: delivery.id,
-      action: "delivery.create",
-      actorId: req.authedUser?.id ?? "system",
+      action: "delivery.capture",
+      actorId: userId,
       actorName: req.authedUser?.email ?? "system",
       actorRole: req.authedUser?.role ?? "system",
-      after: { lotTag, batchTag: parsed.data.batchTag },
+      after: { lotTag, deliveryNumber, farmerId, cropType, weightKg },
     });
-    return { delivery };
+    return delivery;
   });
-  if ("error" in result) { res.status(404).json({ error: result.error }); return; }
-  res.status(201).json(shapeDelivery(result.delivery));
+  res.status(201).json(shapeDelivery(result));
 });
 
 router.get("/procurement/deliveries/:deliveryId", requirePermission("procurement.read"), async (req, res): Promise<void> => {
@@ -252,7 +289,11 @@ router.get("/procurement/deliveries/:deliveryId", requirePermission("procurement
     res.status(404).json({ error: "Delivery not found" });
     return;
   }
-  const [batch] = await db.select().from(batchesTable).where(eq(batchesTable.id, delivery.batchId));
+  // delivery.batchId is nullable in the new delivery-first model — a captured
+  // delivery may not have been grouped into a batch yet.
+  const [batch] = delivery.batchId
+    ? await db.select().from(batchesTable).where(eq(batchesTable.id, delivery.batchId))
+    : [undefined];
   const auditTrail = await db.select().from(auditLogsTable).where(eq(auditLogsTable.entityId, deliveryId as string)).orderBy(desc(auditLogsTable.timestamp));
   const contract = delivery.contractId
     ? (await db.select().from(procurementContractsTable).where(eq(procurementContractsTable.id, delivery.contractId)))[0]
@@ -422,6 +463,7 @@ router.post("/procurement/deliveries/:deliveryId/pricing/propose", requirePermis
   //   - PIN-IF-ACTIVE: if this delivery already has a contractId (from a prior CORRECTION
   //     re-propose), reuse it when still ACTIVE. If it's no longer ACTIVE, re-resolve and emit a
   //     warning so the buyer/manager sees that the original protection was lost.
+  if (!current.batchId) { res.status(409).json({ error: "Delivery is not yet grouped into a batch — cannot price" }); return; }
   const [batch] = await db.select().from(batchesTable).where(eq(batchesTable.id, current.batchId));
   let floor: number | null = null;
   let contractId: string | null = null;

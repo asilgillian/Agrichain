@@ -7,7 +7,6 @@ import {
   agentCashFloatsTable,
   cashFloatTransactionsTable,
   deliveriesTable,
-  batchesTable,
 } from "@workspace/db";
 import { InitiatePaymentBody, ListPaymentsQueryParams } from "@workspace/api-zod";
 import { checkFarmerStageForTxn } from "../lib/transaction-access";
@@ -78,16 +77,13 @@ router.post("/payments", requirePermission("payments.write"), async (req: Authed
   if (delivery.totalValue == null) {
     res.status(409).json({ error: "Delivery has no totalValue — pricing not finalized" }); return;
   }
-  // farmerId must appear as a contributor on the delivery's batch.
-  const [batch] = await db.select().from(batchesTable).where(eq(batchesTable.id, delivery.batchId));
-  if (!batch) { res.status(404).json({ error: "Delivery's batch is missing" }); return; }
-  const contribs = (batch.farmerContributions as any[] | null) ?? [];
-  // Single-farmer batches with no recorded contributions still fall through here, in
-  // which case we trust the only farmerContribution-shaped relationship the system
-  // exposes and require a contribution row to exist.
-  const isContributor = contribs.some(c => c?.farmerId === data.farmerId);
-  if (!isContributor) {
-    res.status(403).json({ error: "Farmer is not a contributor to this delivery's batch" }); return;
+  // Delivery-first model: every delivery has exactly one farmer. The caller
+  // MUST address the same farmer the delivery was captured for — the legacy
+  // multi-contributor split is gone.
+  const deliveryFarmerId = (delivery.farmerId ?? "").toLowerCase();
+  const requestedFarmerId = data.farmerId.toLowerCase();
+  if (!deliveryFarmerId || deliveryFarmerId !== requestedFarmerId) {
+    res.status(403).json({ error: "Farmer does not match the delivery's farmer" }); return;
   }
   // Idempotency: never create a second active payment for the same (delivery, farmer).
   // "Active" = anything except `failed`/`cancelled`.
@@ -100,17 +96,9 @@ router.post("/payments", requirePermission("payments.write"), async (req: Authed
     res.status(409).json({ error: "Payment already exists for this delivery and farmer", paymentId: existing[0].id });
     return;
   }
-  // Authoritative amount: total delivery value split equally per UNIQUE
-  // contributor. We deliberately use unique farmerIds (not array length) so a
-  // historical batch row with duplicate contributor entries can never under-pay
-  // a farmer. New batches reject duplicates at the API boundary.
-  // Canonicalize farmerIds (lowercase) before deduping, so legacy rows stored
-  // with mixed-case UUIDs can't inflate the divisor.
-  const uniqueContributorCount = new Set(
-    contribs.map(c => (typeof c?.farmerId === "string" ? c.farmerId.toLowerCase() : null)).filter(Boolean)
-  ).size;
-  const totalValue = Number(delivery.totalValue);
-  const amount = Number((totalValue / Math.max(1, uniqueContributorCount)).toFixed(2));
+  // Authoritative amount: the full delivery total. One farmer per delivery
+  // means no split divisor is needed.
+  const amount = Number(Number(delivery.totalValue).toFixed(2));
   if (!(amount > 0)) {
     res.status(409).json({ error: "Computed payable amount is zero" }); return;
   }
