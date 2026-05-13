@@ -13,6 +13,9 @@ export const procurementContractsTable = pgTable("procurement_contracts", {
   seasonStart: date("season_start"),
   seasonEnd: date("season_end"),
   floorPricePerKg: numeric("floor_price_per_kg", { precision: 10, scale: 4 }),
+  // Optional fulfillment target (kg). NULL = open-ended contract; when set, the
+  // /fulfillment endpoint reports delivered/remaining against this number.
+  targetVolumeKg: numeric("target_volume_kg", { precision: 14, scale: 3 }),
   currency: text("currency").notNull().default("UGX"),
   notes: text("notes"),
   status: text("status").notNull().default("DRAFT"), // DRAFT | ACTIVE | EXPIRED | SUSPENDED

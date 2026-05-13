@@ -44,6 +44,10 @@ function NativeTabLayout() {
         <Icon sf={{ default: "checkmark.seal", selected: "checkmark.seal.fill" }} />
         <Label>Complete</Label>
       </NativeTabs.Trigger>
+      <NativeTabs.Trigger name="procurement">
+        <Icon sf={{ default: "shippingbox", selected: "shippingbox.fill" }} />
+        <Label>Procurement</Label>
+      </NativeTabs.Trigger>
     </NativeTabs>
   );
 }
@@ -131,6 +135,19 @@ function ClassicTabLayout() {
               <SymbolView name="checkmark.seal" tintColor={color} size={24} />
             ) : (
               <Feather name="check-circle" size={22} color={color} />
+            ),
+        }}
+      />
+      <Tabs.Screen
+        name="procurement"
+        options={{
+          title: "Procurement",
+          headerShown: false,
+          tabBarIcon: ({ color }) =>
+            isIOS ? (
+              <SymbolView name="shippingbox" tintColor={color} size={24} />
+            ) : (
+              <Feather name="shopping-cart" size={22} color={color} />
             ),
         }}
       />

@@ -9,7 +9,10 @@ import {
   useApproveDeliveryPricing,
   useRejectDelivery,
   useResumeDelivery,
+  customFetch,
 } from "@workspace/api-client-react";
+
+const API_BASE = import.meta.env.BASE_URL?.replace(/\/$/, "");
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
@@ -92,6 +95,15 @@ export default function DeliveryDetail() {
   const [rejectionType, setRejectionType] = useState<string>("CORRECTION");
   const [rejectionReason, setRejectionReason] = useState("");
 
+  // Pay-farmer dialog state. Method `cash` deducts from the operator's float
+  // server-side; `mobile_money` requires a provider + msisdn and is recorded
+  // as `pending_external` until the MoMo gateway is wired up.
+  const [payOpen, setPayOpen] = useState(false);
+  const [payMethod, setPayMethod] = useState<"cash" | "mobile_money">("cash");
+  const [payProvider, setPayProvider] = useState<"mtn_momo" | "airtel_money">("mtn_momo");
+  const [payMsisdn, setPayMsisdn] = useState("");
+  const [paying, setPaying] = useState(false);
+
   if (isLoading) return <div className="space-y-4">{[1,2,3].map(i => <Skeleton key={i} className="h-24 w-full" />)}</div>;
   if (!delivery) return <div className="py-16 text-center text-muted-foreground">Delivery not found</div>;
 
@@ -137,6 +149,37 @@ export default function DeliveryDetail() {
       setRejectOpen(false); setRejectionReason(""); ok("Rejection recorded");
     } catch (e) { fail(e); }
   }
+  async function handlePay() {
+    // farmerId is on the API response but not yet typed in DeliveryDetail (codegen drift).
+    const farmerId = (delivery as any)?.farmerId as string | undefined;
+    if (!farmerId || !delivery?.totalValue) {
+      toast({ title: "Delivery missing farmer or total value", variant: "destructive" });
+      return;
+    }
+    setPaying(true);
+    try {
+      const body: Record<string, unknown> = {
+        farmerId,
+        deliveryId: delivery.id,
+        amountDue: Number(delivery.totalValue),
+        currency: "UGX",
+        paymentMethod: payMethod,
+      };
+      if (payMethod === "mobile_money") {
+        body.provider = payProvider;
+        body.msisdn = payMsisdn.trim();
+      }
+      await customFetch(`${API_BASE}/api/payments`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      setPayOpen(false);
+      setPayMsisdn("");
+      ok(payMethod === "cash" ? "Cash payment recorded — float updated" : "MoMo request queued (pending external)");
+    } catch (e) { fail(e); }
+    finally { setPaying(false); }
+  }
 
   return (
     <div className="space-y-6 max-w-5xl mx-auto pb-12">
@@ -153,6 +196,11 @@ export default function DeliveryDetail() {
           </p>
         </div>
         <Badge variant={statusVariants[status] ?? "secondary"} data-testid="delivery-status">{statusLabels[status] ?? status}</Badge>
+        {status === "approved" && delivery.totalValue != null && (
+          <Button variant="default" size="sm" onClick={() => setPayOpen(true)} data-testid="pay-farmer-btn">
+            Pay Farmer · UGX {Number(delivery.totalValue).toLocaleString()}
+          </Button>
+        )}
         {(status === "partial_rejection" || status === "rejected_escalate") && (
           <Button variant="default" size="sm" onClick={handleResume} disabled={resumeMut.isPending} data-testid="resume-btn">
             Resume
@@ -285,6 +333,56 @@ export default function DeliveryDetail() {
           </CardContent>
         </Card>
       )}
+
+      <Dialog open={payOpen} onOpenChange={setPayOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Pay farmer</DialogTitle>
+            <DialogDescription>
+              Cash deducts from your assigned cash float. Mobile Money is recorded as pending until the MoMo gateway confirms.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="rounded-md bg-muted/40 px-3 py-2 text-sm">
+              <div className="flex justify-between"><span className="text-muted-foreground">Amount</span><span className="font-bold">UGX {Number(delivery.totalValue ?? 0).toLocaleString()}</span></div>
+            </div>
+            <div>
+              <Label>Method</Label>
+              <Select value={payMethod} onValueChange={v => setPayMethod(v as any)}>
+                <SelectTrigger data-testid="pay-method-select"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="cash">Cash (deducts float)</SelectItem>
+                  <SelectItem value="mobile_money">Mobile Money</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            {payMethod === "mobile_money" && (
+              <>
+                <div>
+                  <Label>Provider</Label>
+                  <Select value={payProvider} onValueChange={v => setPayProvider(v as any)}>
+                    <SelectTrigger data-testid="pay-provider-select"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="mtn_momo">MTN Mobile Money</SelectItem>
+                      <SelectItem value="airtel_money">Airtel Money</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label>Recipient phone</Label>
+                  <Input value={payMsisdn} onChange={e => setPayMsisdn(e.target.value)} placeholder="+256 7XX XXX XXX" data-testid="pay-msisdn-input" />
+                </div>
+              </>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPayOpen(false)}>Cancel</Button>
+            <Button onClick={handlePay} disabled={paying || (payMethod === "mobile_money" && !payMsisdn.trim())} data-testid="confirm-pay-btn">
+              {paying ? "Processing…" : "Confirm payment"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={rejectOpen} onOpenChange={setRejectOpen}>
         <DialogContent>

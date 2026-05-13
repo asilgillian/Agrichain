@@ -78,6 +78,8 @@ const PERMISSION_CATALOG: Array<{ key: string; module: string; description: stri
   { key: "lots.write", module: "Warehouse", description: "Create and edit lots" },
   { key: "payments.read", module: "Payments", description: "View payment records" },
   { key: "payments.write", module: "Payments", description: "Initiate payments and disbursements" },
+  { key: "payments.disburse.cash", module: "Payments", description: "Pay farmers in cash (deducts from agent cash float)" },
+  { key: "payments.disburse.momo", module: "Payments", description: "Pay farmers via Mobile Money (MTN / Airtel)" },
   { key: "loans.read", module: "Loans", description: "View loan records" },
   { key: "loans.write", module: "Loans", description: "Create and approve loans" },
   { key: "sales.read", module: "Sales", description: "View sales contracts" },

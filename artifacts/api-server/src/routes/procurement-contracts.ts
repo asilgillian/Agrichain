@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
-import { eq, and, desc } from "drizzle-orm";
-import { db, procurementContractsTable, groupsTable, auditLogsTable } from "@workspace/db";
+import { eq, and, desc, sql } from "drizzle-orm";
+import { db, procurementContractsTable, groupsTable, auditLogsTable, deliveriesTable } from "@workspace/db";
 import {
   CreateProcurementContractBody,
   UpdateProcurementContractBody,
@@ -28,6 +28,7 @@ async function shape(c: typeof procurementContractsTable.$inferSelect) {
   return {
     ...c,
     floorPricePerKg: num(c.floorPricePerKg),
+    targetVolumeKg: num(c.targetVolumeKg),
     groupName: group?.name,
   };
 }
@@ -68,6 +69,7 @@ router.post("/procurement/contracts", requirePermission("procurement.contracts.w
         seasonEnd: data.seasonEnd ? (data.seasonEnd instanceof Date ? data.seasonEnd.toISOString().slice(0, 10) : data.seasonEnd) : null,
         floorPricePerKg: data.floorPricePerKg != null ? data.floorPricePerKg.toString() : null,
         currency: data.currency ?? "UGX",
+        targetVolumeKg: typeof req.body?.targetVolumeKg === "number" && req.body.targetVolumeKg > 0 ? String(req.body.targetVolumeKg) : null,
         notes: data.notes ?? null,
         status: data.status ?? "DRAFT",
         createdById: req.authedUser?.id ?? null,
@@ -97,6 +99,13 @@ router.patch("/procurement/contracts/:contractId", requirePermission("procuremen
   const updates: Partial<typeof procurementContractsTable.$inferInsert> = { updatedAt: new Date() };
   const d = parsed.data;
   if (d.floorPricePerKg !== undefined) updates.floorPricePerKg = d.floorPricePerKg != null ? d.floorPricePerKg.toString() : null;
+  // targetVolumeKg isn't in the generated zod yet — accept it from raw body.
+  // Negative or zero is meaningless so we coerce to null.
+  const rawTarget = req.body?.targetVolumeKg;
+  if (rawTarget !== undefined) {
+    const n = rawTarget == null ? null : Number(rawTarget);
+    updates.targetVolumeKg = n != null && Number.isFinite(n) && n > 0 ? String(n) : null;
+  }
   if (d.seasonStart !== undefined) updates.seasonStart = d.seasonStart instanceof Date ? d.seasonStart.toISOString().slice(0, 10) : d.seasonStart;
   if (d.seasonEnd !== undefined) updates.seasonEnd = d.seasonEnd instanceof Date ? d.seasonEnd.toISOString().slice(0, 10) : d.seasonEnd;
   if (d.notes !== undefined) updates.notes = d.notes;
@@ -120,6 +129,31 @@ router.patch("/procurement/contracts/:contractId", requirePermission("procuremen
     after: d,
   });
   res.json(await shape(contract));
+});
+
+// Fulfillment progress: how much approved tonnage has landed against this
+// contract, and how much (if any) remains. `targetKg` is null when the
+// contract is open-ended; the UI then just shows delivered tonnage.
+router.get("/procurement/contracts/:contractId/fulfillment", requirePermission("procurement.contracts.read"), async (req, res): Promise<void> => {
+  const { contractId } = req.params;
+  const [contract] = await db.select().from(procurementContractsTable).where(eq(procurementContractsTable.id, contractId as string));
+  if (!contract) { res.status(404).json({ error: "Contract not found" }); return; }
+  const [agg] = await db
+    .select({
+      deliveredKg: sql<string>`COALESCE(SUM(${deliveriesTable.netWeightKg}), 0)`,
+      deliveryCount: sql<number>`COUNT(*)::int`,
+    })
+    .from(deliveriesTable)
+    .where(and(eq(deliveriesTable.contractId, contractId as string), eq(deliveriesTable.status, "approved")));
+  const targetKg = contract.targetVolumeKg != null ? parseFloat(contract.targetVolumeKg) : null;
+  const deliveredKg = parseFloat(agg?.deliveredKg ?? "0");
+  res.json({
+    contractId: contract.id,
+    targetKg,
+    deliveredKg,
+    remainingKg: targetKg != null ? Math.max(0, targetKg - deliveredKg) : null,
+    deliveryCount: Number(agg?.deliveryCount ?? 0),
+  });
 });
 
 export default router;

@@ -111,22 +111,16 @@ export default function HomeScreen() {
         testID="home-gps-pin"
       />
 
+      <ActionCard
+        icon="shopping-cart"
+        title="Procurement intake"
+        subtitle="Build a batch from farmer contributions, lock it, and hand off to a buying station."
+        onPress={() => router.push("/procurement")}
+        testID="home-procurement"
+      />
+
       <Text style={[styles.sectionLabel, { color: colors.mutedForeground }]}>Coming soon</Text>
 
-      <ActionCard
-        icon="clipboard"
-        title="Procurement intake"
-        subtitle="Weigh, grade and price deliveries at the buying station."
-        disabled
-        badge="Web"
-      />
-      <ActionCard
-        icon="dollar-sign"
-        title="Mobile money payments"
-        subtitle="Trigger MTN / Airtel Money payouts to farmers."
-        disabled
-        badge="Web"
-      />
       <ActionCard
         icon="wifi-off"
         title="Offline sync queue"
@@ -143,7 +137,7 @@ export default function HomeScreen() {
       />
 
       <Text style={[styles.footer, { color: colors.mutedForeground }]}>
-        {"Need procurement, payments or compliance? Open the AgriChain web console at /procurement."}
+        {"Need exports, certifications or back-office tools? Open the AgriChain web console."}
       </Text>
     </ScrollView>
   );

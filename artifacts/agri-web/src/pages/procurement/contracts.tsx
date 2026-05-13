@@ -13,11 +13,76 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Progress } from "@/components/ui/progress";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Plus } from "lucide-react";
+import { Plus, Pencil } from "lucide-react";
+
+type Fulfillment = { contractId: string; targetKg: number | null; deliveredKg: number; remainingKg: number | null; deliveryCount: number };
+
+// Tiny inline cell that shows "X / Y kg" + a progress bar when the contract has
+// a target. We fetch per-row because there's no server-side bulk endpoint yet
+// and contract counts here are small. Cached for 30s so toggling status doesn't
+// re-thrash the API.
+function FulfillmentCell({ contractId }: { contractId: string }) {
+  const { data } = useQuery<Fulfillment>({
+    queryKey: ["/api/procurement/contracts", contractId, "fulfillment"],
+    queryFn: () => customFetch<Fulfillment>(`${API_BASE}/api/procurement/contracts/${contractId}/fulfillment`),
+    staleTime: 30_000,
+  });
+  if (!data) return <span className="text-muted-foreground text-sm">—</span>;
+  const delivered = Number(data.deliveredKg ?? 0);
+  if (data.targetKg == null) {
+    return <span className="text-sm">{delivered.toLocaleString()} kg <span className="text-muted-foreground">delivered</span></span>;
+  }
+  const pct = data.targetKg > 0 ? Math.min(100, Math.round((delivered / data.targetKg) * 100)) : 0;
+  return (
+    <div className="space-y-1 min-w-[140px]">
+      <div className="flex justify-between text-xs">
+        <span className="font-medium">{delivered.toLocaleString()} kg</span>
+        <span className="text-muted-foreground">/ {Number(data.targetKg).toLocaleString()} kg</span>
+      </div>
+      <Progress value={pct} className="h-1.5" />
+      <div className="text-[10px] text-muted-foreground">{pct}% · {data.deliveryCount} {data.deliveryCount === 1 ? "delivery" : "deliveries"}</div>
+    </div>
+  );
+}
+
+function TargetEditor({ contract, onSaved }: { contract: any; onSaved: () => void }) {
+  const [open, setOpen] = useState(false);
+  const [val, setVal] = useState(contract.targetVolumeKg != null ? String(contract.targetVolumeKg) : "");
+  const [busy, setBusy] = useState(false);
+  const { toast } = useToast();
+  async function save() {
+    setBusy(true);
+    try {
+      const body: Record<string, unknown> = { targetVolumeKg: val ? Number(val) : null };
+      await customFetch(`${API_BASE}/api/procurement/contracts/${contract.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      toast({ title: "Target updated" });
+      setOpen(false);
+      onSaved();
+    } catch (e: any) {
+      toast({ title: e?.message ?? "Failed", variant: "destructive" });
+    } finally { setBusy(false); }
+  }
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button variant="ghost" size="sm" className="h-7 px-2" data-testid={`edit-target-${contract.id}`}><Pencil className="h-3 w-3" /></Button>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader><DialogTitle>Fulfillment target</DialogTitle><DialogDescription>Set a tonnage target so the dashboard can track progress. Leave blank for an open-ended contract.</DialogDescription></DialogHeader>
+        <div><Label>Target volume (kg)</Label><Input value={val} onChange={e => setVal(e.target.value)} placeholder="e.g. 5000" data-testid={`target-input-${contract.id}`} /></div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
+          <Button onClick={save} disabled={busy} data-testid={`save-target-${contract.id}`}>{busy ? "Saving…" : "Save"}</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
 
 const API_BASE = import.meta.env.BASE_URL?.replace(/\/$/, "");
 
@@ -46,6 +111,7 @@ export default function ProcurementContractsPage() {
     seasonStart: "",
     seasonEnd: "",
     floorPricePerKg: "",
+    targetVolumeKg: "",
     notes: "",
     status: "ACTIVE",
   });
@@ -56,6 +122,7 @@ export default function ProcurementContractsPage() {
       return;
     }
     try {
+      // targetVolumeKg isn't in the codegen yet; cast through `any` so it survives the call.
       await createMut.mutateAsync({
         data: {
           contractType: form.contractType as any,
@@ -64,13 +131,14 @@ export default function ProcurementContractsPage() {
           seasonStart: form.seasonStart || undefined,
           seasonEnd: form.seasonEnd || undefined,
           floorPricePerKg: form.floorPricePerKg ? Number(form.floorPricePerKg) : undefined,
+          targetVolumeKg: form.targetVolumeKg ? Number(form.targetVolumeKg) : undefined,
           notes: form.notes || undefined,
           status: form.status as any,
-        },
+        } as any,
       });
       toast({ title: "Contract created" });
       setOpen(false);
-      setForm({ contractType: "PRE_SEASON", groupId: "", commodityType: "", seasonStart: "", seasonEnd: "", floorPricePerKg: "", notes: "", status: "ACTIVE" });
+      setForm({ contractType: "PRE_SEASON", groupId: "", commodityType: "", seasonStart: "", seasonEnd: "", floorPricePerKg: "", targetVolumeKg: "", notes: "", status: "ACTIVE" });
       refetch();
     } catch (e: any) {
       toast({ title: e?.response?.data?.error ?? e?.message ?? "Failed", variant: "destructive" });
@@ -137,9 +205,15 @@ export default function ProcurementContractsPage() {
                 <div><Label>Season start</Label><Input type="date" value={form.seasonStart} onChange={e => setForm({ ...form, seasonStart: e.target.value })} data-testid="contract-start-input" /></div>
                 <div><Label>Season end</Label><Input type="date" value={form.seasonEnd} onChange={e => setForm({ ...form, seasonEnd: e.target.value })} data-testid="contract-end-input" /></div>
               </div>
-              <div>
-                <Label>Floor price per kg (UGX)</Label>
-                <Input value={form.floorPricePerKg} onChange={e => setForm({ ...form, floorPricePerKg: e.target.value })} placeholder="0.00" data-testid="contract-floor-input" />
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label>Floor price per kg (UGX)</Label>
+                  <Input value={form.floorPricePerKg} onChange={e => setForm({ ...form, floorPricePerKg: e.target.value })} placeholder="0.00" data-testid="contract-floor-input" />
+                </div>
+                <div>
+                  <Label>Target volume (kg)</Label>
+                  <Input value={form.targetVolumeKg} onChange={e => setForm({ ...form, targetVolumeKg: e.target.value })} placeholder="Optional" data-testid="contract-target-input" />
+                </div>
               </div>
               <div>
                 <Label>Notes</Label>
@@ -178,6 +252,7 @@ export default function ProcurementContractsPage() {
                   <TableHead>Commodity</TableHead>
                   <TableHead>Season</TableHead>
                   <TableHead>Floor / kg</TableHead>
+                  <TableHead>Fulfillment</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead></TableHead>
                 </TableRow>
@@ -191,6 +266,12 @@ export default function ProcurementContractsPage() {
                     <TableCell>{c.commodityType}</TableCell>
                     <TableCell className="text-sm">{c.seasonStart ?? "—"} → {c.seasonEnd ?? "—"}</TableCell>
                     <TableCell>{c.floorPricePerKg != null ? `UGX ${Number(c.floorPricePerKg).toLocaleString()}` : <span className="text-muted-foreground text-sm">—</span>}</TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-1">
+                        <FulfillmentCell contractId={c.id} />
+                        <TargetEditor contract={c} onSaved={refetch} />
+                      </div>
+                    </TableCell>
                     <TableCell><Badge variant={statusVariants[c.status] ?? "secondary"}>{c.status}</Badge></TableCell>
                     <TableCell className="text-right">
                       {c.status === "DRAFT" && <Button size="sm" variant="outline" onClick={() => setStatus(c.id, "ACTIVE")} data-testid={`activate-${c.id}`}>Activate</Button>}
@@ -198,7 +279,7 @@ export default function ProcurementContractsPage() {
                     </TableCell>
                   </TableRow>
                 )) : (
-                  <TableRow><TableCell colSpan={8} className="py-12 text-center text-muted-foreground">No contracts yet</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={9} className="py-12 text-center text-muted-foreground">No contracts yet</TableCell></TableRow>
                 )}
               </TableBody>
             </Table>

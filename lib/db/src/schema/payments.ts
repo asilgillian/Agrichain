@@ -1,4 +1,5 @@
-import { pgTable, text, uuid, timestamp, numeric } from "drizzle-orm/pg-core";
+import { pgTable, text, uuid, timestamp, numeric, uniqueIndex } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -9,13 +10,26 @@ export const paymentsTable = pgTable("payments", {
   amountDue: numeric("amount_due", { precision: 14, scale: 2 }).notNull(),
   amountPaid: numeric("amount_paid", { precision: 14, scale: 2 }),
   currency: text("currency").notNull().default("KES"),
-  paymentMethod: text("payment_method").notNull(),
-  status: text("status").notNull().default("pending"),
+  paymentMethod: text("payment_method").notNull(), // cash | mtn_momo | airtel_money
+  status: text("status").notNull().default("pending"), // pending | paid | failed | pending_external
   paymentReference: text("payment_reference"),
+  // Mobile-money fields. msisdn is the recipient phone in +256… format; providerTxnId
+  // is filled in once a real MoMo gateway returns a transaction id (currently stubbed).
+  msisdn: text("msisdn"),
+  providerTxnId: text("provider_txn_id"),
+  failureReason: text("failure_reason"),
   paidAt: timestamp("paid_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
-});
+}, (t) => ({
+  // DB-authoritative duplicate-payment guard: at most one ACTIVE payment per
+  // (delivery, farmer). Failed/cancelled rows are excluded so a retry after a
+  // genuine failure remains possible. The application layer also pre-checks,
+  // but this index is the race-safe last word.
+  activePerDeliveryFarmer: uniqueIndex("payments_active_delivery_farmer_uniq")
+    .on(t.deliveryId, t.farmerId)
+    .where(sql`${t.status} in ('paid','pending','pending_external')`),
+}));
 
 export const insertPaymentSchema = createInsertSchema(paymentsTable).omit({ id: true, createdAt: true, updatedAt: true });
 export type InsertPayment = z.infer<typeof insertPaymentSchema>;

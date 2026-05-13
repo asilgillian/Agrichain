@@ -69,7 +69,25 @@ router.post("/batches", requirePermission("procurement.write"), async (req: Auth
     if (!Array.isArray(req.body.farmerContributions)) {
       res.status(400).json({ error: "farmerContributions must be an array" }); return;
     }
-    farmerContributions = req.body.farmerContributions;
+    const raw = req.body.farmerContributions as any[];
+    // Strict per-entry validation. Anything missing a uuid farmerId or a
+    // finite non-negative weightKg is a 400 — silently dropping invalid rows
+    // would let a caller skew the multi-farmer payment split.
+    if (!raw.every(c => c && typeof c === "object" && typeof c.farmerId === "string" && UUID_RE.test(c.farmerId) && Number.isFinite(Number(c.weightKg)) && Number(c.weightKg) >= 0)) {
+      res.status(400).json({ error: "farmerContributions entries must be { farmerId: uuid, weightKg: number>=0 }" }); return;
+    }
+    // Canonicalize UUIDs to lowercase BEFORE dedup; otherwise the same logical
+    // farmer in mixed case would slip through and inflate the split divisor.
+    for (const c of raw) c.farmerId = c.farmerId.toLowerCase();
+    // Reject duplicate farmerIds outright.
+    const seen = new Set<string>();
+    for (const c of raw) {
+      if (seen.has(c.farmerId)) {
+        res.status(400).json({ error: `Duplicate farmerId in farmerContributions: ${c.farmerId}` }); return;
+      }
+      seen.add(c.farmerId);
+    }
+    farmerContributions = raw;
   }
 
   // Admin-controlled gate: every contributing farmer must meet the
@@ -116,16 +134,89 @@ router.get("/batches/:batchId", requirePermission("procurement.read"), async (re
   });
 });
 
-router.post("/batches/:batchId/lock", requirePermission("procurement.write"), async (req, res): Promise<void> => {
+// PATCH lets a field agent edit an OPEN batch's contributions / weight before
+// locking. Permission-gated; locked or delivered batches are immutable here so
+// downstream lot/QC math stays trustworthy.
+router.patch("/batches/:batchId", requirePermission("procurement.write"), async (req: AuthedRequest, res): Promise<void> => {
   const { batchId } = req.params;
-  const [batch] = await db.update(batchesTable)
-    .set({ status: "locked", updatedAt: new Date() })
-    .where(eq(batchesTable.id, batchId as string))
-    .returning();
-  if (!batch) {
-    res.status(404).json({ error: "Batch not found" });
-    return;
+  const userId = req.authedUser?.id;
+  if (!userId) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  // Pre-validate the patch payload BEFORE we hit the DB, so we can return
+  // crisp 400s. Ownership + open-status checks happen atomically in the
+  // UPDATE's WHERE clause to avoid TOCTOU races with /lock.
+  const patch: Record<string, unknown> = {};
+  if (Array.isArray(req.body.farmerContributions)) {
+    const contribs = req.body.farmerContributions as any[];
+    if (!contribs.every(c => c && typeof c === "object" && typeof c.farmerId === "string" && UUID_RE.test(c.farmerId) && Number.isFinite(Number(c.weightKg)) && Number(c.weightKg) >= 0)) {
+      res.status(400).json({ error: "farmerContributions entries must be { farmerId: uuid, weightKg: number>=0 }" }); return;
+    }
+    // Canonicalize before dedup (see POST /batches).
+    for (const c of contribs) c.farmerId = c.farmerId.toLowerCase();
+    // Reject duplicate farmerIds — see POST /batches for rationale (split-divisor
+    // attack via repeated rows).
+    const seen = new Set<string>();
+    for (const c of contribs) {
+      if (seen.has(c.farmerId)) {
+        res.status(400).json({ error: `Duplicate farmerId in farmerContributions: ${c.farmerId}` }); return;
+      }
+      seen.add(c.farmerId);
+    }
+    const denial = await checkFarmersStageForTxn(Array.from(seen), "delivery");
+    if (denial) { res.status(denial.status).json(denial.body); return; }
+    patch.farmerContributions = contribs;
+    patch.farmerCount = seen.size;
+    patch.totalWeightKg = String(contribs.reduce((s, c) => s + Number(c.weightKg || 0), 0));
   }
+  if (typeof req.body.commodityType === "string") patch.commodityType = req.body.commodityType;
+  if (typeof req.body.cropType === "string") patch.cropType = req.body.cropType;
+  if (Object.keys(patch).length === 0) { res.status(400).json({ error: "No editable fields supplied" }); return; }
+  patch.updatedAt = new Date();
+
+  // Atomic guarded UPDATE — ownership AND open-status are part of the WHERE.
+  // If a concurrent /lock fires between two of our PATCH calls, this update
+  // matches zero rows and we report 409.
+  const updated = await db.update(batchesTable)
+    .set(patch as any)
+    .where(and(
+      eq(batchesTable.id, batchId as string),
+      eq(batchesTable.status, "open"),
+      eq(batchesTable.agentId, userId),
+    ))
+    .returning();
+  if (updated.length === 0) {
+    // Distinguish the cases for a useful error.
+    const [existing] = await db.select().from(batchesTable).where(eq(batchesTable.id, batchId as string));
+    if (!existing) { res.status(404).json({ error: "Batch not found" }); return; }
+    if (existing.agentId !== userId) { res.status(403).json({ error: "You do not own this batch" }); return; }
+    res.status(409).json({ error: `Batch is not open (status: ${existing.status})` }); return;
+  }
+  const batch = updated[0];
+  res.json({ ...batch, totalWeightKg: parseFloat(batch.totalWeightKg ?? "0"), agentName: "Field Agent" });
+});
+
+router.post("/batches/:batchId/lock", requirePermission("procurement.write"), async (req: AuthedRequest, res): Promise<void> => {
+  const { batchId } = req.params;
+  const userId = req.authedUser?.id;
+  if (!userId) { res.status(401).json({ error: "Unauthorized" }); return; }
+  // Atomic guarded transition: only the owning agent may lock, and only while
+  // the batch is still open. Mirrors the PATCH guard so concurrent edits
+  // can't race past authorization or re-lock a closed batch.
+  const updated = await db.update(batchesTable)
+    .set({ status: "locked", updatedAt: new Date() })
+    .where(and(
+      eq(batchesTable.id, batchId as string),
+      eq(batchesTable.status, "open"),
+      eq(batchesTable.agentId, userId),
+    ))
+    .returning();
+  if (updated.length === 0) {
+    const [existing] = await db.select().from(batchesTable).where(eq(batchesTable.id, batchId as string));
+    if (!existing) { res.status(404).json({ error: "Batch not found" }); return; }
+    if (existing.agentId !== userId) { res.status(403).json({ error: "You do not own this batch" }); return; }
+    res.status(409).json({ error: `Batch is not open (status: ${existing.status})` }); return;
+  }
+  const batch = updated[0];
   res.json({ ...batch, totalWeightKg: parseFloat(batch.totalWeightKg ?? "0"), agentName: "Field Agent" });
 });
 
