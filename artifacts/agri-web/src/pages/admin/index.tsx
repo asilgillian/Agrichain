@@ -168,26 +168,90 @@ export default function AdminPage() {
     onError: (e: any) => toast({ title: "Failed to create region", description: e.message, variant: "destructive" }),
   });
 
-  const [bulkEntity, setBulkEntity] = useState<"regions" | "farmers" | "groups">("regions");
+  type BulkEntityKey =
+    | "regions"
+    | "farmers"
+    | "groups"
+    | "org_regions"
+    | "commodities"
+    | "commodity_types"
+    | "commodity_prices"
+    | "buying_stations"
+    | "silos"
+    | "storage_bins"
+    | "users";
+
+  const [bulkEntity, setBulkEntity] = useState<BulkEntityKey>("regions");
   const [bulkRows, setBulkRows] = useState<Record<string, any>[]>([]);
   const [bulkFileName, setBulkFileName] = useState<string>("");
   const [bulkResult, setBulkResult] = useState<any | null>(null);
 
-  const BULK_TEMPLATES: Record<string, { headers: string[]; example: string; notes: string }> = {
+  const BULK_TEMPLATES: Record<BulkEntityKey, { label: string; headers: string[]; example: string; notes: string }> = {
     regions: {
+      label: "Regions (admin units)",
       headers: ["name", "level", "countryCode", "parentId"],
       example: "Mbale,1,UG,\nMbale Municipality,2,UG,<parent-region-uuid>",
       notes: "name and level are required. countryCode defaults to UG when blank. parentId is the UUID of the parent region (leave blank for top-level).",
     },
+    org_regions: {
+      label: "Org Regions (operational clusters)",
+      headers: ["name", "description", "countryCode", "isActive"],
+      example: "Eastern Uganda,Mbale + Bugisu sub-region,UG,true\nNorthern Uganda,Acholi + Lango,UG,true",
+      notes: "name is required. countryCode defaults to UG. isActive accepts true/false (default true). District-membership rows must be assigned afterwards from the Org Regions screen.",
+    },
     groups: {
+      label: "Farmer Groups",
       headers: ["name", "regionId", "village"],
       example: "Buwasa Coffee Coop,<region-uuid>,Buwasa\nNorth Mbale Producers,<region-uuid>,",
       notes: "name and regionId are required. regionId must be the UUID of an existing region.",
     },
     farmers: {
+      label: "Farmers",
       headers: ["firstName", "lastName", "nationalId", "phoneNumber", "sex", "groupId", "regionId", "village", "dateOfBirth"],
       example: "John,Wanyama,CM12345678,+256770000001,male,<group-uuid>,<region-uuid>,Buwasa,1985-04-12",
       notes: "firstName, lastName, nationalId, groupId and regionId are required. sex is one of male/female/other. dateOfBirth in YYYY-MM-DD.",
+    },
+    commodities: {
+      label: "Commodities (master catalog)",
+      headers: ["name", "code", "scientificName", "defaultUnit", "description", "status"],
+      example: "Coffee,COFFEE,Coffea spp.,kg,Arabica and Robusta coffee,active\nMaize,MAIZE,Zea mays,kg,White and yellow maize,active",
+      notes: "name and code are required. code must be unique. defaultUnit defaults to kg, status defaults to active.",
+    },
+    commodity_types: {
+      label: "Commodity Types (variants / stages)",
+      headers: ["commodityId", "name", "code", "stage", "parentCommodityTypeId", "isPurchasable", "isSellable", "defaultUnit", "defaultMoistureMin", "defaultMoistureMax", "status"],
+      example: "<commodity-uuid>,Robusta Cherry,ROB_CHERRY,raw,,true,false,kg,30,60,active\n<commodity-uuid>,Robusta Parchment,ROB_PARCH,intermediate,<parent-type-uuid>,true,true,kg,11,13,active",
+      notes: "commodityId, name and code are required. stage is one of raw/intermediate/finished (default raw). parentCommodityTypeId is the previous-stage type UUID (blank for raw).",
+    },
+    commodity_prices: {
+      label: "Commodity Prices (daily price-per-kg)",
+      headers: ["commodityTypeId", "regionId", "pricePerKg", "currency", "effectiveDate", "source", "notes"],
+      example: "<commodity-type-uuid>,,8500,UGX,2026-05-19,manual,Opening price\n<commodity-type-uuid>,<region-uuid>,8700,UGX,2026-05-19,market,Regional override",
+      notes: "commodityTypeId, pricePerKg and effectiveDate (YYYY-MM-DD) are required. regionId optional (blank = nationwide). currency defaults to UGX, source defaults to manual.",
+    },
+    buying_stations: {
+      label: "Buying Stations",
+      headers: ["name", "location", "gpsLat", "gpsLng", "managerUserId", "isActive"],
+      example: "Buwasa BS,Buwasa Trading Centre,1.0234,34.5678,<user-uuid>,true\nManafwa BS,Manafwa Town,,,,true",
+      notes: "name is required. gpsLat/gpsLng are decimal degrees. managerUserId is the UUID of the assigned staff user.",
+    },
+    silos: {
+      label: "Silos (bulk warehouse)",
+      headers: ["name", "facilityId", "stream", "commodityType", "capacityKg", "status"],
+      example: "Silo A1,MBALE-WH-01,maize,Maize,500000,ACTIVE\nSilo A2,MBALE-WH-01,maize,Maize,500000,ACTIVE",
+      notes: "name and stream are required. status is one of ACTIVE/IDLE/CLEANING/MAINTENANCE (default ACTIVE).",
+    },
+    storage_bins: {
+      label: "Storage Bins (bagged warehouse)",
+      headers: ["name", "facilityId", "stream", "commodityType", "capacityKg", "isActive"],
+      example: "Bin B1,MBALE-WH-01,coffee,Robusta Parchment,40000,true\nBin B2,MBALE-WH-01,coffee,Robusta Parchment,40000,true",
+      notes: "name and stream are required. capacityKg is the bagged-stock capacity in kg.",
+    },
+    users: {
+      label: "Users (staff)",
+      headers: ["firstName", "lastName", "email", "phoneNumber", "clerkUserId", "role", "regionId", "managerId", "status"],
+      example: "Pauline,Asil,paulineasil@gmail.com,+256770000001,,SystemAdministrator,,,active\nJohn,Field,john.field@mtandeo.co.ug,+256770000002,,FieldAgent,<region-uuid>,<manager-uuid>,active",
+      notes: "firstName, lastName, email and role are required. email must be unique. Leave clerkUserId blank — it is populated automatically on first Google/email sign-in. status defaults to active.",
     },
   };
 
@@ -386,12 +450,12 @@ export default function AdminPage() {
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
                 <div>
                   <Label>Entity type</Label>
-                  <Select value={bulkEntity} onValueChange={(v) => { setBulkEntity(v as any); setBulkRows([]); setBulkFileName(""); setBulkResult(null); }}>
+                  <Select value={bulkEntity} onValueChange={(v) => { setBulkEntity(v as BulkEntityKey); setBulkRows([]); setBulkFileName(""); setBulkResult(null); }}>
                     <SelectTrigger data-testid="bulk-entity-select"><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="regions">Regions</SelectItem>
-                      <SelectItem value="groups">Farmer Groups</SelectItem>
-                      <SelectItem value="farmers">Farmers</SelectItem>
+                      {(Object.keys(BULK_TEMPLATES) as BulkEntityKey[]).map((k) => (
+                        <SelectItem key={k} value={k}>{BULK_TEMPLATES[k].label}</SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>

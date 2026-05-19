@@ -1,7 +1,25 @@
 import { Router, type IRouter } from "express";
 import { eq } from "drizzle-orm";
-import { db, regionsTable, rolesTable, farmersTable, groupsTable, countryHierarchiesTable, auditLogsTable, UpsertCountryHierarchyBody } from "@workspace/db";
+import {
+  db,
+  regionsTable,
+  rolesTable,
+  farmersTable,
+  groupsTable,
+  countryHierarchiesTable,
+  auditLogsTable,
+  UpsertCountryHierarchyBody,
+  orgRegionsTable,
+  commoditiesTable,
+  commodityTypesTable,
+  commodityPricesTable,
+  buyingStationsTable,
+  silosTable,
+  storageBinsTable,
+  usersTable,
+} from "@workspace/db";
 import { CreateRegionBody, UpdateRolePermissionsBody, CreateFarmerBody, CreateGroupBody } from "@workspace/api-zod";
+import { z } from "zod/v4";
 import { requirePermission, type AuthedRequest } from "../middlewares/auth";
 
 const router: IRouter = Router();
@@ -101,7 +119,7 @@ const PERMISSION_CATALOG: Array<{ key: string; module: string; description: stri
   { key: "admin.regions", module: "Admin", description: "Manage regions" },
   { key: "admin.org_regions", module: "Admin", description: "Manage organisational regions (district clusters)" },
   { key: "admin.roles", module: "Admin", description: "Manage roles and permissions" },
-  { key: "admin.bulk_upload", module: "Admin", description: "Bulk upload master data (regions, farmers, groups)" },
+  { key: "admin.bulk_upload", module: "Admin", description: "Bulk upload master data (regions, org regions, groups, farmers, commodities, commodity types, commodity prices, buying stations, silos, storage bins, users)" },
   { key: "admin.hierarchy", module: "Admin", description: "Configure per-country administrative hierarchies" },
   { key: "admin.registration_templates", module: "Admin", description: "Manage farmer registration survey templates" },
   { key: "admin.transaction_access", module: "Admin", description: "Configure registration-stage gates for transactions" },
@@ -271,12 +289,133 @@ router.delete("/admin/country-hierarchies/:countryCode", requirePermission("admi
 
 // ---------- BULK UPLOAD ----------
 
+// Shared coercers: CSV upload delivers every cell as a string, so numeric / boolean / uuid columns
+// must be coerced. Optional fields use `z.preprocess` to convert empty-string → undefined first so
+// the optional() branch kicks in rather than failing coercion on "".
+const optStr = z.preprocess((v: unknown) => (v === "" || v == null ? undefined : v), z.string().optional());
+const optTrimmedStr = z.preprocess(
+  (v: unknown) => (v === "" || v == null ? undefined : String(v).trim()),
+  z.string().min(1).optional(),
+);
+const optUuid = z.preprocess(
+  (v: unknown) => (v === "" || v == null ? undefined : v),
+  z.string().uuid().optional(),
+);
+const optNum = z.preprocess(
+  (v: unknown) => (v === "" || v == null ? undefined : v),
+  z.coerce.number().optional(),
+);
+const optBool = z.preprocess((v: unknown) => {
+  if (v === "" || v == null) return undefined;
+  if (typeof v === "boolean") return v;
+  const s = String(v).trim().toLowerCase();
+  if (["true", "1", "yes", "y", "t"].includes(s)) return true;
+  if (["false", "0", "no", "n", "f"].includes(s)) return false;
+  return v;
+}, z.boolean().optional());
+const dateYmd = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "must be YYYY-MM-DD");
+
+const OrgRegionBulkRow = z.object({
+  name: z.string().min(1),
+  description: optStr,
+  countryCode: optTrimmedStr,
+  isActive: optBool,
+});
+
+const CommodityBulkRow = z.object({
+  name: z.string().min(1),
+  code: z.string().min(1),
+  scientificName: optStr,
+  defaultUnit: optTrimmedStr,
+  description: optStr,
+  status: optTrimmedStr,
+});
+
+const CommodityTypeBulkRow = z.object({
+  commodityId: z.string().uuid(),
+  name: z.string().min(1),
+  code: z.string().min(1),
+  stage: optTrimmedStr,
+  parentCommodityTypeId: optUuid,
+  isPurchasable: optBool,
+  isSellable: optBool,
+  defaultUnit: optTrimmedStr,
+  defaultMoistureMin: optNum,
+  defaultMoistureMax: optNum,
+  status: optTrimmedStr,
+});
+
+const CommodityPriceBulkRow = z.object({
+  commodityTypeId: z.string().uuid(),
+  regionId: optUuid,
+  pricePerKg: z.coerce.number().positive(),
+  currency: optTrimmedStr,
+  effectiveDate: dateYmd,
+  source: optTrimmedStr,
+  notes: optStr,
+});
+
+const BuyingStationBulkRow = z.object({
+  name: z.string().min(1),
+  location: optStr,
+  gpsLat: optNum,
+  gpsLng: optNum,
+  managerUserId: optUuid,
+  isActive: optBool,
+});
+
+const SiloBulkRow = z.object({
+  name: z.string().min(1),
+  facilityId: optStr,
+  stream: z.string().min(1),
+  commodityType: optStr,
+  capacityKg: optNum,
+  status: optTrimmedStr,
+});
+
+const StorageBinBulkRow = z.object({
+  name: z.string().min(1),
+  facilityId: optStr,
+  stream: z.string().min(1),
+  commodityType: optStr,
+  capacityKg: optNum,
+  isActive: optBool,
+});
+
+const UserBulkRow = z.object({
+  firstName: z.string().min(1),
+  lastName: z.string().min(1),
+  email: z.string().email(),
+  phoneNumber: optStr,
+  clerkUserId: optStr,
+  role: z.string().min(1),
+  regionId: optUuid,
+  managerId: optUuid,
+  status: optTrimmedStr,
+});
+
 const BULK_VALIDATORS = {
   regions: CreateRegionBody,
   farmers: CreateFarmerBody,
   groups: CreateGroupBody,
+  org_regions: OrgRegionBulkRow,
+  commodities: CommodityBulkRow,
+  commodity_types: CommodityTypeBulkRow,
+  commodity_prices: CommodityPriceBulkRow,
+  buying_stations: BuyingStationBulkRow,
+  silos: SiloBulkRow,
+  storage_bins: StorageBinBulkRow,
+  users: UserBulkRow,
 } as const;
 type BulkEntity = keyof typeof BULK_VALIDATORS;
+
+// Strip undefined keys so Drizzle defaults (e.g. `status` default 'active') apply rather than
+// being explicitly overwritten with NULL.
+function stripUndefined<T extends Record<string, unknown>>(o: T): Partial<T> {
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(o)) if (v !== undefined) out[k] = v;
+  return out as Partial<T>;
+}
 
 async function generateFarmerReferenceNumber(): Promise<string> {
   const year = new Date().getFullYear();
@@ -284,12 +423,39 @@ async function generateFarmerReferenceNumber(): Promise<string> {
   return `FARM-${year}-${rand}`;
 }
 
-router.post("/admin/bulk-upload", requirePermission("admin.bulk_upload"), async (req, res): Promise<void> => {
+// Per-entity additional permission gate. `admin.bulk_upload` is the base ticket to use this
+// endpoint at all, but for sensitive entities (especially `users`, which can mint accounts with
+// arbitrary roles) we require the corresponding write permission on top. This prevents an
+// operator who is allowed to bulk-load reference data from escalating to user provisioning or
+// price manipulation.
+const BULK_ENTITY_EXTRA_PERMS: Record<BulkEntity, string | null> = {
+  regions: "admin.regions",
+  org_regions: "admin.org_regions",
+  groups: "groups.write",
+  farmers: "farmers.write",
+  commodities: "commodities.write",
+  commodity_types: "commodities.write",
+  commodity_prices: "commodities.prices.write",
+  buying_stations: "warehouse.write",
+  silos: "warehouse.write",
+  storage_bins: "warehouse.write",
+  users: "users.write",
+};
+
+router.post("/admin/bulk-upload", requirePermission("admin.bulk_upload"), async (req: AuthedRequest, res): Promise<void> => {
   const body = req.body as { entityType?: string; rows?: unknown };
   const entityType = body?.entityType as BulkEntity | undefined;
   if (!entityType || !(entityType in BULK_VALIDATORS)) {
     res.status(400).json({ error: `entityType must be one of: ${Object.keys(BULK_VALIDATORS).join(", ")}` });
     return;
+  }
+  const extraPerm = BULK_ENTITY_EXTRA_PERMS[entityType];
+  if (extraPerm) {
+    const userPerms = new Set(req.authedUser?.permissions ?? []);
+    if (!userPerms.has("*") && !userPerms.has(extraPerm)) {
+      res.status(403).json({ error: `Bulk uploading "${entityType}" also requires the "${extraPerm}" permission` });
+      return;
+    }
   }
   if (!Array.isArray(body.rows)) {
     res.status(400).json({ error: "rows must be an array" });
@@ -331,6 +497,30 @@ router.post("/admin/bulk-upload", requirePermission("admin.bulk_upload"), async 
           dateOfBirth: data.dateOfBirth instanceof Date ? data.dateOfBirth.toISOString().slice(0, 10) : data.dateOfBirth,
         }).returning();
         created.push(f);
+      } else if (entityType === "org_regions") {
+        const [r] = await db.insert(orgRegionsTable).values(stripUndefined(parsed.data) as any).returning();
+        created.push(r);
+      } else if (entityType === "commodities") {
+        const [r] = await db.insert(commoditiesTable).values(stripUndefined(parsed.data) as any).returning();
+        created.push(r);
+      } else if (entityType === "commodity_types") {
+        const [r] = await db.insert(commodityTypesTable).values(stripUndefined(parsed.data) as any).returning();
+        created.push(r);
+      } else if (entityType === "commodity_prices") {
+        const [r] = await db.insert(commodityPricesTable).values(stripUndefined(parsed.data) as any).returning();
+        created.push(r);
+      } else if (entityType === "buying_stations") {
+        const [r] = await db.insert(buyingStationsTable).values(stripUndefined(parsed.data) as any).returning();
+        created.push(r);
+      } else if (entityType === "silos") {
+        const [r] = await db.insert(silosTable).values(stripUndefined(parsed.data) as any).returning();
+        created.push(r);
+      } else if (entityType === "storage_bins") {
+        const [r] = await db.insert(storageBinsTable).values(stripUndefined(parsed.data) as any).returning();
+        created.push(r);
+      } else if (entityType === "users") {
+        const [r] = await db.insert(usersTable).values(stripUndefined(parsed.data) as any).returning();
+        created.push(r);
       }
     } catch (err: any) {
       errors.push({ row: i + 1, error: err?.message ?? "Insert failed", data: raw });
