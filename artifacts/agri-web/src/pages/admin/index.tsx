@@ -11,7 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Settings, RefreshCw, MapPin, Plus, Pencil, Trash2, Upload, FileSpreadsheet, AlertCircle, CheckCircle2, Globe2, ArrowUp, ArrowDown, Save } from "lucide-react";
+import { Settings, RefreshCw, MapPin, Plus, Pencil, Trash2, Upload, FileSpreadsheet, AlertCircle, CheckCircle2, Globe2, ArrowUp, ArrowDown, Save, Copy, Search, KeyRound } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
@@ -416,6 +416,7 @@ export default function AdminPage() {
           <TabsTrigger value="roles">Roles &amp; Permissions</TabsTrigger>
           <TabsTrigger value="matrix">Permission Matrix</TabsTrigger>
           <TabsTrigger value="bulk">Bulk Upload</TabsTrigger>
+          <TabsTrigger value="uuid-lookup">UUID Lookup</TabsTrigger>
           <TabsTrigger value="registration-templates">Registration Templates</TabsTrigger>
           <TabsTrigger value="transaction-access">Transaction Access</TabsTrigger>
           <TabsTrigger value="sync">Sync Queue</TabsTrigger>
@@ -540,6 +541,10 @@ export default function AdminPage() {
               )}
             </CardContent>
           </Card>
+        </TabsContent>
+
+        <TabsContent value="uuid-lookup" className="mt-4">
+          <UuidLookup />
         </TabsContent>
 
         <TabsContent value="roles" className="mt-4">
@@ -1125,6 +1130,169 @@ function CountryHierarchyEditor() {
             )}
           </>
         )}
+      </CardContent>
+    </Card>
+  );
+}
+
+type LookupKey = "regions" | "org_regions" | "commodities" | "commodity_types" | "groups" | "users" | "buying_stations";
+
+const LOOKUP_CONFIG: Record<LookupKey, { label: string; url: string; columns: { key: string; label: string }[] }> = {
+  regions:         { label: "Regions",         url: "/api/regions",         columns: [{ key: "name", label: "Name" }, { key: "level", label: "Level" }, { key: "countryCode", label: "Country" }, { key: "parentId", label: "Parent ID" }] },
+  org_regions:     { label: "Org Regions",     url: "/api/org-regions",     columns: [{ key: "name", label: "Name" }, { key: "countryCode", label: "Country" }, { key: "isActive", label: "Active" }] },
+  commodities:     { label: "Commodities",     url: "/api/commodities",     columns: [{ key: "name", label: "Name" }, { key: "code", label: "Code" }, { key: "defaultUnit", label: "Unit" }, { key: "status", label: "Status" }] },
+  commodity_types: { label: "Commodity Types", url: "",                     columns: [{ key: "name", label: "Name" }, { key: "code", label: "Code" }, { key: "stage", label: "Stage" }, { key: "parentCommodityTypeId", label: "Parent Type ID" }] },
+  groups:          { label: "Groups",          url: "/api/groups",          columns: [{ key: "name", label: "Name" }, { key: "village", label: "Village" }, { key: "regionId", label: "Region ID" }] },
+  users:           { label: "Users",           url: "/api/users",           columns: [{ key: "firstName", label: "First" }, { key: "lastName", label: "Last" }, { key: "email", label: "Email" }, { key: "role", label: "Role" }] },
+  buying_stations: { label: "Buying Stations", url: "/api/buying-stations", columns: [{ key: "name", label: "Name" }, { key: "location", label: "Location" }, { key: "managerUserId", label: "Manager ID" }] },
+};
+
+function UuidLookup() {
+  const { toast } = useToast();
+  const [entity, setEntity] = useState<LookupKey>("regions");
+  const [search, setSearch] = useState("");
+  const [commodityId, setCommodityId] = useState<string>("");
+
+  const cfg = LOOKUP_CONFIG[entity];
+
+  const { data: commoditiesForPicker } = useQuery<any[]>({
+    queryKey: ["/api/commodities", "lookup-picker"],
+    queryFn: async () => {
+      const r = await fetch(`${API_BASE}/api/commodities`);
+      if (!r.ok) throw new Error(`Failed to load commodities (${r.status})`);
+      return r.json();
+    },
+    enabled: entity === "commodity_types",
+  });
+
+  const listUrl = entity === "commodity_types"
+    ? (commodityId ? `${API_BASE}/api/commodities/${commodityId}/types` : "")
+    : `${API_BASE}${cfg.url}`;
+
+  const { data: rows, isLoading, error } = useQuery<any[]>({
+    queryKey: ["uuid-lookup", entity, commodityId],
+    queryFn: async () => {
+      const r = await fetch(listUrl);
+      if (!r.ok) throw new Error(`Failed to load ${cfg.label} (${r.status})`);
+      const json = await r.json();
+      return Array.isArray(json) ? json : (json.rows ?? json.data ?? []);
+    },
+    enabled: listUrl !== "",
+  });
+
+  const filtered = useMemo(() => {
+    if (!rows) return [];
+    const q = search.trim().toLowerCase();
+    if (!q) return rows;
+    return rows.filter((r) =>
+      Object.values(r).some((v) => v != null && String(v).toLowerCase().includes(q))
+    );
+  }, [rows, search]);
+
+  const copyId = async (id: string) => {
+    try {
+      await navigator.clipboard.writeText(id);
+      toast({ title: "UUID copied", description: id });
+    } catch {
+      toast({ title: "Copy failed", description: id, variant: "destructive" });
+    }
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-center gap-2">
+          <KeyRound className="h-4 w-4 text-muted-foreground" />
+          <CardTitle>UUID Lookup</CardTitle>
+        </div>
+        <p className="text-sm text-muted-foreground mt-1">
+          Find the UUID of any existing record so you can paste it into a bulk-upload CSV (e.g. <code>parentId</code>, <code>commodityId</code>, <code>regionId</code>, <code>managerUserId</code>).
+        </p>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
+          <div>
+            <Label>Entity</Label>
+            <Select value={entity} onValueChange={(v) => { setEntity(v as LookupKey); setSearch(""); setCommodityId(""); }}>
+              <SelectTrigger data-testid="lookup-entity-select"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {(Object.keys(LOOKUP_CONFIG) as LookupKey[]).map((k) => (
+                  <SelectItem key={k} value={k}>{LOOKUP_CONFIG[k].label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          {entity === "commodity_types" && (
+            <div>
+              <Label>For commodity</Label>
+              <Select value={commodityId} onValueChange={setCommodityId}>
+                <SelectTrigger data-testid="lookup-commodity-select">
+                  <SelectValue placeholder="Pick a commodity…" />
+                </SelectTrigger>
+                <SelectContent>
+                  {(commoditiesForPicker ?? []).map((c: any) => (
+                    <SelectItem key={c.id} value={c.id}>{c.name}{c.code ? ` (${c.code})` : ""}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+          <div>
+            <Label>Search</Label>
+            <div className="relative">
+              <Search className="h-4 w-4 absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Filter by any field…"
+                className="pl-8"
+                data-testid="lookup-search"
+              />
+            </div>
+          </div>
+        </div>
+
+        {entity === "commodity_types" && !commodityId ? (
+          <div className="text-sm text-muted-foreground">Pick a commodity above to see its types.</div>
+        ) : isLoading ? (
+          <Skeleton className="h-32 w-full" />
+        ) : error ? (
+          <div className="text-sm text-destructive">Failed to load {cfg.label}.</div>
+        ) : filtered.length === 0 ? (
+          <div className="text-sm text-muted-foreground">No matching records.</div>
+        ) : (
+          <div className="rounded-md border max-h-[600px] overflow-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  {cfg.columns.map((c) => (<TableHead key={c.key}>{c.label}</TableHead>))}
+                  <TableHead>UUID</TableHead>
+                  <TableHead className="w-20"></TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filtered.map((row: any) => (
+                  <TableRow key={row.id}>
+                    {cfg.columns.map((c) => (
+                      <TableCell key={c.key} className="text-sm">
+                        {row[c.key] == null || row[c.key] === "" ? <span className="text-muted-foreground">—</span> : String(row[c.key])}
+                      </TableCell>
+                    ))}
+                    <TableCell className="font-mono text-xs">{row.id}</TableCell>
+                    <TableCell>
+                      <Button size="sm" variant="ghost" onClick={() => copyId(row.id)} data-testid={`copy-${row.id}`}>
+                        <Copy className="h-3 w-3 mr-1" />Copy
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        )}
+        <p className="text-xs text-muted-foreground">
+          Tip: load <strong>regions</strong> in dependency order (level 1 → 4) and copy each row's UUID into the <code>parentId</code> column of the next level's CSV before uploading.
+        </p>
       </CardContent>
     </Card>
   );
