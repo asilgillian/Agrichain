@@ -1,6 +1,7 @@
 -- ============================================================================
 -- MTANDEO PRODUCTION RESET — wipe transactional + master data, keep system seeds
--- Generated: 2026-05-19
+-- Generated: 2026-05-19  (revised — removed DO-block; SQL Console driver
+-- can't parse dollar-quoted PL/pgSQL bodies)
 --
 -- KEEPS
 --   - roles                      (system roles + permission bitmaps)
@@ -19,47 +20,29 @@
 --
 -- ⚠️  IRREVERSIBLE.  Take a Postgres backup snapshot BEFORE running.
 --
--- HOW TO RUN
---   1. Open the Database pane and switch environment to **Production**.
---   2. (Optional but strongly recommended) Take a manual snapshot.
---   3. Paste this entire file into the SQL Console query editor.
---   4. **Select ALL the SQL text (Ctrl/Cmd-A)** before clicking Run — the
---      Replit SQL Console only runs multiple statements as a single
---      transaction when they're all selected together. Running statement-
---      by-statement will fail the safety check or leave the DB partly wiped.
---   5. Read the verification table at the bottom — every row except
---      `users`(1), `roles`(>0), `country_hierarchies`(>0) should be 0.
---   6. If something looks wrong, restore from snapshot.
+-- HOW TO RUN — two steps
+--
+-- STEP 1.  Pre-flight check (run by itself first).  Must return exactly 1 row
+--          with role = 'SystemAdministrator'.  If it returns 0 rows, STOP —
+--          do NOT proceed.  Either sign in once with Google as that email,
+--          or find/replace the email everywhere below before continuing.
+--
+--   SELECT id, email, role, status
+--   FROM users
+--   WHERE email = 'paulineasil@gmail.com';
+--
+-- STEP 2.  Select EVERYTHING below the "STEP 2" line (Ctrl/Cmd-A inside the
+--          editor after pasting), then click Run.  The Replit SQL Console
+--          will batch the selected statements into a single transaction.
+--          Read the verification table that prints at the end.
 --
 -- IF YOU WANT TO KEEP A DIFFERENT BOOTSTRAP EMAIL
 --   Find/replace 'paulineasil@gmail.com' below with the email you want
---   to preserve, then run. Only one email can be kept.
+--   to preserve, then run.  Only one email can be kept.
 -- ============================================================================
 
--- ---------------------------------------------------------------------------
--- Pre-flight safety: confirm the bootstrap user exists. If not, abort the
--- entire transaction so we don't accidentally wipe ourselves out of access.
--- ---------------------------------------------------------------------------
-DO $$
-DECLARE keep_count int;
-BEGIN
-  SELECT count(*) INTO keep_count
-  FROM users
-  WHERE email = 'paulineasil@gmail.com';
+-- =========================== STEP 2 STARTS HERE =============================
 
-  IF keep_count = 0 THEN
-    RAISE EXCEPTION
-      'ABORT: bootstrap user "paulineasil@gmail.com" not found in users table. '
-      'Either create that user first (sign in once with Google), or edit the '
-      'email in this script to one that exists.';
-  END IF;
-END $$;
-
--- ---------------------------------------------------------------------------
--- Single TRUNCATE — Postgres handles FK ordering among listed tables and
--- CASCADE handles any child rows in non-listed tables.
--- RESTART IDENTITY also resets any auto-increment sequences.
--- ---------------------------------------------------------------------------
 TRUNCATE TABLE
   -- ---- Audit + multi-role join (clear first; reference everything else) ---
   audit_logs,
@@ -164,13 +147,11 @@ TRUNCATE TABLE
 
 RESTART IDENTITY CASCADE;
 
--- ---------------------------------------------------------------------------
--- Drop every user except the bootstrap admin, then make sure that user is
--- SystemAdministrator with clean (now-non-existent) region/manager refs.
--- ---------------------------------------------------------------------------
+-- Drop every user except the bootstrap admin.
 DELETE FROM users
 WHERE email <> 'paulineasil@gmail.com';
 
+-- Force the kept user to SystemAdministrator and clear now-stale FK refs.
 UPDATE users
 SET role        = 'SystemAdministrator',
     region_id   = NULL,
@@ -179,10 +160,7 @@ SET role        = 'SystemAdministrator',
     updated_at  = now()
 WHERE email = 'paulineasil@gmail.com';
 
--- ---------------------------------------------------------------------------
--- Verification — review BEFORE committing.
--- Expected: users=1, roles>0, country_hierarchies>=1, everything else=0.
--- ---------------------------------------------------------------------------
+-- Verification — expected: users=1, roles>0, country_hierarchies>=1, rest=0.
 SELECT 'users (kept admin)'        AS table_name, count(*) AS row_count FROM users
 UNION ALL SELECT 'roles (kept)',                count(*) FROM roles
 UNION ALL SELECT 'country_hierarchies (kept)',  count(*) FROM country_hierarchies
@@ -204,7 +182,7 @@ UNION ALL SELECT 'user_roles',                  count(*) FROM user_roles
 UNION ALL SELECT 'user_groups',                 count(*) FROM user_groups
 ORDER BY table_name;
 
--- ============================================================================
+-- =========================== STEP 2 ENDS HERE ===============================
 -- DONE.  Next steps:
 --   1. Sign in at https://agri-chain-connect.replit.app with the bootstrap
 --      admin (paulineasil@gmail.com via Google).  You should land directly in
