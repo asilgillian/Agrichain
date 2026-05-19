@@ -1628,6 +1628,27 @@ export const ListUsersStatus = {
   deactivated: "deactivated",
 } as const;
 
+export type ListUserExtraRoles200Item = {
+  id: string;
+  name: string;
+  assignedAt?: string;
+};
+
+export type ReplaceUserExtraRolesBody = {
+  roleIds: string[];
+};
+
+export type ReplaceUserExtraRoles200RolesItem = {
+  id: string;
+  name: string;
+};
+
+export type ReplaceUserExtraRoles200 = {
+  userId: string;
+  count: number;
+  roles: ReplaceUserExtraRoles200RolesItem[];
+};
+
 export type ListAssetsParams = {
   status?: ListAssetsStatus;
   assignedTo?: string;

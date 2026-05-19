@@ -2760,6 +2760,44 @@ export const UpdateUserResponse = zod.object({
 });
 
 /**
+ * @summary List additional roles assigned to a user
+ */
+export const ListUserExtraRolesParams = zod.object({
+  userId: zod.coerce.string(),
+});
+
+export const ListUserExtraRolesResponseItem = zod.object({
+  id: zod.string(),
+  name: zod.string(),
+  assignedAt: zod.coerce.date().optional(),
+});
+export const ListUserExtraRolesResponse = zod.array(
+  ListUserExtraRolesResponseItem,
+);
+
+/**
+ * @summary Replace the set of additional roles assigned to a user
+ */
+export const ReplaceUserExtraRolesParams = zod.object({
+  userId: zod.coerce.string(),
+});
+
+export const ReplaceUserExtraRolesBody = zod.object({
+  roleIds: zod.array(zod.string()),
+});
+
+export const ReplaceUserExtraRolesResponse = zod.object({
+  userId: zod.string(),
+  count: zod.number(),
+  roles: zod.array(
+    zod.object({
+      id: zod.string(),
+      name: zod.string(),
+    }),
+  ),
+});
+
+/**
  * @summary List assets
  */
 export const ListAssetsQueryParams = zod.object({

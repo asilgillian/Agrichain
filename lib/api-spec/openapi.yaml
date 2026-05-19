@@ -1601,6 +1601,81 @@ paths:
               schema:
                 $ref: "#/components/schemas/User"
 
+  /users/{userId}/roles:
+    get:
+      operationId: listUserExtraRoles
+      tags: [users]
+      summary: List additional roles assigned to a user
+      parameters:
+        - in: path
+          name: userId
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Extra roles
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  required: [id, name]
+                  properties:
+                    id:
+                      type: string
+                    name:
+                      type: string
+                    assignedAt:
+                      type: string
+                      format: date-time
+    put:
+      operationId: replaceUserExtraRoles
+      tags: [users]
+      summary: Replace the set of additional roles assigned to a user
+      parameters:
+        - in: path
+          name: userId
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [roleIds]
+              properties:
+                roleIds:
+                  type: array
+                  items:
+                    type: string
+      responses:
+        "200":
+          description: Updated extra roles
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [userId, count, roles]
+                properties:
+                  userId:
+                    type: string
+                  count:
+                    type: integer
+                  roles:
+                    type: array
+                    items:
+                      type: object
+                      required: [id, name]
+                      properties:
+                        id:
+                          type: string
+                        name:
+                          type: string
+
   # ============================================================
   # ASSETS
   # ============================================================

@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useListUsers } from "@workspace/api-client-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Pencil, Plus, Search, X, Users2 } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
@@ -45,6 +46,14 @@ export default function UsersPage() {
   const [editRegion, setEditRegion] = useState<string>(NO_REGION);
   const [editManager, setEditManager] = useState<string>(NO_MANAGER);
   const [editStatus, setEditStatus] = useState("active");
+  const [editExtraRoleIds, setEditExtraRoleIds] = useState<Set<string>>(new Set());
+  const [initialExtraRoleIds, setInitialExtraRoleIds] = useState<Set<string>>(new Set());
+  const [extraRolesLoaded, setExtraRolesLoaded] = useState(false);
+  const [extraRolesError, setExtraRolesError] = useState<string | null>(null);
+  // Identifies the most recent preload request so stale responses (e.g. from
+  // a rapidly-switched previous user) are dropped instead of overwriting
+  // state for the currently-open user.
+  const extraRolesReqIdRef = useRef(0);
   const [groupsUser, setGroupsUser] = useState<UserRecord | null>(null);
   const [search, setSearch] = useState("");
   const [filterRole, setFilterRole] = useState<string>(ALL);
@@ -141,15 +150,36 @@ export default function UsersPage() {
     onError: (e: any) => toast({ title: "Failed", description: e.message, variant: "destructive" }),
   });
 
-  const openEdit = (u: UserRecord) => {
+  const openEdit = async (u: UserRecord) => {
     setEditUser(u);
     setEditRole(u.role);
     setEditRegion(u.regionId ?? NO_REGION);
     setEditManager(u.managerId ?? NO_MANAGER);
     setEditStatus(u.status);
+    setEditExtraRoleIds(new Set());
+    setInitialExtraRoleIds(new Set());
+    setExtraRolesLoaded(false);
+    setExtraRolesError(null);
+    const reqId = ++extraRolesReqIdRef.current;
+    const targetUserId = u.id;
+    try {
+      const r = await fetch(`${API_BASE}/api/users/${targetUserId}/roles`);
+      if (!r.ok) throw new Error(`Failed to load additional roles (${r.status})`);
+      const extras = (await r.json()) as { id: string }[];
+      // Drop stale responses: another openEdit has fired since, or the user
+      // bar in the dialog has been swapped/closed.
+      if (reqId !== extraRolesReqIdRef.current) return;
+      const ids = new Set(extras.map(e => e.id));
+      setEditExtraRoleIds(ids);
+      setInitialExtraRoleIds(new Set(ids));
+      setExtraRolesLoaded(true);
+    } catch (e: any) {
+      if (reqId !== extraRolesReqIdRef.current) return;
+      setExtraRolesError(e?.message ?? "Failed to load additional roles");
+    }
   };
 
-  const submitEdit = () => {
+  const submitEdit = async () => {
     if (!editUser) return;
     const body: any = {};
     if (editRole && editRole !== editUser.role) body.role = editRole;
@@ -160,11 +190,26 @@ export default function UsersPage() {
     const newManager = editManager === NO_MANAGER ? null : editManager;
     const oldManager = editUser.managerId ?? null;
     if (newManager !== oldManager) body.managerId = newManager;
+
+    const extrasChanged = extraRolesLoaded && (
+      editExtraRoleIds.size !== initialExtraRoleIds.size ||
+      Array.from(editExtraRoleIds).some(id => !initialExtraRoleIds.has(id))
+    );
+
+    // Only attach extraRoleIds to the PATCH if they actually changed AND we
+    // know what the previous set was (loaded). This avoids accidentally
+    // wiping unseen extras when the preload failed.
+    if (extrasChanged) body.extraRoleIds = Array.from(editExtraRoleIds);
+
     if (Object.keys(body).length === 0) {
       setEditUser(null);
       return;
     }
-    updateMut.mutate({ id: editUser.id, body });
+
+    try {
+      await updateMut.mutateAsync({ id: editUser.id, body });
+      // editUser cleared by updateMut.onSuccess
+    } catch {/* toast handled by mutation onError */}
   };
 
   const managerCandidates = (users as UserRecord[] | undefined)?.filter(u => u.id !== editUser?.id) ?? [];
@@ -398,6 +443,40 @@ export default function UsersPage() {
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+            <div>
+              <Label>Additional roles</Label>
+              <p className="text-xs text-muted-foreground mb-2">
+                Permissions from these roles are unioned with the primary role above. Useful when a user wears more than one hat (e.g. Compliance Officer who also does field registration).
+              </p>
+              {extraRolesError ? (
+                <div className="rounded-md border border-destructive/40 bg-destructive/10 p-2 text-xs text-destructive" data-testid="extra-roles-error">
+                  {extraRolesError}. Editing additional roles is disabled until reload.
+                </div>
+              ) : !extraRolesLoaded ? (
+                <Skeleton className="h-32 w-full" data-testid="extra-roles-loading" />
+              ) : (
+              <div className="max-h-44 overflow-y-auto rounded-md border p-2 space-y-1" data-testid="extra-roles-list">
+                {sortedRoles.filter(r => r.name !== editRole).map(r => {
+                  const checked = editExtraRoleIds.has(r.id);
+                  return (
+                    <label key={r.id} className={`flex items-center gap-2 px-2 py-1 rounded hover:bg-muted/40 cursor-pointer ${checked ? "bg-muted/30" : ""}`}>
+                      <Checkbox
+                        checked={checked}
+                        onCheckedChange={() => setEditExtraRoleIds(prev => {
+                          const next = new Set(prev);
+                          if (next.has(r.id)) next.delete(r.id); else next.add(r.id);
+                          return next;
+                        })}
+                        data-testid={`extra-role-${r.id}`}
+                      />
+                      <span className="text-sm">{r.name}</span>
+                      <span className="text-xs text-muted-foreground ml-auto">{r.permissions.length} perms</span>
+                    </label>
+                  );
+                })}
+              </div>
+              )}
             </div>
             <div>
               <Label>Status</Label>

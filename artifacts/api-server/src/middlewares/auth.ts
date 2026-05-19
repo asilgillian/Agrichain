@@ -1,7 +1,7 @@
 import type { Request, Response, NextFunction } from "express";
 import { getAuth, clerkClient } from "@clerk/express";
-import { eq, sql } from "drizzle-orm";
-import { db, usersTable, rolesTable } from "@workspace/db";
+import { eq, sql, inArray } from "drizzle-orm";
+import { db, usersTable, rolesTable, userRolesTable } from "@workspace/db";
 
 export interface AuthedRequest extends Request {
   authedUser?: {
@@ -9,6 +9,7 @@ export interface AuthedRequest extends Request {
     clerkUserId: string;
     email: string;
     role: string;
+    roles: string[]; // primary + extras, deduped
     permissions: string[];
   };
 }
@@ -47,9 +48,38 @@ async function loadOrCreateUser(clerkUserId: string) {
   return created;
 }
 
-async function permissionsForRole(roleName: string): Promise<string[]> {
-  const [role] = await db.select().from(rolesTable).where(eq(rolesTable.name, roleName));
-  return role?.permissions ?? [];
+async function loadEffectiveRolesAndPermissions(
+  userId: string,
+  primaryRoleName: string,
+): Promise<{ roles: string[]; permissions: string[] }> {
+  // Primary role row (may not exist for ad-hoc names like "Pending")
+  const [primaryRole] = await db
+    .select()
+    .from(rolesTable)
+    .where(eq(rolesTable.name, primaryRoleName));
+
+  // Additional roles via the join table
+  const extraRoleIds = await db
+    .select({ roleId: userRolesTable.roleId })
+    .from(userRolesTable)
+    .where(eq(userRolesTable.userId, userId));
+
+  const extraRoles = extraRoleIds.length > 0
+    ? await db
+        .select()
+        .from(rolesTable)
+        .where(inArray(rolesTable.id, extraRoleIds.map(r => r.roleId)))
+    : [];
+
+  const roleNames = new Set<string>();
+  roleNames.add(primaryRoleName);
+  extraRoles.forEach(r => roleNames.add(r.name));
+
+  const perms = new Set<string>();
+  (primaryRole?.permissions ?? []).forEach(p => perms.add(p));
+  extraRoles.forEach(r => (r.permissions ?? []).forEach(p => perms.add(p)));
+
+  return { roles: Array.from(roleNames), permissions: Array.from(perms) };
 }
 
 export async function requireAuth(req: AuthedRequest, res: Response, next: NextFunction): Promise<void> {
@@ -61,12 +91,13 @@ export async function requireAuth(req: AuthedRequest, res: Response, next: NextF
   }
   try {
     const user = await loadOrCreateUser(clerkUserId);
-    const permissions = await permissionsForRole(user.role);
+    const { roles, permissions } = await loadEffectiveRolesAndPermissions(user.id, user.role);
     req.authedUser = {
       id: user.id,
       clerkUserId,
       email: user.email,
       role: user.role,
+      roles,
       permissions,
     };
     next();

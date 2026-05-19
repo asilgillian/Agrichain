@@ -77,6 +77,7 @@ import type {
   ListPlotsParams,
   ListProcurementContractsParams,
   ListSurveySubmissionsParams,
+  ListUserExtraRoles200Item,
   ListUsersParams,
   ListVisitsParams,
   Lot,
@@ -96,6 +97,8 @@ import type {
   Region,
   RejectDeliveryBody,
   ReorderWorkflowStagesBody,
+  ReplaceUserExtraRoles200,
+  ReplaceUserExtraRolesBody,
   ResumeDeliveryBody,
   ReturnAssetBody,
   ReviewSubmissionBody,
@@ -6621,6 +6624,188 @@ export const useUpdateUser = <
   TContext
 > => {
   return useMutation(getUpdateUserMutationOptions(options));
+};
+
+/**
+ * @summary List additional roles assigned to a user
+ */
+export const getListUserExtraRolesUrl = (userId: string) => {
+  return `/api/users/${userId}/roles`;
+};
+
+export const listUserExtraRoles = async (
+  userId: string,
+  options?: RequestInit,
+): Promise<ListUserExtraRoles200Item[]> => {
+  return customFetch<ListUserExtraRoles200Item[]>(
+    getListUserExtraRolesUrl(userId),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getListUserExtraRolesQueryKey = (userId: string) => {
+  return [`/api/users/${userId}/roles`] as const;
+};
+
+export const getListUserExtraRolesQueryOptions = <
+  TData = Awaited<ReturnType<typeof listUserExtraRoles>>,
+  TError = ErrorType<unknown>,
+>(
+  userId: string,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listUserExtraRoles>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getListUserExtraRolesQueryKey(userId);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listUserExtraRoles>>
+  > = ({ signal }) => listUserExtraRoles(userId, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!userId,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof listUserExtraRoles>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListUserExtraRolesQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listUserExtraRoles>>
+>;
+export type ListUserExtraRolesQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List additional roles assigned to a user
+ */
+
+export function useListUserExtraRoles<
+  TData = Awaited<ReturnType<typeof listUserExtraRoles>>,
+  TError = ErrorType<unknown>,
+>(
+  userId: string,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listUserExtraRoles>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListUserExtraRolesQueryOptions(userId, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Replace the set of additional roles assigned to a user
+ */
+export const getReplaceUserExtraRolesUrl = (userId: string) => {
+  return `/api/users/${userId}/roles`;
+};
+
+export const replaceUserExtraRoles = async (
+  userId: string,
+  replaceUserExtraRolesBody: ReplaceUserExtraRolesBody,
+  options?: RequestInit,
+): Promise<ReplaceUserExtraRoles200> => {
+  return customFetch<ReplaceUserExtraRoles200>(
+    getReplaceUserExtraRolesUrl(userId),
+    {
+      ...options,
+      method: "PUT",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(replaceUserExtraRolesBody),
+    },
+  );
+};
+
+export const getReplaceUserExtraRolesMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof replaceUserExtraRoles>>,
+    TError,
+    { userId: string; data: BodyType<ReplaceUserExtraRolesBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof replaceUserExtraRoles>>,
+  TError,
+  { userId: string; data: BodyType<ReplaceUserExtraRolesBody> },
+  TContext
+> => {
+  const mutationKey = ["replaceUserExtraRoles"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof replaceUserExtraRoles>>,
+    { userId: string; data: BodyType<ReplaceUserExtraRolesBody> }
+  > = (props) => {
+    const { userId, data } = props ?? {};
+
+    return replaceUserExtraRoles(userId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ReplaceUserExtraRolesMutationResult = NonNullable<
+  Awaited<ReturnType<typeof replaceUserExtraRoles>>
+>;
+export type ReplaceUserExtraRolesMutationBody =
+  BodyType<ReplaceUserExtraRolesBody>;
+export type ReplaceUserExtraRolesMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Replace the set of additional roles assigned to a user
+ */
+export const useReplaceUserExtraRoles = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof replaceUserExtraRoles>>,
+    TError,
+    { userId: string; data: BodyType<ReplaceUserExtraRolesBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof replaceUserExtraRoles>>,
+  TError,
+  { userId: string; data: BodyType<ReplaceUserExtraRolesBody> },
+  TContext
+> => {
+  return useMutation(getReplaceUserExtraRolesMutationOptions(options));
 };
 
 /**
