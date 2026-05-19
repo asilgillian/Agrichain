@@ -21,19 +21,20 @@
 --
 -- HOW TO RUN
 --   1. Open the Database pane and switch environment to **Production**.
---   2. (Optional) Take a manual snapshot.
---   3. Paste this entire file into the query editor and run it.
---   4. Read the verification table at the bottom — every row except
+--   2. (Optional but strongly recommended) Take a manual snapshot.
+--   3. Paste this entire file into the SQL Console query editor.
+--   4. **Select ALL the SQL text (Ctrl/Cmd-A)** before clicking Run — the
+--      Replit SQL Console only runs multiple statements as a single
+--      transaction when they're all selected together. Running statement-
+--      by-statement will fail the safety check or leave the DB partly wiped.
+--   5. Read the verification table at the bottom — every row except
 --      `users`(1), `roles`(>0), `country_hierarchies`(>0) should be 0.
---   5. If correct, the BEGIN/COMMIT block at the end has already committed.
---      If something looks wrong, restore from snapshot.
+--   6. If something looks wrong, restore from snapshot.
 --
 -- IF YOU WANT TO KEEP A DIFFERENT BOOTSTRAP EMAIL
 --   Find/replace 'paulineasil@gmail.com' below with the email you want
 --   to preserve, then run. Only one email can be kept.
 -- ============================================================================
-
-BEGIN;
 
 -- ---------------------------------------------------------------------------
 -- Pre-flight safety: confirm the bootstrap user exists. If not, abort the
@@ -202,8 +203,6 @@ UNION ALL SELECT 'audit_logs',                  count(*) FROM audit_logs
 UNION ALL SELECT 'user_roles',                  count(*) FROM user_roles
 UNION ALL SELECT 'user_groups',                 count(*) FROM user_groups
 ORDER BY table_name;
-
-COMMIT;
 
 -- ============================================================================
 -- DONE.  Next steps:
