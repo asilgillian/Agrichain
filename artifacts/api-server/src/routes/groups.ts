@@ -75,12 +75,15 @@ router.get("/groups", requirePermission("groups.read"), async (req: AuthedReques
   const parsed = ListGroupsQueryParams.safeParse(req.query);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
   const { regionId } = parsed.data;
-  const statusFilter = typeof req.query.status === "string" ? req.query.status : undefined;
+  const rawStatus = typeof req.query.status === "string" ? req.query.status : undefined;
+  // Default behaviour: hide archived groups unless caller explicitly asks
+  // for them (?status=archived or ?status=all).
+  const statusFilter = rawStatus ?? "active";
   const parentId = typeof req.query.parentGroupId === "string" ? req.query.parentGroupId : undefined;
 
   const conditions: any[] = [];
   if (regionId) conditions.push(eq(groupsTable.regionId, regionId));
-  if (statusFilter) conditions.push(eq(groupsTable.status, statusFilter));
+  if (statusFilter !== "all") conditions.push(eq(groupsTable.status, statusFilter));
   if (parentId === "null") conditions.push(isNull(groupsTable.parentGroupId));
   else if (parentId && UUID_RE.test(parentId)) conditions.push(eq(groupsTable.parentGroupId, parentId));
 
