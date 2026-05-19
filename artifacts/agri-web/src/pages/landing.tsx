@@ -1,7 +1,12 @@
-import { SignInButton, SignUpButton } from "@clerk/react";
+import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Sprout, BarChart3, ShieldCheck, Truck } from "lucide-react";
 
+// Use Wouter <Link> navigation to the dedicated /sign-in and /sign-up routes
+// (defined in App.tsx). Replit-managed Clerk's prod proxy does NOT work with
+// Clerk's hosted/modal flow — using <SignInButton mode="modal"> here makes
+// the Google OAuth callback redirect to accounts.<host> which doesn't exist
+// and yields ERR_CONNECTION_CLOSED.
 export default function Landing() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-white to-lime-50">
@@ -11,12 +16,12 @@ export default function Landing() {
           <span className="font-bold text-lg">MTANDEO COMMODITIES</span>
         </div>
         <div className="flex gap-2">
-          <SignInButton mode="modal">
+          <Link href="/sign-in">
             <Button variant="ghost" data-testid="header-signin">Sign In</Button>
-          </SignInButton>
-          <SignUpButton mode="modal">
+          </Link>
+          <Link href="/sign-up">
             <Button data-testid="header-signup">Get Started</Button>
-          </SignUpButton>
+          </Link>
         </div>
       </header>
 
@@ -29,12 +34,12 @@ export default function Landing() {
           procurement, payments, warehousing, compliance, loans and exports — fully auditable.
         </p>
         <div className="flex justify-center gap-3">
-          <SignInButton mode="modal">
+          <Link href="/sign-in">
             <Button size="lg" data-testid="hero-signin">Sign In to Continue</Button>
-          </SignInButton>
-          <SignUpButton mode="modal">
+          </Link>
+          <Link href="/sign-up">
             <Button size="lg" variant="outline" data-testid="hero-signup">Create Account</Button>
-          </SignUpButton>
+          </Link>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mt-20 text-left">
