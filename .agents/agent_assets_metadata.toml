@@ -6,3 +6,69 @@ id = "VTIr7bl-2JbEFqNuMJj-Y"
 uri = "file://docs/MTANDEO_BUDGET_PLAN.md"
 type = "text"
 title = "MTANDEO Build Budget & Milestone Plan"
+
+[[outputs]]
+id = "bBD9h--L-agk0Y5avlqGo"
+uri = "file://master-data-templates/README.md"
+type = "text"
+title = "README — fill order & rules"
+
+[[outputs]]
+id = "-d4ZBmt3uEACKfNj-pNXq"
+uri = "file://master-data-templates/01-admin-units.csv"
+type = "table"
+title = "01 · Admin Units (Region → Village)"
+
+[[outputs]]
+id = "7Se4NLP3kv4X3Ahafzom1"
+uri = "file://master-data-templates/02-org-regions.csv"
+type = "table"
+title = "02 · Org Regions (district clusters)"
+
+[[outputs]]
+id = "zAhQMfVJsN-90ymGVMHRQ"
+uri = "file://master-data-templates/03-commodities.csv"
+type = "table"
+title = "03 · Commodities"
+
+[[outputs]]
+id = "d4umozOi5k_eMV79AaKUy"
+uri = "file://master-data-templates/04-commodity-types.csv"
+type = "table"
+title = "04 · Commodity Types (variant + stage)"
+
+[[outputs]]
+id = "Vfvpct-rJp3bBXrli96_S"
+uri = "file://master-data-templates/05-commodity-prices.csv"
+type = "table"
+title = "05 · Opening Prices"
+
+[[outputs]]
+id = "0spMsyFQWx9DTYdvSPNDI"
+uri = "file://master-data-templates/06-groups.csv"
+type = "table"
+title = "06 · Groups / Cooperatives"
+
+[[outputs]]
+id = "DE4RRw95qA5jq4mIIqQg-"
+uri = "file://master-data-templates/07-buying-stations.csv"
+type = "table"
+title = "07 · Buying Stations"
+
+[[outputs]]
+id = "JhuA4xb7iaz0op7PKc9sV"
+uri = "file://master-data-templates/08-silos.csv"
+type = "table"
+title = "08 · Warehouse Silos"
+
+[[outputs]]
+id = "RlBgWOFb7IBvRhbmWlDU2"
+uri = "file://master-data-templates/09-storage-bins.csv"
+type = "table"
+title = "09 · Storage Bins"
+
+[[outputs]]
+id = "Qd-0r12MvJdW8s4kGDteh"
+uri = "file://master-data-templates/10-users.csv"
+type = "table"
+title = "10 · Users (field agents + staff)"

@@ -1,0 +1,5 @@
+name,description,country_code,district_names,is_active
+"Central Cluster","Greater Kampala operations",UG,"Kampala;Wakiso;Mukono",true
+"Eastern Cluster","Coffee + Maize belt — Mbale/Jinja",UG,"Mbale;Jinja",true
+"Northern Cluster","Gulu and surrounding districts",UG,"Gulu",true
+"Western Cluster","Mbarara dairy + coffee zone",UG,"Mbarara",true

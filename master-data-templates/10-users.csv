@@ -1,0 +1,10 @@
+first_name,last_name,email,phone_number,role,extra_roles,org_region_name,group_names,status,notes
+"Pauline","Asil","paulineasil@gmail.com","+256770000001","SystemAdministrator",,,,active,"Bootstrap admin — must match Google sign-in email exactly"
+"Joseph","Okello","joseph.okello@mtandeo.co.ug","+256770000010","FieldAgent",,"Eastern Cluster","Mbale Highland Coffee",active,"Sees only farmers in the assigned group(s)"
+"Grace","Namara","grace.namara@mtandeo.co.ug","+256770000011","FieldAgent","ComplianceOfficer","Central Cluster","Bukoto Coffee Coop;Bukoto Youth Producers",active,"extra_roles is semicolon-separated; unions perms"
+"Henry","Tumwine","henry.tumwine@mtandeo.co.ug","+256770000020","ProcurementOfficer",,"Central Cluster",,active,"No group restriction → sees all groups in the org region"
+"Aisha","Nakato","aisha.nakato@mtandeo.co.ug","+256770000030","WarehouseManager",,,,active,
+"Daniel","Opio","daniel.opio@mtandeo.co.ug","+256770000040","FinanceOfficer",,,,active,
+"Sarah","Achieng","sarah.achieng@mtandeo.co.ug","+256770000050","ComplianceOfficer",,,,active,
+"manager.bukoto","BS","manager.bukoto@mtandeo.co.ug","+256770000060","BuyingStationManager",,"Central Cluster",,active,"Referenced by 07-buying-stations.csv"
+"manager.mbale","BS","manager.mbale@mtandeo.co.ug","+256770000061","BuyingStationManager",,"Eastern Cluster",,active,

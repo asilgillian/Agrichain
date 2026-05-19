@@ -1,0 +1,5 @@
+name,facility_id,stream,commodity_type,capacity_kg,is_active,notes
+"BIN-01","KAMPALA-WH-1","COCOA","COCOA-DRY",10000,true,"For bagged stock"
+"BIN-02","KAMPALA-WH-1","BEANS","BEANS-MIX",10000,true,
+"BIN-03","KAMPALA-WH-1","SESAME","SESAME-SEED",5000,true,
+"BIN-04","MBALE-WH-1","ROBUSTA","ROB-PAR",15000,true,

@@ -1,0 +1,14 @@
+commodity_code,name,code,stage,parent_code,is_purchasable,is_sellable,default_unit,default_moisture_min,default_moisture_max,status
+COFFEE,"Robusta Cherry",ROB-CHE,raw,,true,false,kg,55,65,active
+COFFEE,"Robusta Parchment",ROB-PAR,intermediate,ROB-CHE,true,true,kg,11,13,active
+COFFEE,"Robusta Green Bean",ROB-GRN,finished,ROB-PAR,false,true,kg,10,12,active
+COFFEE,"Arabica Cherry",ARA-CHE,raw,,true,false,kg,55,65,active
+COFFEE,"Arabica Parchment",ARA-PAR,intermediate,ARA-CHE,true,true,kg,11,13,active
+COFFEE,"Arabica Green Bean",ARA-GRN,finished,ARA-PAR,false,true,kg,10,12,active
+MAIZE,"White Maize Grain",MAIZE-WHT,raw,,true,true,kg,12,14,active
+MAIZE,"Yellow Maize Grain",MAIZE-YEL,raw,,true,true,kg,12,14,active
+COCOA,"Wet Cocoa Bean",COCOA-WET,raw,,true,false,kg,55,65,active
+COCOA,"Dry Cocoa Bean",COCOA-DRY,intermediate,COCOA-WET,true,true,kg,7,8,active
+BEANS,"Mixed Beans",BEANS-MIX,raw,,true,true,kg,12,14,active
+SESAME,"Simsim Seed",SESAME-SEED,raw,,true,true,kg,6,8,active
+SOY,"Soybean Grain",SOY-GRN,raw,,true,true,kg,12,14,active

@@ -1,0 +1,4 @@
+name,location,gps_lat,gps_lng,manager_email,is_active,notes
+"Bukoto BS-01","Bukoto, Kampala",0.3354,32.5990,manager.bukoto@mtandeo.co.ug,true,"manager_email must match a user in 10-users.csv"
+"Mbale Central BS","Mbale Town",1.0827,34.1750,manager.mbale@mtandeo.co.ug,true,
+"Gulu Main BS","Gulu Town",2.7745,32.2990,,true,"Manager can be assigned later"

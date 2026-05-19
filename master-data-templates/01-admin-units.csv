@@ -1,0 +1,16 @@
+country_code,level,name,parent_name,code,is_active,notes
+UG,1,Central,,UG-C,true,"Region (level 1) — top level"
+UG,1,Eastern,,UG-E,true,
+UG,1,Northern,,UG-N,true,
+UG,1,Western,,UG-W,true,
+UG,2,Kampala,Central,UG-101,true,"District (level 2) — parent must match a level-1 name"
+UG,2,Wakiso,Central,UG-102,true,
+UG,2,Mukono,Central,UG-103,true,
+UG,2,Mbale,Eastern,UG-201,true,
+UG,2,Jinja,Eastern,UG-202,true,
+UG,2,Gulu,Northern,UG-301,true,
+UG,2,Mbarara,Western,UG-401,true,
+UG,3,Nakawa,Kampala,UG-101-01,true,"Sub-county (level 3) — parent = district name"
+UG,3,Kira,Wakiso,UG-102-01,true,
+UG,4,Bukoto,Nakawa,UG-101-01-01,true,"Parish (level 4) — parent = sub-county name"
+UG,5,Kibuli,Bukoto,UG-101-01-01-01,true,"Village (level 5) — leaf level"

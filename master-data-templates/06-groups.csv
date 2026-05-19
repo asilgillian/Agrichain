@@ -1,0 +1,5 @@
+name,group_type,district,sub_county,parish,village,parent_group_name,status,notes
+"Bukoto Coffee Coop","cooperative","Kampala","Nakawa","Bukoto","Kibuli",,"active","Anchor village must exist in 01-admin-units.csv"
+"Bukoto Youth Producers","producer_group","Kampala","Nakawa","Bukoto","Kibuli","Bukoto Coffee Coop","active","Child group rolls up to the coop"
+"Mbale Highland Coffee","cooperative","Mbale",,,,,"active","District-only anchor allowed for top-level coops"
+"Gulu Maize Association","association","Gulu",,,,,"active",

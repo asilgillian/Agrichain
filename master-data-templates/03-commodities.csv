@@ -1,0 +1,7 @@
+name,code,scientific_name,default_unit,description,status
+Coffee,COFFEE,"Coffea spp.",kg,"All coffee species — variants defined in 04-commodity-types.csv",active
+Maize,MAIZE,"Zea mays",kg,"Yellow & white maize grain",active
+Cocoa,COCOA,"Theobroma cacao",kg,"Wet & dry cocoa beans",active
+Beans,BEANS,"Phaseolus vulgaris",kg,"Common bean varieties",active
+Sesame,SESAME,"Sesamum indicum",kg,"Simsim",active
+Soybean,SOY,"Glycine max",kg,,active

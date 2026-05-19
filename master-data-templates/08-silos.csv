@@ -1,0 +1,5 @@
+name,facility_id,stream,commodity_type,capacity_kg,status,notes
+"SILO-A1","KAMPALA-WH-1","ROBUSTA","ROB-PAR",50000,ACTIVE,"stream is a free-text grouping (e.g. ROBUSTA / ARABICA / MAIZE)"
+"SILO-A2","KAMPALA-WH-1","ROBUSTA","ROB-PAR",50000,ACTIVE,
+"SILO-B1","KAMPALA-WH-1","ARABICA","ARA-PAR",30000,ACTIVE,
+"SILO-M1","KAMPALA-WH-1","MAIZE","MAIZE-WHT",80000,ACTIVE,

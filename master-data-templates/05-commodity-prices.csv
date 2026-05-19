@@ -1,0 +1,12 @@
+commodity_type_code,region_name,price_per_kg,currency,effective_date,source,notes
+ROB-CHE,,2500,UGX,2026-05-19,manual,"National opening price — leave region blank for global"
+ROB-PAR,,8500,UGX,2026-05-19,manual,
+ARA-CHE,,3200,UGX,2026-05-19,manual,
+ARA-PAR,,12000,UGX,2026-05-19,manual,
+MAIZE-WHT,,1200,UGX,2026-05-19,manual,
+MAIZE-YEL,,1150,UGX,2026-05-19,manual,
+COCOA-DRY,,9500,UGX,2026-05-19,manual,
+BEANS-MIX,,3500,UGX,2026-05-19,manual,
+SESAME-SEED,,5500,UGX,2026-05-19,manual,
+SOY-GRN,,2800,UGX,2026-05-19,manual,
+ROB-CHE,Mbale,2650,UGX,2026-05-19,manual,"Optional region-specific override"
