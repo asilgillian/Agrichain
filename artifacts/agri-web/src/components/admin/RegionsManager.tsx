@@ -13,7 +13,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { ChevronRight, ChevronDown, MapPin, Plus, Pencil, GitMerge, Download, Upload, FileSpreadsheet, FileArchive, Power, AlertCircle } from "lucide-react";
+import { ChevronRight, ChevronDown, MapPin, Plus, Pencil, GitMerge, Download, Upload, FileSpreadsheet, FileArchive, Power, AlertCircle, Sprout } from "lucide-react";
 
 const API_BASE = import.meta.env.BASE_URL?.replace(/\/$/, "");
 
@@ -58,6 +58,31 @@ export function RegionsManager() {
   const [mergeTargetId, setMergeTargetId] = useState<string>("");
   const [importOpen, setImportOpen] = useState(false);
   const [shapefileOpen, setShapefileOpen] = useState(false);
+  const [ugaSeedOpen, setUgaSeedOpen] = useState(false);
+  const [ugaSeedReport, setUgaSeedReport] = useState<unknown>(null);
+
+  const ugaSeedMut = useMutation({
+    mutationFn: async (dryRun: boolean) => {
+      const r = await fetch(`${API_BASE}/api/admin/regions/seed-uga-admin-units-2022`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ dryRun }),
+      });
+      if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error ?? `HTTP ${r.status}`);
+      return r.json();
+    },
+    onSuccess: (j) => {
+      setUgaSeedReport(j);
+      qc.invalidateQueries({ queryKey: ["listRegions"] });
+      qc.invalidateQueries({ queryKey: ["/api/admin/regions/stats"] });
+      toast({
+        title: j.dryRun ? "Dry-run complete" : "Uganda admin units seeded",
+        description: `L3 +${j.l3Created}, L4 +${j.l4Created}, L5 +${j.l5Created} · ${(j.durationMs / 1000).toFixed(1)}s`,
+      });
+    },
+    onError: (e: Error) => toast({ title: "Seed failed", description: e.message, variant: "destructive" }),
+  });
 
   const { data: stats } = useQuery<StatsMap>({
     queryKey: ["/api/admin/regions/stats"],
@@ -220,6 +245,7 @@ export function RegionsManager() {
           <Button size="sm" variant="outline" className="gap-1" onClick={handleExport} data-testid="export-regions-btn"><Download className="h-3 w-3" /> Export CSV</Button>
           <Button size="sm" variant="outline" className="gap-1" onClick={() => setImportOpen(true)} data-testid="import-csv-btn"><FileSpreadsheet className="h-3 w-3" /> Import CSV</Button>
           <Button size="sm" variant="outline" className="gap-1" onClick={() => setShapefileOpen(true)} data-testid="import-shapefile-btn"><FileArchive className="h-3 w-3" /> Shapefile</Button>
+          <Button size="sm" variant="outline" className="gap-1" onClick={() => { setUgaSeedReport(null); setUgaSeedOpen(true); }} data-testid="seed-uga-btn"><Sprout className="h-3 w-3" /> Seed UG 2022</Button>
         </div>
       </CardHeader>
       <CardContent className="p-0">
@@ -244,6 +270,28 @@ export function RegionsManager() {
           </TableBody>
         </Table>
       </CardContent>
+
+      {/* SEED UGANDA 2022 DIALOG */}
+      <Dialog open={ugaSeedOpen} onOpenChange={(o) => { if (!ugaSeedMut.isPending) setUgaSeedOpen(o); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Seed Uganda Admin Units (July 2022 PDF)</DialogTitle>
+            <DialogDescription>
+              Imports the official Ugandan hierarchy: ~1,000 new sub-counties (L3), ~10,900 parishes (L4),
+              and ~95,000 villages (L5). Existing rows are preserved. Run Dry-Run first to confirm counts.
+            </DialogDescription>
+          </DialogHeader>
+          {ugaSeedReport ? (
+            <pre className="bg-muted rounded p-3 text-xs max-h-96 overflow-auto" data-testid="uga-seed-report">{JSON.stringify(ugaSeedReport, null, 2)}</pre>
+          ) : (
+            <p className="text-sm text-muted-foreground">Idempotent — safe to re-run. Inserts batched 1,000 at a time; expect ~1–2 minutes against prod.</p>
+          )}
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => ugaSeedMut.mutate(true)} disabled={ugaSeedMut.isPending} data-testid="uga-seed-dryrun-btn">{ugaSeedMut.isPending ? "Running…" : "Dry-run"}</Button>
+            <Button onClick={() => ugaSeedMut.mutate(false)} disabled={ugaSeedMut.isPending} data-testid="uga-seed-apply-btn">{ugaSeedMut.isPending ? "Inserting…" : "Apply"}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* EDIT DIALOG */}
       <Dialog open={!!editing} onOpenChange={(o) => !o && setEditing(null)}>

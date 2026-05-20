@@ -3,6 +3,7 @@ import { eq, and, sql, inArray } from "drizzle-orm";
 import { db, regionsTable, farmersTable, groupsTable, plotsTable } from "@workspace/db";
 import { requirePermission } from "../middlewares/auth";
 import shp from "shpjs";
+import { seedUgaAdminUnits, SeedAlreadyRunningError } from "../lib/seed-uga-admin-units";
 
 const router: IRouter = Router();
 
@@ -365,5 +366,31 @@ router.get("/admin/farmer-locations", requirePermission("farmers.read"), async (
     }));
   res.json({ farmers: result });
 });
+
+// ---------- POST /admin/regions/seed-uga-admin-units-2022 ----------
+// One-shot import of Uganda's verified admin-unit hierarchy (July 2022 PDF):
+// adds new L3 sub-counties, all L4 parishes, and all L5 villages.
+// Idempotent: safe to re-run; skips rows that already exist.
+// Pass { dryRun: true } to get counts without inserting.
+router.post(
+  "/admin/regions/seed-uga-admin-units-2022",
+  requirePermission("admin.regions"),
+  async (req, res): Promise<void> => {
+    const dryRun = !!(req.body && (req.body as { dryRun?: boolean }).dryRun);
+    try {
+      const report = await seedUgaAdminUnits({ dryRun });
+      req.log.info({ report }, "Seeded UG admin units (2022)");
+      res.json(report);
+    } catch (err: unknown) {
+      if (err instanceof SeedAlreadyRunningError) {
+        res.status(409).json({ error: err.message });
+        return;
+      }
+      const message = err instanceof Error ? err.message : String(err);
+      req.log.error({ err }, "Failed to seed UG admin units");
+      res.status(500).json({ error: message });
+    }
+  },
+);
 
 export default router;
