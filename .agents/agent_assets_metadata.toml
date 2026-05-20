@@ -72,3 +72,27 @@ id = "Qd-0r12MvJdW8s4kGDteh"
 uri = "file://master-data-templates/10-users.csv"
 type = "table"
 title = "10 · Users (field agents + staff)"
+
+[[outputs]]
+id = "cHPejv4MtUnpaZ_6Y3bli"
+uri = "file://attached_assets/uga_shapefiles/uga_adm1_regions.zip"
+type = "unspecified"
+title = "Uganda ADM1 (Regions) — import at level 1, nameProperty = shapeName"
+
+[[outputs]]
+id = "QMLUHu6cc3_LtmwZoemu_"
+uri = "file://attached_assets/uga_shapefiles/uga_adm2_districts.zip"
+type = "unspecified"
+title = "Uganda ADM2 (Districts) — import at level 2, nameProperty = shapeName"
+
+[[outputs]]
+id = "hwsn1Ue4VIf_OgCrRuOEO"
+uri = "file://attached_assets/uga_shapefiles/uga_adm3_counties.zip"
+type = "unspecified"
+title = "Uganda ADM3 (Counties) — import at level 3, nameProperty = shapeName"
+
+[[outputs]]
+id = "enzgt1tFqjokCKoNOnfQc"
+uri = "file://attached_assets/uga_shapefiles/uga_adm4_subcounties.zip"
+type = "unspecified"
+title = "Uganda ADM4 (Sub-counties) — import at level 4, nameProperty = shapeName"
