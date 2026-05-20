@@ -9,8 +9,7 @@ import { useToast } from "@/hooks/use-toast";
 import { DEFAULT_PHONE_CODE } from "@/lib/currency";
 import { usePermissions } from "@/hooks/use-permissions";
 import { UserPlus, ArrowLeft, AlertCircle } from "lucide-react";
-import { RegionPicker } from "@/components/RegionPicker";
-import { GroupPicker } from "@/components/GroupPicker";
+import { OrgRegionGroupVillagePicker } from "@/components/OrgRegionGroupVillagePicker";
 
 const API_BASE = import.meta.env.BASE_URL?.replace(/\/$/, "");
 
@@ -19,6 +18,7 @@ const empty = {
   lastName: "",
   phoneNumber: DEFAULT_PHONE_CODE,
   village: "",
+  orgRegionId: "",
   groupId: "",
   regionId: "",
   sex: "",
@@ -48,13 +48,14 @@ export default function FarmerPreregisterPage() {
   });
 
   const submit = () => {
-    if (!form.firstName.trim() || !form.lastName.trim() || !form.groupId || !form.regionId) {
-      toast({ title: "Missing fields", description: "Name, group and region are required", variant: "destructive" });
+    if (!form.firstName.trim() || !form.lastName.trim() || !form.orgRegionId || !form.groupId || !form.regionId) {
+      toast({ title: "Missing fields", description: "Name, region, group and village are required", variant: "destructive" });
       return;
     }
     const body: any = {
       firstName: form.firstName.trim(),
       lastName: form.lastName.trim(),
+      orgRegionId: form.orgRegionId,
       groupId: form.groupId,
       regionId: form.regionId,
     };
@@ -101,27 +102,14 @@ export default function FarmerPreregisterPage() {
             <div><Label>Phone</Label><Input value={form.phoneNumber} onChange={e => setForm({ ...form, phoneNumber: e.target.value })} placeholder="+256..." data-testid="page-pre-phone" /></div>
             <div><Label>Village</Label><Input value={form.village} onChange={e => setForm({ ...form, village: e.target.value })} data-testid="page-pre-village" /></div>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <div>
-              <Label className="mb-1 block">Administrative unit *</Label>
-              <RegionPicker
-                value={form.regionId}
-                onChange={v => setForm({ ...form, regionId: v, groupId: "" })}
-                country="UG"
-                required
-                testIdPrefix="page-pre-region"
-              />
-            </div>
-            <div>
-              <Label className="mb-1 block">Group *</Label>
-              <GroupPicker
-                value={form.groupId}
-                onChange={v => setForm({ ...form, groupId: v })}
-                regionId={form.regionId}
-                testId="page-pre-group"
-              />
-            </div>
-          </div>
+          <OrgRegionGroupVillagePicker
+            orgRegionId={form.orgRegionId}
+            groupId={form.groupId}
+            villageId={form.regionId}
+            onChange={({ orgRegionId, groupId, villageId }) =>
+              setForm({ ...form, orgRegionId, groupId, regionId: villageId })}
+            testIdPrefix="page-pre"
+          />
           <div className="flex justify-end gap-2 pt-2">
             <Button variant="outline" onClick={() => navigate("/farmers")}>Cancel</Button>
             <Button onClick={submit} disabled={!canPre || mut.isPending} data-testid="page-pre-submit">{mut.isPending ? "Saving..." : "Pre-register farmer"}</Button>

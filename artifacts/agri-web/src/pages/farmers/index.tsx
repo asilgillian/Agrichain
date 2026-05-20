@@ -15,8 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/hooks/use-toast";
 import { DEFAULT_PHONE_CODE } from "@/lib/currency";
 import { usePermissions } from "@/hooks/use-permissions";
-import { RegionPicker } from "@/components/RegionPicker";
-import { GroupPicker } from "@/components/GroupPicker";
+import { OrgRegionGroupVillagePicker } from "@/components/OrgRegionGroupVillagePicker";
 
 const API_BASE = import.meta.env.BASE_URL?.replace(/\/$/, "");
 
@@ -27,6 +26,7 @@ const emptyFullForm = {
   phoneNumber: DEFAULT_PHONE_CODE,
   sex: "male",
   village: "",
+  orgRegionId: "",
   groupId: "",
   regionId: "",
 };
@@ -36,6 +36,7 @@ const emptyPreForm = {
   lastName: "",
   phoneNumber: DEFAULT_PHONE_CODE,
   village: "",
+  orgRegionId: "",
   groupId: "",
   regionId: "",
   sex: "",
@@ -121,8 +122,8 @@ export default function FarmersList() {
   });
 
   const submitFull = () => {
-    if (!fullForm.firstName.trim() || !fullForm.lastName.trim() || !fullForm.nationalId.trim() || !fullForm.groupId || !fullForm.regionId) {
-      toast({ title: "Missing fields", description: "Name, ID, group and region are required", variant: "destructive" });
+    if (!fullForm.firstName.trim() || !fullForm.lastName.trim() || !fullForm.nationalId.trim() || !fullForm.orgRegionId || !fullForm.groupId || !fullForm.regionId) {
+      toast({ title: "Missing fields", description: "Name, ID, region, group and village are required", variant: "destructive" });
       return;
     }
     const body: any = {
@@ -130,6 +131,7 @@ export default function FarmersList() {
       lastName: fullForm.lastName.trim(),
       nationalId: fullForm.nationalId.trim(),
       sex: fullForm.sex,
+      orgRegionId: fullForm.orgRegionId,
       groupId: fullForm.groupId,
       regionId: fullForm.regionId,
     };
@@ -140,13 +142,14 @@ export default function FarmersList() {
   };
 
   const submitPre = () => {
-    if (!preForm.firstName.trim() || !preForm.lastName.trim() || !preForm.groupId || !preForm.regionId) {
-      toast({ title: "Missing fields", description: "Name, group and region are required", variant: "destructive" });
+    if (!preForm.firstName.trim() || !preForm.lastName.trim() || !preForm.orgRegionId || !preForm.groupId || !preForm.regionId) {
+      toast({ title: "Missing fields", description: "Name, region, group and village are required", variant: "destructive" });
       return;
     }
     const body: any = {
       firstName: preForm.firstName.trim(),
       lastName: preForm.lastName.trim(),
+      orgRegionId: preForm.orgRegionId,
       groupId: preForm.groupId,
       regionId: preForm.regionId,
     };
@@ -185,25 +188,14 @@ export default function FarmersList() {
                     <div><Label>Phone</Label><Input value={preForm.phoneNumber} onChange={e => setPreForm({ ...preForm, phoneNumber: e.target.value })} placeholder="+256..." data-testid="pre-input-phone" /></div>
                     <div><Label>Village</Label><Input value={preForm.village} onChange={e => setPreForm({ ...preForm, village: e.target.value })} data-testid="pre-input-village" /></div>
                   </div>
-                  <div>
-                    <Label className="mb-1 block">Administrative unit *</Label>
-                    <RegionPicker
-                      value={preForm.regionId}
-                      onChange={v => setPreForm({ ...preForm, regionId: v, groupId: "" })}
-                      country="UG"
-                      required
-                      testIdPrefix="pre-input-region"
-                    />
-                  </div>
-                  <div>
-                    <Label className="mb-1 block">Group *</Label>
-                    <GroupPicker
-                      value={preForm.groupId}
-                      onChange={v => setPreForm({ ...preForm, groupId: v })}
-                      regionId={preForm.regionId}
-                      testId="pre-input-group"
-                    />
-                  </div>
+                  <OrgRegionGroupVillagePicker
+                    orgRegionId={preForm.orgRegionId}
+                    groupId={preForm.groupId}
+                    villageId={preForm.regionId}
+                    onChange={({ orgRegionId, groupId, villageId }) =>
+                      setPreForm({ ...preForm, orgRegionId, groupId, regionId: villageId })}
+                    testIdPrefix="pre-input"
+                  />
                 </div>
                 <DialogFooter>
                   <Button variant="outline" onClick={() => setOpenPre(false)}>Cancel</Button>
@@ -247,25 +239,14 @@ export default function FarmersList() {
                     </div>
                     <div><Label>Village</Label><Input value={fullForm.village} onChange={e => setFullForm({ ...fullForm, village: e.target.value })} data-testid="input-village" /></div>
                   </div>
-                  <div>
-                    <Label className="mb-1 block">Administrative unit *</Label>
-                    <RegionPicker
-                      value={fullForm.regionId}
-                      onChange={v => setFullForm({ ...fullForm, regionId: v, groupId: "" })}
-                      country="UG"
-                      required
-                      testIdPrefix="input-region"
-                    />
-                  </div>
-                  <div>
-                    <Label className="mb-1 block">Group *</Label>
-                    <GroupPicker
-                      value={fullForm.groupId}
-                      onChange={v => setFullForm({ ...fullForm, groupId: v })}
-                      regionId={fullForm.regionId}
-                      testId="input-group"
-                    />
-                  </div>
+                  <OrgRegionGroupVillagePicker
+                    orgRegionId={fullForm.orgRegionId}
+                    groupId={fullForm.groupId}
+                    villageId={fullForm.regionId}
+                    onChange={({ orgRegionId, groupId, villageId }) =>
+                      setFullForm({ ...fullForm, orgRegionId, groupId, regionId: villageId })}
+                    testIdPrefix="input"
+                  />
                 </div>
                 <DialogFooter>
                   <Button variant="outline" onClick={() => setOpenFull(false)}>Cancel</Button>
