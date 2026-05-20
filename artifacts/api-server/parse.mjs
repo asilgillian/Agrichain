@@ -1,0 +1,13 @@
+globalThis.self = globalThis;
+const shp = (await import('shpjs')).default;
+const { readFileSync, writeFileSync } = await import('node:fs');
+const toAb = b => b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength);
+const adm2 = await shp(toAb(readFileSync('/home/runner/workspace/attached_assets/uga_shapefiles/uga_adm2_districts.zip')));
+const adm4 = await shp(toAb(readFileSync('/home/runner/workspace/attached_assets/uga_shapefiles/uga_adm4_subcounties.zip')));
+console.log('ADM2', adm2.features.length, 'keys:', Object.keys(adm2.features[0].properties).join(','));
+console.log('ADM2 sample:', JSON.stringify(adm2.features[0].properties));
+console.log('ADM4', adm4.features.length, 'keys:', Object.keys(adm4.features[0].properties).join(','));
+console.log('ADM4 sample:', JSON.stringify(adm4.features[0].properties));
+writeFileSync('/tmp/uga_adm2.json', JSON.stringify(adm2));
+writeFileSync('/tmp/uga_adm4.json', JSON.stringify(adm4));
+console.log('WROTE');

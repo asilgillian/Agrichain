@@ -102,3 +102,9 @@ id = "u1okHc0N0x9G4tptDdvPf"
 uri = "file://attached_assets/uga_regions_cleanup.sql.txt"
 type = "text"
 title = "uga_regions_cleanup.sql — paste into prod DB"
+
+[[outputs]]
+id = "hi3ruxnRYI0sLZLwIhEHV"
+uri = "file://attached_assets/uga_regions_rebuild.sql.txt"
+type = "text"
+title = "uga_regions_rebuild.sql — paste into prod DB"
