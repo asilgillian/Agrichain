@@ -108,3 +108,9 @@ id = "hi3ruxnRYI0sLZLwIhEHV"
 uri = "file://attached_assets/uga_regions_rebuild.sql.txt"
 type = "text"
 title = "uga_regions_rebuild.sql — paste into prod DB"
+
+[[outputs]]
+id = "fsJnDCrON1YiC-66ZbHNw"
+uri = "file://attached_assets/uga_regions_rebuild_v2.sql.txt"
+type = "text"
+title = "uga_regions_rebuild_v2.sql — ADM3 modern districts"
