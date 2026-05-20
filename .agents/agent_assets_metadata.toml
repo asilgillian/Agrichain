@@ -96,3 +96,9 @@ id = "enzgt1tFqjokCKoNOnfQc"
 uri = "file://attached_assets/uga_shapefiles/uga_adm4_subcounties.zip"
 type = "unspecified"
 title = "Uganda ADM4 (Sub-counties) — import at level 4, nameProperty = shapeName"
+
+[[outputs]]
+id = "u1okHc0N0x9G4tptDdvPf"
+uri = "file://attached_assets/uga_regions_cleanup.sql.txt"
+type = "text"
+title = "uga_regions_cleanup.sql — paste into prod DB"
