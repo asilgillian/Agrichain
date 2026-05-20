@@ -1690,6 +1690,24 @@ export type ListAuditLogsParams = {
   limit?: number;
 };
 
+export type ListRegionsParams = {
+  /**
+   * ISO country code (e.g. UG, KE)
+   */
+  country?: string;
+  /**
+   * Admin level (1=top, e.g. district)
+   * @minimum 1
+   */
+  level?: number;
+  /**
+ * Parent region id, or the literal string "null" to return root-level
+rows (those with no parent).
+
+ */
+  parentId?: string;
+};
+
 export type ListPermissionCatalog200Item = {
   key: string;
   module: string;

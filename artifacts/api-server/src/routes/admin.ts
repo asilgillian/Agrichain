@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq } from "drizzle-orm";
+import { eq, and, isNull, type SQL } from "drizzle-orm";
 import {
   db,
   regionsTable,
@@ -145,11 +145,26 @@ function parseCreateRoleBody(body: unknown):
 // Read-only list — used by the cascading region picker in every farmer/group form
 // across web and mobile. Gate by the lighter `regions.read` so field staff can
 // populate the picker without granting them write access to admin tables.
-router.get("/admin/regions", requirePermission("regions.read"), async (_req, res): Promise<void> => {
+router.get("/admin/regions", requirePermission("regions.read"), async (req, res): Promise<void> => {
   // Exclude `boundary` (jsonb polygon) — it's only needed by the map and is fetched
   // separately via /admin/regions/geojson. Including it here blows the payload to
   // 50–100MB+ once admin-unit shapefiles are imported and locks up the Regions tab.
-  const regions = await db.select({
+  //
+  // Optional query filters let the cascading picker fetch just the rows it needs
+  // (e.g. only level-2 districts under country=UG) instead of pulling the entire
+  // 100k-row table. `parentId=null` (literal string) filters to root-level rows.
+  const { country, level, parentId } = req.query as { country?: string; level?: string; parentId?: string };
+  const filters: SQL[] = [];
+  if (typeof country === "string" && country) filters.push(eq(regionsTable.countryCode, country));
+  if (typeof level === "string" && level) {
+    const n = Number(level);
+    if (Number.isFinite(n) && n > 0) filters.push(eq(regionsTable.level, n));
+  }
+  if (typeof parentId === "string" && parentId) {
+    if (parentId === "null") filters.push(isNull(regionsTable.parentId));
+    else filters.push(eq(regionsTable.parentId, parentId));
+  }
+  const baseQ = db.select({
     id: regionsTable.id,
     name: regionsTable.name,
     parentId: regionsTable.parentId,
@@ -160,7 +175,30 @@ router.get("/admin/regions", requirePermission("regions.read"), async (_req, res
     createdAt: regionsTable.createdAt,
     updatedAt: regionsTable.updatedAt,
   }).from(regionsTable);
+  const regions = filters.length ? await baseQ.where(and(...filters)) : await baseQ;
   res.json(regions);
+});
+
+// Single-region lookup. Used by `useIsLeafRegion` and other UI bits that need to
+// resolve one id without pulling the entire table.
+router.get("/admin/regions/by-id/:id", requirePermission("regions.read"), async (req, res): Promise<void> => {
+  const id = req.params.id;
+  const [row] = await db.select({
+    id: regionsTable.id,
+    name: regionsTable.name,
+    parentId: regionsTable.parentId,
+    level: regionsTable.level,
+    countryCode: regionsTable.countryCode,
+    code: regionsTable.code,
+    isActive: regionsTable.isActive,
+    createdAt: regionsTable.createdAt,
+    updatedAt: regionsTable.updatedAt,
+  }).from(regionsTable).where(eq(regionsTable.id, id)).limit(1);
+  if (!row) {
+    res.status(404).json({ error: "Region not found" });
+    return;
+  }
+  res.json(row);
 });
 
 router.post("/admin/regions", requirePermission("admin.regions"), async (req, res): Promise<void> => {

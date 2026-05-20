@@ -1919,6 +1919,25 @@ paths:
       operationId: listRegions
       tags: [admin]
       summary: List administrative regions
+      description: |
+        Returns a flat list of admin regions, optionally filtered. Used by the
+        cascading region picker to fetch one level at a time so it never has to
+        pull the entire (100k-row) regions table for countries like Uganda.
+      parameters:
+        - in: query
+          name: country
+          schema: { type: string }
+          description: ISO country code (e.g. UG, KE)
+        - in: query
+          name: level
+          schema: { type: integer, minimum: 1 }
+          description: Admin level (1=top, e.g. district)
+        - in: query
+          name: parentId
+          schema: { type: string }
+          description: |
+            Parent region id, or the literal string "null" to return root-level
+            rows (those with no parent).
       responses:
         "200":
           description: Regions
@@ -1946,6 +1965,26 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Region"
+
+  /admin/regions/by-id/{id}:
+    get:
+      operationId: getRegionById
+      tags: [admin]
+      summary: Get a single region by id
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Region
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Region"
+        "404":
+          description: Not found
 
   /admin/country-hierarchies:
     get:

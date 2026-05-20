@@ -3068,8 +3068,31 @@ export const ListAuditLogsResponse = zod.object({
 });
 
 /**
+ * Returns a flat list of admin regions, optionally filtered. Used by the
+cascading region picker to fetch one level at a time so it never has to
+pull the entire (100k-row) regions table for countries like Uganda.
+
  * @summary List administrative regions
  */
+
+export const ListRegionsQueryParams = zod.object({
+  country: zod.coerce
+    .string()
+    .optional()
+    .describe("ISO country code (e.g. UG, KE)"),
+  level: zod.coerce
+    .number()
+    .min(1)
+    .optional()
+    .describe("Admin level (1=top, e.g. district)"),
+  parentId: zod.coerce
+    .string()
+    .optional()
+    .describe(
+      'Parent region id, or the literal string \"null\" to return root-level\nrows (those with no parent).\n',
+    ),
+});
+
 export const ListRegionsResponseItem = zod.object({
   id: zod.string(),
   name: zod.string(),
@@ -3083,6 +3106,21 @@ export const ListRegionsResponse = zod.array(ListRegionsResponseItem);
  * @summary Create an administrative region
  */
 export const CreateRegionBody = zod.object({
+  name: zod.string(),
+  parentId: zod.string().optional(),
+  level: zod.number(),
+  countryCode: zod.string().optional(),
+});
+
+/**
+ * @summary Get a single region by id
+ */
+export const GetRegionByIdParams = zod.object({
+  id: zod.coerce.string(),
+});
+
+export const GetRegionByIdResponse = zod.object({
+  id: zod.string(),
   name: zod.string(),
   parentId: zod.string().optional(),
   level: zod.number(),

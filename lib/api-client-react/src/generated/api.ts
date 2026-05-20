@@ -76,6 +76,7 @@ import type {
   ListPermissionCatalog200Item,
   ListPlotsParams,
   ListProcurementContractsParams,
+  ListRegionsParams,
   ListSurveySubmissionsParams,
   ListUserExtraRoles200Item,
   ListUsersParams,
@@ -7616,41 +7617,63 @@ export function useListAuditLogs<
 }
 
 /**
+ * Returns a flat list of admin regions, optionally filtered. Used by the
+cascading region picker to fetch one level at a time so it never has to
+pull the entire (100k-row) regions table for countries like Uganda.
+
  * @summary List administrative regions
  */
-export const getListRegionsUrl = () => {
-  return `/api/admin/regions`;
+export const getListRegionsUrl = (params?: ListRegionsParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/admin/regions?${stringifiedParams}`
+    : `/api/admin/regions`;
 };
 
-export const listRegions = async (options?: RequestInit): Promise<Region[]> => {
-  return customFetch<Region[]>(getListRegionsUrl(), {
+export const listRegions = async (
+  params?: ListRegionsParams,
+  options?: RequestInit,
+): Promise<Region[]> => {
+  return customFetch<Region[]>(getListRegionsUrl(params), {
     ...options,
     method: "GET",
   });
 };
 
-export const getListRegionsQueryKey = () => {
-  return [`/api/admin/regions`] as const;
+export const getListRegionsQueryKey = (params?: ListRegionsParams) => {
+  return [`/api/admin/regions`, ...(params ? [params] : [])] as const;
 };
 
 export const getListRegionsQueryOptions = <
   TData = Awaited<ReturnType<typeof listRegions>>,
   TError = ErrorType<unknown>,
->(options?: {
-  query?: UseQueryOptions<
-    Awaited<ReturnType<typeof listRegions>>,
-    TError,
-    TData
-  >;
-  request?: SecondParameter<typeof customFetch>;
-}) => {
+>(
+  params?: ListRegionsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listRegions>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
   const { query: queryOptions, request: requestOptions } = options ?? {};
 
-  const queryKey = queryOptions?.queryKey ?? getListRegionsQueryKey();
+  const queryKey = queryOptions?.queryKey ?? getListRegionsQueryKey(params);
 
   const queryFn: QueryFunction<Awaited<ReturnType<typeof listRegions>>> = ({
     signal,
-  }) => listRegions({ signal, ...requestOptions });
+  }) => listRegions(params, { signal, ...requestOptions });
 
   return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
     Awaited<ReturnType<typeof listRegions>>,
@@ -7671,15 +7694,18 @@ export type ListRegionsQueryError = ErrorType<unknown>;
 export function useListRegions<
   TData = Awaited<ReturnType<typeof listRegions>>,
   TError = ErrorType<unknown>,
->(options?: {
-  query?: UseQueryOptions<
-    Awaited<ReturnType<typeof listRegions>>,
-    TError,
-    TData
-  >;
-  request?: SecondParameter<typeof customFetch>;
-}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
-  const queryOptions = getListRegionsQueryOptions(options);
+>(
+  params?: ListRegionsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listRegions>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListRegionsQueryOptions(params, options);
 
   const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
     queryKey: QueryKey;
@@ -7773,6 +7799,93 @@ export const useCreateRegion = <
 > => {
   return useMutation(getCreateRegionMutationOptions(options));
 };
+
+/**
+ * @summary Get a single region by id
+ */
+export const getGetRegionByIdUrl = (id: string) => {
+  return `/api/admin/regions/by-id/${id}`;
+};
+
+export const getRegionById = async (
+  id: string,
+  options?: RequestInit,
+): Promise<Region> => {
+  return customFetch<Region>(getGetRegionByIdUrl(id), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetRegionByIdQueryKey = (id: string) => {
+  return [`/api/admin/regions/by-id/${id}`] as const;
+};
+
+export const getGetRegionByIdQueryOptions = <
+  TData = Awaited<ReturnType<typeof getRegionById>>,
+  TError = ErrorType<void>,
+>(
+  id: string,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getRegionById>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetRegionByIdQueryKey(id);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getRegionById>>> = ({
+    signal,
+  }) => getRegionById(id, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!id,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getRegionById>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetRegionByIdQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getRegionById>>
+>;
+export type GetRegionByIdQueryError = ErrorType<void>;
+
+/**
+ * @summary Get a single region by id
+ */
+
+export function useGetRegionById<
+  TData = Awaited<ReturnType<typeof getRegionById>>,
+  TError = ErrorType<void>,
+>(
+  id: string,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getRegionById>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetRegionByIdQueryOptions(id, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
 
 /**
  * @summary List per-country administrative hierarchies
