@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, and, isNull, type SQL } from "drizzle-orm";
+import { eq, and, isNull, inArray, type SQL } from "drizzle-orm";
 import {
   db,
   regionsTable,
@@ -153,7 +153,7 @@ router.get("/admin/regions", requirePermission("regions.read"), async (req, res)
   // Optional query filters let the cascading picker fetch just the rows it needs
   // (e.g. only level-2 districts under country=UG) instead of pulling the entire
   // 100k-row table. `parentId=null` (literal string) filters to root-level rows.
-  const { country, level, parentId } = req.query as { country?: string; level?: string; parentId?: string };
+  const { country, level, parentId, ids } = req.query as { country?: string; level?: string; parentId?: string; ids?: string };
   const filters: SQL[] = [];
   if (typeof country === "string" && country) filters.push(eq(regionsTable.countryCode, country));
   if (typeof level === "string" && level) {
@@ -163,6 +163,17 @@ router.get("/admin/regions", requirePermission("regions.read"), async (req, res)
   if (typeof parentId === "string" && parentId) {
     if (parentId === "null") filters.push(isNull(regionsTable.parentId));
     else filters.push(eq(regionsTable.parentId, parentId));
+  }
+  if (typeof ids === "string" && ids) {
+    // Comma-separated id list; reject (not silently truncate) above 500
+    // so callers know to chunk instead of getting incomplete results.
+    const idList = ids.split(",").map(s => s.trim()).filter(Boolean);
+    if (idList.length === 0) { res.json([]); return; }
+    if (idList.length > 500) {
+      res.status(400).json({ error: "Too many ids", message: `Max 500 ids per request, got ${idList.length}` });
+      return;
+    }
+    filters.push(inArray(regionsTable.id, idList));
   }
   const baseQ = db.select({
     id: regionsTable.id,

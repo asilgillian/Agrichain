@@ -20,8 +20,6 @@ type Group = {
   status: string;
 };
 
-type Region = { id: string; name: string; parentId: string | null; level: number | null };
-
 interface Props {
   user: { id: string; firstName: string; lastName: string; email: string; role: string } | null;
   open: boolean;
@@ -41,14 +39,6 @@ export function ManageUserGroupsDialog({ user, open, onOpenChange }: Props) {
   const [query, setQuery] = useState("");
 
   const { data: allGroups, isLoading: groupsLoading } = useListGroups({});
-  const { data: regions } = useQuery<Region[]>({
-    queryKey: ["/api/admin/regions"],
-    queryFn: async () => {
-      const r = await fetch(`${API_BASE}/api/admin/regions`);
-      if (!r.ok) throw new Error(`Failed to load regions (${r.status})`);
-      return r.json();
-    },
-  });
 
   // Fetch the user's current assignments when the dialog opens.
   const { data: assigned, isLoading: assignedLoading } = useQuery<{ id: string }[]>({
@@ -71,30 +61,18 @@ export function ManageUserGroupsDialog({ user, open, onOpenChange }: Props) {
     }
   }, [open, assigned]);
 
-  // Build region path string ("Wakiso District / Kasanje Sub-county / Buwaya Parish / Buwaya Village").
-  const pathFor = useMemo(() => {
-    const byId = new Map<string, Region>();
-    (regions ?? []).forEach(r => byId.set(r.id, r));
-    return (regionId: string): string => {
-      const parts: string[] = [];
-      let cur: Region | undefined = byId.get(regionId);
-      while (cur) {
-        parts.unshift(cur.name);
-        cur = cur.parentId ? byId.get(cur.parentId) : undefined;
-      }
-      return parts.join(" / ");
-    };
-  }, [regions]);
+  // Display the group's denormalized village column instead of walking the
+  // full regions tree (which would force loading 100k+ rows on dialog open).
+  const villageOf = (g: Group): string => g.village ?? "";
 
   const filtered = useMemo(() => {
     const list = ((allGroups ?? []) as unknown as Group[]).filter(g => g.status !== "archived");
     const q = query.trim().toLowerCase();
     if (!q) return list;
     return list.filter(g => {
-      const path = pathFor(g.regionId).toLowerCase();
-      return g.name.toLowerCase().includes(q) || path.includes(q);
+      return g.name.toLowerCase().includes(q) || villageOf(g).toLowerCase().includes(q);
     });
-  }, [allGroups, query, pathFor]);
+  }, [allGroups, query]);
 
   const toggle = (id: string) => {
     setSelected(prev => {
@@ -169,7 +147,7 @@ export function ManageUserGroupsDialog({ user, open, onOpenChange }: Props) {
                 </div>
               ) : (
                 filtered.map(g => {
-                  const path = pathFor(g.regionId);
+                  const path = villageOf(g);
                   const checked = selected.has(g.id);
                   return (
                     <label

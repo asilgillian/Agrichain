@@ -15,6 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/hooks/use-toast";
 import { DEFAULT_PHONE_CODE } from "@/lib/currency";
 import { ManageUserGroupsDialog } from "@/components/ManageUserGroupsDialog";
+import { RegionPicker } from "@/components/RegionPicker";
 
 const API_BASE = import.meta.env.BASE_URL?.replace(/\/$/, "");
 const NO_REGION = "__none__";
@@ -71,10 +72,18 @@ export default function UsersPage() {
     },
   });
 
+  // Resolve names ONLY for the region ids actually referenced by users
+  // (typically <100 distinct rows), instead of pulling the full 100k-row table.
+  const referencedRegionIds = useMemo(() => {
+    const ids = new Set<string>();
+    (users as UserRecord[] | undefined)?.forEach(u => { if (u.regionId) ids.add(u.regionId); });
+    return Array.from(ids).sort();
+  }, [users]);
   const { data: regions } = useQuery<Region[]>({
-    queryKey: ["/api/admin/regions"],
+    queryKey: ["/api/admin/regions", "ids", referencedRegionIds.join(",")],
+    enabled: referencedRegionIds.length > 0,
     queryFn: async () => {
-      const r = await fetch(`${API_BASE}/api/admin/regions`);
+      const r = await fetch(`${API_BASE}/api/admin/regions?ids=${encodeURIComponent(referencedRegionIds.join(","))}`);
       if (!r.ok) throw new Error(`Failed to load regions (${r.status})`);
       return r.json();
     },
@@ -250,14 +259,24 @@ export default function UsersPage() {
                     </Select>
                   </div>
                   <div>
-                    <Label>Region</Label>
-                    <Select value={createForm.regionId || NO_REGION} onValueChange={v => setCreateForm({ ...createForm, regionId: v === NO_REGION ? "" : v })}>
-                      <SelectTrigger data-testid="input-region"><SelectValue placeholder="Select region" /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value={NO_REGION}>— None —</SelectItem>
-                        {regions?.map(r => <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
+                    <div className="flex items-center justify-between">
+                      <Label>Region</Label>
+                      {createForm.regionId && (
+                        <button
+                          type="button"
+                          className="text-xs text-muted-foreground hover:text-foreground"
+                          onClick={() => setCreateForm({ ...createForm, regionId: "" })}
+                          data-testid="input-region-clear"
+                        >Clear</button>
+                      )}
+                    </div>
+                    <RegionPicker
+                      value={createForm.regionId}
+                      onChange={v => setCreateForm({ ...createForm, regionId: v })}
+                      country="UG"
+                      hideLabels
+                      testIdPrefix="input-region"
+                    />
                   </div>
                 </div>
                 <div>
@@ -318,12 +337,15 @@ export default function UsersPage() {
             </div>
             <div className="w-44">
               <Label className="text-xs">Region</Label>
+              {/* Limited to the regions actually used by users — small list, no need for a cascading picker here. */}
               <Select value={filterRegion} onValueChange={setFilterRegion}>
                 <SelectTrigger data-testid="filter-region"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value={ALL}>All regions</SelectItem>
                   <SelectItem value={NO_REGION}>— No region —</SelectItem>
-                  {regions?.map(r => <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>)}
+                  {(regions ?? []).slice().sort((a, b) => a.name.localeCompare(b.name)).map(r => (
+                    <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
@@ -423,14 +445,24 @@ export default function UsersPage() {
               )}
             </div>
             <div>
-              <Label>Region</Label>
-              <Select value={editRegion} onValueChange={setEditRegion}>
-                <SelectTrigger data-testid="edit-region-select"><SelectValue placeholder="Select region" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={NO_REGION}>— None —</SelectItem>
-                  {regions?.map(r => <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>)}
-                </SelectContent>
-              </Select>
+              <div className="flex items-center justify-between">
+                <Label>Region</Label>
+                {editRegion !== NO_REGION && (
+                  <button
+                    type="button"
+                    className="text-xs text-muted-foreground hover:text-foreground"
+                    onClick={() => setEditRegion(NO_REGION)}
+                    data-testid="edit-region-clear"
+                  >Clear (none)</button>
+                )}
+              </div>
+              <RegionPicker
+                value={editRegion === NO_REGION ? "" : editRegion}
+                onChange={v => setEditRegion(v || NO_REGION)}
+                country="UG"
+                hideLabels
+                testIdPrefix="edit-region"
+              />
             </div>
             <div>
               <Label>Reports to</Label>

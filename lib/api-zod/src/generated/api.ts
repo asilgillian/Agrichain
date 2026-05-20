@@ -3091,6 +3091,12 @@ export const ListRegionsQueryParams = zod.object({
     .describe(
       'Parent region id, or the literal string \"null\" to return root-level\nrows (those with no parent).\n',
     ),
+  ids: zod.coerce
+    .string()
+    .optional()
+    .describe(
+      "Comma-separated list of region ids to fetch in one shot (max 500).\nUsed to resolve names for already-known ids without scanning the\nfull table.\n",
+    ),
 });
 
 export const ListRegionsResponseItem = zod.object({

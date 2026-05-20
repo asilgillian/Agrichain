@@ -1938,6 +1938,13 @@ paths:
           description: |
             Parent region id, or the literal string "null" to return root-level
             rows (those with no parent).
+        - in: query
+          name: ids
+          schema: { type: string }
+          description: |
+            Comma-separated list of region ids to fetch in one shot (max 500).
+            Used to resolve names for already-known ids without scanning the
+            full table.
       responses:
         "200":
           description: Regions

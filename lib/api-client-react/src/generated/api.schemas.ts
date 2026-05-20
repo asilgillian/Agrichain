@@ -1706,6 +1706,13 @@ rows (those with no parent).
 
  */
   parentId?: string;
+  /**
+ * Comma-separated list of region ids to fetch in one shot (max 500).
+Used to resolve names for already-known ids without scanning the
+full table.
+
+ */
+  ids?: string;
 };
 
 export type ListPermissionCatalog200Item = {
