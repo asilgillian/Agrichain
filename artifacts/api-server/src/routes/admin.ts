@@ -146,7 +146,20 @@ function parseCreateRoleBody(body: unknown):
 // across web and mobile. Gate by the lighter `regions.read` so field staff can
 // populate the picker without granting them write access to admin tables.
 router.get("/admin/regions", requirePermission("regions.read"), async (_req, res): Promise<void> => {
-  const regions = await db.select().from(regionsTable);
+  // Exclude `boundary` (jsonb polygon) — it's only needed by the map and is fetched
+  // separately via /admin/regions/geojson. Including it here blows the payload to
+  // 50–100MB+ once admin-unit shapefiles are imported and locks up the Regions tab.
+  const regions = await db.select({
+    id: regionsTable.id,
+    name: regionsTable.name,
+    parentId: regionsTable.parentId,
+    level: regionsTable.level,
+    countryCode: regionsTable.countryCode,
+    code: regionsTable.code,
+    isActive: regionsTable.isActive,
+    createdAt: regionsTable.createdAt,
+    updatedAt: regionsTable.updatedAt,
+  }).from(regionsTable);
   res.json(regions);
 });
 
