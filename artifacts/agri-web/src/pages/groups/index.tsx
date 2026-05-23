@@ -25,7 +25,7 @@ export default function GroupsList() {
   const qc = useQueryClient();
 
   const districts = useMemo(
-    () => (regions ?? []).filter((r: any) => r.level === 1 && (r.countryCode ?? "UG") === "UG")
+    () => (regions ?? []).filter((r: any) => r.level === 2 && (r.countryCode ?? "UG") === "UG")
       .sort((a: any, b: any) => a.name.localeCompare(b.name)),
     [regions],
   );

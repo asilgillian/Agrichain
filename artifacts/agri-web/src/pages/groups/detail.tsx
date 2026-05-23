@@ -56,7 +56,7 @@ export default function GroupDetail() {
   const [districtIds, setDistrictIds] = useState<string[]>([]);
   const [districtFilter, setDistrictFilter] = useState("");
   const { data: allRegions } = useListRegions();
-  const allDistricts = (allRegions ?? []).filter((r: any) => r.level === 1 && (r.countryCode ?? "UG") === "UG")
+  const allDistricts = (allRegions ?? []).filter((r: any) => r.level === 2 && (r.countryCode ?? "UG") === "UG")
     .sort((a: any, b: any) => a.name.localeCompare(b.name));
 
   const refetch = () => qc.invalidateQueries({ queryKey: [`/api/groups/${groupId}`] });
