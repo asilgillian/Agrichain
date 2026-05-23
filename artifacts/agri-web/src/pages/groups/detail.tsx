@@ -12,7 +12,8 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, Users, MapPin, Download, Archive, Shield, ArrowRightLeft, UserPlus } from "lucide-react";
+import { ArrowLeft, Users, MapPin, Download, Archive, Shield, ArrowRightLeft, UserPlus, Pencil } from "lucide-react";
+import { RegionPicker } from "@/components/RegionPicker";
 
 const API_BASE = import.meta.env.BASE_URL?.replace(/\/$/, "") ?? "";
 
@@ -20,7 +21,7 @@ type Leader = { id: string; farmerId: string; position: string; termStart: strin
 type Member = { id: string; referenceNumber: string; firstName: string; lastName: string; village: string | null; status: string };
 type Transfer = { id: string; farmerId: string; fromGroupId: string | null; toGroupId: string; reason: string; kind: string; transferredAt: string; actorName: string | null };
 type Group = {
-  id: string; name: string; village: string | null; parish: string | null; subCounty: string | null; district: string | null;
+  id: string; name: string; regionId: string; village: string | null; parish: string | null; subCounty: string | null; district: string | null;
   groupType: string; status: string; parentGroupId: string | null;
   parent: Group | null; children: Group[];
   memberCount: number; activePlots: number; procurementVolumeKg: number; complianceScore: number;
@@ -49,6 +50,8 @@ export default function GroupDetail() {
   const [transferForm, setTransferForm] = useState<{ toGroupId: string; reason: string; selected: Set<string> }>({ toGroupId: "", reason: "", selected: new Set() });
   const [archiveOpen, setArchiveOpen] = useState(false);
   const [archiveForm, setArchiveForm] = useState({ redistributeToGroupId: "", reason: "" });
+  const [anchorOpen, setAnchorOpen] = useState(false);
+  const [anchorRegionId, setAnchorRegionId] = useState("");
 
   const refetch = () => qc.invalidateQueries({ queryKey: [`/api/groups/${groupId}`] });
   const handleError = (e: any) => toast({ title: "Failed", description: e.message, variant: "destructive" });
@@ -83,6 +86,18 @@ export default function GroupDetail() {
       const j = await r.json().catch(() => ({})); if (!r.ok) throw new Error(j.error ?? "Failed"); return j;
     },
     onSuccess: (j) => { refetch(); setTransferOpen(false); setTransferForm({ toGroupId: "", reason: "", selected: new Set() }); toast({ title: `Transferred ${j.movedCount} farmer(s)` }); },
+    onError: handleError,
+  });
+
+  const editAnchor = useMutation({
+    mutationFn: async () => {
+      const r = await fetch(`${API_BASE}/api/groups/${groupId}`, {
+        method: "PATCH", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ regionId: anchorRegionId }),
+      });
+      const j = await r.json().catch(() => ({})); if (!r.ok) throw new Error(j.error ?? "Failed"); return j;
+    },
+    onSuccess: () => { refetch(); setAnchorOpen(false); toast({ title: "Administrative unit updated" }); },
     onError: handleError,
   });
 
@@ -121,6 +136,16 @@ export default function GroupDetail() {
             <p className="text-muted-foreground flex items-center gap-1 mt-1 text-sm">
               <MapPin className="h-3 w-3" />
               {[group.village, group.parish, group.subCounty, group.district].filter(Boolean).join(" • ") || "—"}
+              {group.status === "active" && (
+                <button
+                  type="button"
+                  className="ml-2 inline-flex items-center gap-1 text-xs text-primary hover:underline"
+                  onClick={() => { setAnchorRegionId(group.regionId); setAnchorOpen(true); }}
+                  data-testid="edit-anchor-btn"
+                >
+                  <Pencil className="h-3 w-3" /> Change
+                </button>
+              )}
             </p>
             {group.parent && (
               <p className="text-xs text-muted-foreground mt-1">Part of{" "}
@@ -280,6 +305,29 @@ export default function GroupDetail() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setTransferOpen(false)}>Cancel</Button>
             <Button onClick={() => transfer.mutate()} disabled={!transferForm.toGroupId || !transferForm.reason || transfer.isPending} data-testid="submit-transfer">{transfer.isPending ? "Transferring..." : "Transfer"}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* EDIT ANCHOR DIALOG */}
+      <Dialog open={anchorOpen} onOpenChange={setAnchorOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Change administrative unit</DialogTitle>
+            <DialogDescription>Pick the District, Sub-county, Parish or Village this group is anchored to. Drilling deeper makes farmer transfers and reporting more precise.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <RegionPicker
+              value={anchorRegionId}
+              onChange={setAnchorRegionId}
+              country="UG"
+              required
+              testIdPrefix="edit-anchor"
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setAnchorOpen(false)}>Cancel</Button>
+            <Button onClick={() => editAnchor.mutate()} disabled={!anchorRegionId || anchorRegionId === group.regionId || editAnchor.isPending} data-testid="submit-edit-anchor">{editAnchor.isPending ? "Saving..." : "Save"}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

@@ -12,7 +12,6 @@ import { Users, MapPin, ChevronRight, Plus } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { RegionPicker } from "@/components/RegionPicker";
-import { useIsLeafRegion } from "@/hooks/useIsLeafRegion";
 
 const API_BASE = import.meta.env.BASE_URL?.replace(/\/$/, "");
 
@@ -34,11 +33,9 @@ export default function GroupsList() {
     onError: (e: any) => toast({ title: "Failed", description: e.message, variant: "destructive" }),
   });
 
-  // Enforce: the picker's chosen region must be at the deepest level (e.g.
-  // Village). This mirrors the server-side check so we disable Save early
-  // and explain why.
-  const { isLeaf, leafName } = useIsLeafRegion(form.regionId);
-  const canSubmit = !!form.name.trim() && !!form.regionId && isLeaf;
+  // Anchor may be at District level or deeper — the server enforces the actual
+  // floor. We only require name + a picked region here.
+  const canSubmit = !!form.name.trim() && !!form.regionId;
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-12">
@@ -56,7 +53,7 @@ export default function GroupsList() {
             <DialogContent>
               <DialogHeader>
                 <DialogTitle>New Farmer Group</DialogTitle>
-                <DialogDescription>Cooperative groups link farmers to a region and village.</DialogDescription>
+                <DialogDescription>Anchor the group to any admin unit from District down to Village — pick as specific as you can.</DialogDescription>
               </DialogHeader>
               <div className="space-y-3">
                 <div><Label>Group Name *</Label><Input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} placeholder="e.g. Kibaale Coffee Cooperative" data-testid="input-name" /></div>
@@ -69,17 +66,15 @@ export default function GroupsList() {
                     required
                     testIdPrefix="input-region"
                   />
-                  {form.regionId && !isLeaf && (
-                    <p className="text-xs text-destructive mt-1" data-testid="leaf-warning">
-                      Pick all the way down to the {leafName ?? "deepest level"} — groups must be anchored to a real village.
-                    </p>
-                  )}
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Pick at any level from District downward. Drilling deeper makes farmer transfers and reporting more precise.
+                  </p>
                 </div>
                 <div><Label>Village name (free text, optional)</Label><Input value={form.village} onChange={e => setForm({ ...form, village: e.target.value })} placeholder="Only if different from the picked admin unit" data-testid="input-village" /></div>
               </div>
               <DialogFooter>
                 <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
-                <Button onClick={() => { const name = form.name.trim(); const village = form.village.trim(); if (!canSubmit) { toast({ title: !form.name.trim() ? "Group name required" : !form.regionId ? "Region required" : `Pick all the way down to the ${leafName ?? "deepest level"}`, variant: "destructive" }); return; } const body: any = { name, regionId: form.regionId }; if (village) body.village = village; createMut.mutate(body); }} disabled={createMut.isPending || !canSubmit} data-testid="submit-group">{createMut.isPending ? "Saving..." : "Create"}</Button>
+                <Button onClick={() => { const name = form.name.trim(); const village = form.village.trim(); if (!canSubmit) { toast({ title: !form.name.trim() ? "Group name required" : "Region required", variant: "destructive" }); return; } const body: any = { name, regionId: form.regionId }; if (village) body.village = village; createMut.mutate(body); }} disabled={createMut.isPending || !canSubmit} data-testid="submit-group">{createMut.isPending ? "Saving..." : "Create"}</Button>
               </DialogFooter>
             </DialogContent>
           </Dialog>

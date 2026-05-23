@@ -14,7 +14,7 @@ import {
 } from "@workspace/db";
 import { CreateGroupBody, ListGroupsQueryParams } from "@workspace/api-zod";
 import { requirePermission, type AuthedRequest } from "../middlewares/auth";
-import { validateGroupRegionIsLeaf } from "../lib/region-validation";
+import { validateGroupRegionAnchor, deriveGroupAdminColumnsFromRegion } from "../lib/region-validation";
 import { regionsShareDistrict, getDistrictAncestorIdsBatch, getDistrictAncestorId } from "../lib/org-region-scope";
 import { checkGroupAccess, isUserScoped, getAssignedGroupIds } from "../lib/assignment-scope";
 
@@ -115,14 +115,17 @@ router.get("/groups", requirePermission("groups.read"), async (req: AuthedReques
 router.post("/groups", requirePermission("groups.write"), async (req: AuthedRequest, res): Promise<void> => {
   const parsed = CreateGroupBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
-  // Enforce: every group must be anchored to the deepest admin level for its
-  // country (e.g. UG/KE Village). This is what makes "groups are linked to
-  // actual administrative units" meaningful.
-  const leafErr = await validateGroupRegionIsLeaf(parsed.data.regionId);
-  if (leafErr) { res.status(400).json({ error: leafErr }); return; }
+  // Enforce: anchor must be at the country's District level or deeper. Higher
+  // would break the district-share invariant used by farmer transfer/archive.
+  const anchorErr = await validateGroupRegionAnchor(parsed.data.regionId);
+  if (anchorErr) { res.status(400).json({ error: anchorErr }); return; }
   const body = req.body as Record<string, unknown>;
-  const extras: Record<string, unknown> = {};
-  for (const f of ["parish", "subCounty", "district"] as const) {
+  // Auto-fill village/parish/subCounty/district from the chosen anchor, then
+  // let any client-supplied overrides win (legacy create-dialog still sends
+  // a free-text village field).
+  const derived = await deriveGroupAdminColumnsFromRegion(parsed.data.regionId);
+  const extras: Record<string, unknown> = { ...derived };
+  for (const f of ["village", "parish", "subCounty", "district"] as const) {
     if (typeof body[f] === "string" && (body[f] as string).trim()) extras[f] = (body[f] as string).trim();
   }
   if (typeof body.groupType === "string" && GROUP_TYPES.has(body.groupType)) extras.groupType = body.groupType;
@@ -155,12 +158,15 @@ router.patch("/groups/:groupId", requirePermission("groups.write"), async (req: 
 
   const body = req.body as Record<string, unknown>;
   const patch: Record<string, unknown> = { updatedAt: new Date() };
-  // If the caller is changing region_id, re-validate it must point to a leaf node.
+  // If the caller is changing region_id, re-validate the new anchor and refresh
+  // the denormalised village/parish/subCounty/district columns from it.
   if (typeof body.regionId === "string") {
     if (!UUID_RE.test(body.regionId)) { res.status(400).json({ error: "Invalid regionId" }); return; }
-    const leafErr = await validateGroupRegionIsLeaf(body.regionId);
-    if (leafErr) { res.status(400).json({ error: leafErr }); return; }
+    const anchorErr = await validateGroupRegionAnchor(body.regionId);
+    if (anchorErr) { res.status(400).json({ error: anchorErr }); return; }
     patch.regionId = body.regionId;
+    const derived = await deriveGroupAdminColumnsFromRegion(body.regionId);
+    Object.assign(patch, derived);
   }
   for (const f of ["name", "village", "parish", "subCounty", "district"] as const) {
     if (typeof body[f] === "string") patch[f] = (body[f] as string).trim() || null;
