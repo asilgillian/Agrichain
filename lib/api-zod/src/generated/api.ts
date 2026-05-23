@@ -368,8 +368,20 @@ export const ListGroupsQueryParams = zod.object({
 export const ListGroupsResponseItem = zod.object({
   id: zod.string(),
   name: zod.string(),
-  regionId: zod.string(),
-  village: zod.string().optional(),
+  regionId: zod
+    .string()
+    .describe(
+      "Primary district anchor. Equals districts[0].id for multi-district groups.",
+    ),
+  districts: zod
+    .array(
+      zod.object({
+        id: zod.string(),
+        name: zod.string(),
+      }),
+    )
+    .describe("All District-level regions covered by this group (>=1)."),
+  village: zod.string().nullish(),
   memberCount: zod.number(),
   complianceScore: zod.number().optional(),
   activePlots: zod.number().optional(),
@@ -380,10 +392,23 @@ export const ListGroupsResponse = zod.array(ListGroupsResponseItem);
 /**
  * @summary Create a new farmer group
  */
+
 export const CreateGroupBody = zod.object({
   name: zod.string(),
-  regionId: zod.string(),
+  districtIds: zod
+    .array(zod.string())
+    .min(1)
+    .optional()
+    .describe("One or more District-level region ids the group covers."),
+  regionId: zod
+    .string()
+    .optional()
+    .describe(
+      "Deprecated single-anchor field. If supplied, treated as the only district. Prefer districtIds.",
+    ),
   village: zod.string().optional(),
+  groupType: zod.string().optional(),
+  parentGroupId: zod.string().nullish(),
 });
 
 /**
@@ -397,8 +422,20 @@ export const GetGroupResponse = zod
   .object({
     id: zod.string(),
     name: zod.string(),
-    regionId: zod.string(),
-    village: zod.string().optional(),
+    regionId: zod
+      .string()
+      .describe(
+        "Primary district anchor. Equals districts[0].id for multi-district groups.",
+      ),
+    districts: zod
+      .array(
+        zod.object({
+          id: zod.string(),
+          name: zod.string(),
+        }),
+      )
+      .describe("All District-level regions covered by this group (>=1)."),
+    village: zod.string().nullish(),
     memberCount: zod.number(),
     complianceScore: zod.number().optional(),
     activePlots: zod.number().optional(),
@@ -436,6 +473,88 @@ export const GetGroupResponse = zod
       ),
     }),
   );
+
+/**
+ * @summary Update a group (name, districts, parent, etc.)
+ */
+export const PatchGroupParams = zod.object({
+  groupId: zod.coerce.string(),
+});
+
+export const PatchGroupBody = zod
+  .object({
+    name: zod.string().optional(),
+    districtIds: zod.array(zod.string()).min(1).optional(),
+    regionId: zod.string().optional(),
+    village: zod.string().nullish(),
+    parish: zod.string().nullish(),
+    subCounty: zod.string().nullish(),
+    district: zod.string().nullish(),
+    groupType: zod.string().optional(),
+    parentGroupId: zod.string().nullish(),
+  })
+  .describe(
+    "All fields optional; only supplied fields are updated. Use districtIds to replace the covered-districts set.",
+  );
+
+export const PatchGroupResponse = zod.object({
+  id: zod.string(),
+  name: zod.string(),
+  regionId: zod
+    .string()
+    .describe(
+      "Primary district anchor. Equals districts[0].id for multi-district groups.",
+    ),
+  districts: zod
+    .array(
+      zod.object({
+        id: zod.string(),
+        name: zod.string(),
+      }),
+    )
+    .describe("All District-level regions covered by this group (>=1)."),
+  village: zod.string().nullish(),
+  memberCount: zod.number(),
+  complianceScore: zod.number().optional(),
+  activePlots: zod.number().optional(),
+  createdAt: zod.coerce.date(),
+});
+
+/**
+ * @summary List the District-level regions a group covers
+ */
+export const GetGroupDistrictsParams = zod.object({
+  groupId: zod.coerce.string(),
+});
+
+export const GetGroupDistrictsResponse = zod.object({
+  districts: zod.array(
+    zod.object({
+      id: zod.string(),
+      name: zod.string(),
+    }),
+  ),
+});
+
+/**
+ * @summary Replace the full set of districts a group covers
+ */
+export const ReplaceGroupDistrictsParams = zod.object({
+  groupId: zod.coerce.string(),
+});
+
+export const ReplaceGroupDistrictsBody = zod.object({
+  districtIds: zod.array(zod.string()).min(1),
+});
+
+export const ReplaceGroupDistrictsResponse = zod.object({
+  districts: zod.array(
+    zod.object({
+      id: zod.string(),
+      name: zod.string(),
+    }),
+  ),
+});
 
 /**
  * @summary List farm plots

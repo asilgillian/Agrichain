@@ -8,6 +8,17 @@
 
 export interface CreateGroupBody {
   name: string;
-  regionId: string;
+  /**
+   * One or more District-level region ids the group covers.
+   * @minItems 1
+   */
+  districtIds?: string[];
+  /**
+   * Deprecated single-anchor field. If supplied, treated as the only district. Prefer districtIds.
+   * @deprecated
+   */
+  regionId?: string;
   village?: string;
+  groupType?: string;
+  parentGroupId?: string | null;
 }

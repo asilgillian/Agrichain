@@ -353,6 +353,83 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/FarmerGroupDetail"
+    patch:
+      operationId: patchGroup
+      tags: [groups]
+      summary: Update a group (name, districts, parent, etc.)
+      parameters:
+        - in: path
+          name: groupId
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PatchGroupBody"
+      responses:
+        "200":
+          description: Group updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FarmerGroup"
+
+  /groups/{groupId}/districts:
+    get:
+      operationId: getGroupDistricts
+      tags: [groups]
+      summary: List the District-level regions a group covers
+      parameters:
+        - in: path
+          name: groupId
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Districts covered by the group
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  districts:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/GroupDistrict"
+                required: [districts]
+    put:
+      operationId: replaceGroupDistricts
+      tags: [groups]
+      summary: Replace the full set of districts a group covers
+      parameters:
+        - in: path
+          name: groupId
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReplaceGroupDistrictsBody"
+      responses:
+        "200":
+          description: Districts updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  districts:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/GroupDistrict"
+                required: [districts]
 
   # ============================================================
   # PLOTS
@@ -2449,6 +2526,15 @@ components:
     # ============================================================
     # GROUPS
     # ============================================================
+    GroupDistrict:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+      required: [id, name]
+
     FarmerGroup:
       type: object
       properties:
@@ -2458,8 +2544,15 @@ components:
           type: string
         regionId:
           type: string
+          description: Primary district anchor. Equals districts[0].id for multi-district groups.
+        districts:
+          type: array
+          description: All District-level regions covered by this group (>=1).
+          items:
+            $ref: "#/components/schemas/GroupDistrict"
         village:
           type: string
+          nullable: true
         memberCount:
           type: integer
         complianceScore:
@@ -2469,7 +2562,7 @@ components:
         createdAt:
           type: string
           format: date-time
-      required: [id, name, regionId, memberCount, createdAt]
+      required: [id, name, regionId, districts, memberCount, createdAt]
 
     FarmerGroupDetail:
       allOf:
@@ -2502,11 +2595,66 @@ components:
       properties:
         name:
           type: string
+        districtIds:
+          type: array
+          description: One or more District-level region ids the group covers.
+          items:
+            type: string
+          minItems: 1
         regionId:
           type: string
+          description: Deprecated single-anchor field. If supplied, treated as the only district. Prefer districtIds.
+          deprecated: true
         village:
           type: string
-      required: [name, regionId]
+        groupType:
+          type: string
+        parentGroupId:
+          type: string
+          nullable: true
+      required: [name]
+
+    PatchGroupBody:
+      type: object
+      description: All fields optional; only supplied fields are updated. Use districtIds to replace the covered-districts set.
+      properties:
+        name:
+          type: string
+        districtIds:
+          type: array
+          items:
+            type: string
+          minItems: 1
+        regionId:
+          type: string
+          deprecated: true
+        village:
+          type: string
+          nullable: true
+        parish:
+          type: string
+          nullable: true
+        subCounty:
+          type: string
+          nullable: true
+        district:
+          type: string
+          nullable: true
+        groupType:
+          type: string
+        parentGroupId:
+          type: string
+          nullable: true
+
+    ReplaceGroupDistrictsBody:
+      type: object
+      properties:
+        districtIds:
+          type: array
+          items:
+            type: string
+          minItems: 1
+      required: [districtIds]
 
     # ============================================================
     # PLOTS

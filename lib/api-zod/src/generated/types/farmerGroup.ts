@@ -5,12 +5,16 @@
  * AgriChain Digital Agriculture Platform API
  * OpenAPI spec version: 0.1.0
  */
+import type { GroupDistrict } from "./groupDistrict";
 
 export interface FarmerGroup {
   id: string;
   name: string;
+  /** Primary district anchor. Equals districts[0].id for multi-district groups. */
   regionId: string;
-  village?: string;
+  /** All District-level regions covered by this group (>=1). */
+  districts: GroupDistrict[];
+  village?: string | null;
   memberCount: number;
   complianceScore?: number;
   activePlots?: number;

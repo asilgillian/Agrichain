@@ -264,11 +264,19 @@ export interface MergeDuplicatesBody {
   masterFarmerId: string;
 }
 
+export interface GroupDistrict {
+  id: string;
+  name: string;
+}
+
 export interface FarmerGroup {
   id: string;
   name: string;
+  /** Primary district anchor. Equals districts[0].id for multi-district groups. */
   regionId: string;
-  village?: string;
+  /** All District-level regions covered by this group (>=1). */
+  districts: GroupDistrict[];
+  village?: string | null;
   memberCount: number;
   complianceScore?: number;
   activePlots?: number;
@@ -289,8 +297,41 @@ export type FarmerGroupDetail = FarmerGroup & {
 
 export interface CreateGroupBody {
   name: string;
-  regionId: string;
+  /**
+   * One or more District-level region ids the group covers.
+   * @minItems 1
+   */
+  districtIds?: string[];
+  /**
+   * Deprecated single-anchor field. If supplied, treated as the only district. Prefer districtIds.
+   * @deprecated
+   */
+  regionId?: string;
   village?: string;
+  groupType?: string;
+  parentGroupId?: string | null;
+}
+
+/**
+ * All fields optional; only supplied fields are updated. Use districtIds to replace the covered-districts set.
+ */
+export interface PatchGroupBody {
+  name?: string;
+  /** @minItems 1 */
+  districtIds?: string[];
+  /** @deprecated */
+  regionId?: string;
+  village?: string | null;
+  parish?: string | null;
+  subCounty?: string | null;
+  district?: string | null;
+  groupType?: string;
+  parentGroupId?: string | null;
+}
+
+export interface ReplaceGroupDistrictsBody {
+  /** @minItems 1 */
+  districtIds: string[];
 }
 
 export type CreatePlotBodyPolygon = { [key: string]: unknown };
@@ -1465,6 +1506,14 @@ export const ListFarmersStatus = {
 
 export type ListGroupsParams = {
   regionId?: string;
+};
+
+export type GetGroupDistricts200 = {
+  districts: GroupDistrict[];
+};
+
+export type ReplaceGroupDistricts200 = {
+  districts: GroupDistrict[];
 };
 
 export type ListPlotsParams = {

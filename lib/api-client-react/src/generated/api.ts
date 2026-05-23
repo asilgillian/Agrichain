@@ -60,6 +60,7 @@ import type {
   FarmerGroupDetail,
   GapAssessment,
   GetDashboardActivityParams,
+  GetGroupDistricts200,
   HealthStatus,
   InitiatePaymentBody,
   ListActivityFundsParams,
@@ -87,6 +88,7 @@ import type {
   MergeDuplicatesBody,
   PaginatedAuditLogs,
   PaginatedFarmers,
+  PatchGroupBody,
   Payment,
   PaymentSummary,
   Plot,
@@ -98,6 +100,8 @@ import type {
   Region,
   RejectDeliveryBody,
   ReorderWorkflowStagesBody,
+  ReplaceGroupDistricts200,
+  ReplaceGroupDistrictsBody,
   ReplaceUserExtraRoles200,
   ReplaceUserExtraRolesBody,
   ResumeDeliveryBody,
@@ -1400,6 +1404,272 @@ export function useGetGroup<
 
   return { ...query, queryKey: queryOptions.queryKey };
 }
+
+/**
+ * @summary Update a group (name, districts, parent, etc.)
+ */
+export const getPatchGroupUrl = (groupId: string) => {
+  return `/api/groups/${groupId}`;
+};
+
+export const patchGroup = async (
+  groupId: string,
+  patchGroupBody: PatchGroupBody,
+  options?: RequestInit,
+): Promise<FarmerGroup> => {
+  return customFetch<FarmerGroup>(getPatchGroupUrl(groupId), {
+    ...options,
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(patchGroupBody),
+  });
+};
+
+export const getPatchGroupMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof patchGroup>>,
+    TError,
+    { groupId: string; data: BodyType<PatchGroupBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof patchGroup>>,
+  TError,
+  { groupId: string; data: BodyType<PatchGroupBody> },
+  TContext
+> => {
+  const mutationKey = ["patchGroup"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof patchGroup>>,
+    { groupId: string; data: BodyType<PatchGroupBody> }
+  > = (props) => {
+    const { groupId, data } = props ?? {};
+
+    return patchGroup(groupId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type PatchGroupMutationResult = NonNullable<
+  Awaited<ReturnType<typeof patchGroup>>
+>;
+export type PatchGroupMutationBody = BodyType<PatchGroupBody>;
+export type PatchGroupMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Update a group (name, districts, parent, etc.)
+ */
+export const usePatchGroup = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof patchGroup>>,
+    TError,
+    { groupId: string; data: BodyType<PatchGroupBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof patchGroup>>,
+  TError,
+  { groupId: string; data: BodyType<PatchGroupBody> },
+  TContext
+> => {
+  return useMutation(getPatchGroupMutationOptions(options));
+};
+
+/**
+ * @summary List the District-level regions a group covers
+ */
+export const getGetGroupDistrictsUrl = (groupId: string) => {
+  return `/api/groups/${groupId}/districts`;
+};
+
+export const getGroupDistricts = async (
+  groupId: string,
+  options?: RequestInit,
+): Promise<GetGroupDistricts200> => {
+  return customFetch<GetGroupDistricts200>(getGetGroupDistrictsUrl(groupId), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetGroupDistrictsQueryKey = (groupId: string) => {
+  return [`/api/groups/${groupId}/districts`] as const;
+};
+
+export const getGetGroupDistrictsQueryOptions = <
+  TData = Awaited<ReturnType<typeof getGroupDistricts>>,
+  TError = ErrorType<unknown>,
+>(
+  groupId: string,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getGroupDistricts>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetGroupDistrictsQueryKey(groupId);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getGroupDistricts>>
+  > = ({ signal }) => getGroupDistricts(groupId, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!groupId,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getGroupDistricts>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetGroupDistrictsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getGroupDistricts>>
+>;
+export type GetGroupDistrictsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List the District-level regions a group covers
+ */
+
+export function useGetGroupDistricts<
+  TData = Awaited<ReturnType<typeof getGroupDistricts>>,
+  TError = ErrorType<unknown>,
+>(
+  groupId: string,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getGroupDistricts>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetGroupDistrictsQueryOptions(groupId, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Replace the full set of districts a group covers
+ */
+export const getReplaceGroupDistrictsUrl = (groupId: string) => {
+  return `/api/groups/${groupId}/districts`;
+};
+
+export const replaceGroupDistricts = async (
+  groupId: string,
+  replaceGroupDistrictsBody: ReplaceGroupDistrictsBody,
+  options?: RequestInit,
+): Promise<ReplaceGroupDistricts200> => {
+  return customFetch<ReplaceGroupDistricts200>(
+    getReplaceGroupDistrictsUrl(groupId),
+    {
+      ...options,
+      method: "PUT",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(replaceGroupDistrictsBody),
+    },
+  );
+};
+
+export const getReplaceGroupDistrictsMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof replaceGroupDistricts>>,
+    TError,
+    { groupId: string; data: BodyType<ReplaceGroupDistrictsBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof replaceGroupDistricts>>,
+  TError,
+  { groupId: string; data: BodyType<ReplaceGroupDistrictsBody> },
+  TContext
+> => {
+  const mutationKey = ["replaceGroupDistricts"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof replaceGroupDistricts>>,
+    { groupId: string; data: BodyType<ReplaceGroupDistrictsBody> }
+  > = (props) => {
+    const { groupId, data } = props ?? {};
+
+    return replaceGroupDistricts(groupId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ReplaceGroupDistrictsMutationResult = NonNullable<
+  Awaited<ReturnType<typeof replaceGroupDistricts>>
+>;
+export type ReplaceGroupDistrictsMutationBody =
+  BodyType<ReplaceGroupDistrictsBody>;
+export type ReplaceGroupDistrictsMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Replace the full set of districts a group covers
+ */
+export const useReplaceGroupDistricts = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof replaceGroupDistricts>>,
+    TError,
+    { groupId: string; data: BodyType<ReplaceGroupDistrictsBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof replaceGroupDistricts>>,
+  TError,
+  { groupId: string; data: BodyType<ReplaceGroupDistrictsBody> },
+  TContext
+> => {
+  return useMutation(getReplaceGroupDistrictsMutationOptions(options));
+};
 
 /**
  * @summary List farm plots
