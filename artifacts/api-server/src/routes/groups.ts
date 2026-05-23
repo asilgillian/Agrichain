@@ -5,23 +5,62 @@ import {
   groupsTable,
   groupLeadersTable,
   groupTransfersTable,
+  groupRegionsTable,
   farmersTable,
   plotsTable,
   deliveriesTable,
   batchesTable,
   auditLogsTable,
   userGroupsTable,
+  regionsTable,
 } from "@workspace/db";
 import { CreateGroupBody, ListGroupsQueryParams } from "@workspace/api-zod";
 import { requirePermission, type AuthedRequest } from "../middlewares/auth";
 import { validateGroupRegionAnchor, deriveGroupAdminColumnsFromRegion } from "../lib/region-validation";
-import { regionsShareDistrict, getDistrictAncestorIdsBatch, getDistrictAncestorId } from "../lib/org-region-scope";
+import { getDistrictAncestorIdsBatch, getGroupDistrictIds, getGroupDistrictIdsBatch } from "../lib/org-region-scope";
 import { checkGroupAccess, isUserScoped, getAssignedGroupIds } from "../lib/assignment-scope";
 
 const router: IRouter = Router();
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const GROUP_TYPES = new Set(["cooperative", "association", "producer_group"]);
+
+/**
+ * Parse + validate the `districtIds` array on create/update bodies. Falls back
+ * to a single-element array containing `legacyRegionId` when the caller still
+ * sends the old `{ regionId }` field. Returns `{ ids }` on success or
+ * `{ error }` with an HTTP-ready message on failure.
+ *
+ * Each id must be a valid uuid AND a District-level region for its country
+ * (validateGroupRegionAnchor). Empty arrays are rejected.
+ */
+async function parseDistrictIds(body: Record<string, unknown>, legacyRegionId?: string | null): Promise<{ ids: string[] } | { error: string }> {
+  let raw: unknown = body.districtIds;
+  if (raw === undefined && legacyRegionId) raw = [legacyRegionId];
+  if (!Array.isArray(raw) || raw.length === 0) return { error: "districtIds must be a non-empty array" };
+  const ids: string[] = [];
+  const seen = new Set<string>();
+  for (const x of raw) {
+    if (typeof x !== "string" || !UUID_RE.test(x)) return { error: "districtIds contains an invalid uuid" };
+    if (seen.has(x)) continue;
+    seen.add(x);
+    ids.push(x);
+  }
+  for (const id of ids) {
+    const err = await validateGroupRegionAnchor(id);
+    if (err) return { error: `Invalid district ${id}: ${err}` };
+  }
+  return { ids };
+}
+
+/** Replace the group_regions set for a group inside a transaction. Caller is
+ * responsible for ensuring `districtIds` is non-empty and validated. */
+async function replaceGroupRegions(tx: any, groupId: string, districtIds: string[]) {
+  await tx.delete(groupRegionsTable).where(eq(groupRegionsTable.groupId, groupId));
+  for (const regionId of districtIds) {
+    await tx.insert(groupRegionsTable).values({ groupId, regionId });
+  }
+}
 
 // ------------- helpers -------------
 
@@ -82,7 +121,17 @@ router.get("/groups", requirePermission("groups.read"), async (req: AuthedReques
   const parentId = typeof req.query.parentGroupId === "string" ? req.query.parentGroupId : undefined;
 
   const conditions: any[] = [];
-  if (regionId) conditions.push(eq(groupsTable.regionId, regionId));
+  if (regionId) {
+    // Multi-district: a group matches if the requested district is in its
+    // covered set, not only when it's the primary anchor.
+    const rows = await db
+      .select({ groupId: groupRegionsTable.groupId })
+      .from(groupRegionsTable)
+      .where(eq(groupRegionsTable.regionId, regionId));
+    const matchingGroupIds = rows.map(r => r.groupId);
+    if (matchingGroupIds.length === 0) { res.json([]); return; }
+    conditions.push(inArray(groupsTable.id, matchingGroupIds));
+  }
   if (statusFilter !== "all") conditions.push(eq(groupsTable.status, statusFilter));
   if (parentId === "null") conditions.push(isNull(groupsTable.parentGroupId));
   else if (parentId && UUID_RE.test(parentId)) conditions.push(eq(groupsTable.parentGroupId, parentId));
@@ -108,22 +157,41 @@ router.get("/groups", requirePermission("groups.read"), async (req: AuthedReques
     ? await db.select().from(groupsTable).where(and(...conditions))
     : await db.select().from(groupsTable);
 
-  const kpis = await computeKpis(groups.map(g => g.id));
-  res.json(groups.map(g => shapeGroup(g, kpis[g.id])));
+  const groupIds = groups.map(g => g.id);
+  const [kpis, districtSets] = await Promise.all([
+    computeKpis(groupIds),
+    getGroupDistrictIdsBatch(groupIds),
+  ]);
+  // Collect all district region ids referenced by any group so we can return
+  // {id, name} pairs in one extra query.
+  const allDistrictIds = new Set<string>();
+  for (const s of districtSets.values()) for (const id of s) allDistrictIds.add(id);
+  const districtNameRows = allDistrictIds.size > 0
+    ? await db.select({ id: regionsTable.id, name: regionsTable.name }).from(regionsTable).where(inArray(regionsTable.id, Array.from(allDistrictIds)))
+    : [];
+  const nameById = new Map(districtNameRows.map(r => [r.id, r.name]));
+  res.json(groups.map(g => ({
+    ...shapeGroup(g, kpis[g.id]),
+    districts: Array.from(districtSets.get(g.id) ?? new Set<string>()).map(id => ({ id, name: nameById.get(id) ?? "" })),
+  })));
 });
 
 router.post("/groups", requirePermission("groups.write"), async (req: AuthedRequest, res): Promise<void> => {
-  const parsed = CreateGroupBody.safeParse(req.body);
-  if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
-  // Enforce: anchor must be at the country's District level or deeper. Higher
-  // would break the district-share invariant used by farmer transfer/archive.
-  const anchorErr = await validateGroupRegionAnchor(parsed.data.regionId);
-  if (anchorErr) { res.status(400).json({ error: anchorErr }); return; }
   const body = req.body as Record<string, unknown>;
-  // Auto-fill village/parish/subCounty/district from the chosen anchor, then
-  // let any client-supplied overrides win (legacy create-dialog still sends
-  // a free-text village field).
-  const derived = await deriveGroupAdminColumnsFromRegion(parsed.data.regionId);
+  // New districts-only model: a group covers one or more District-level
+  // regions. Falls back to single-element [regionId] for legacy callers.
+  // Resolve districtIds first so we can synthesize the legacy `regionId`
+  // field that CreateGroupBody (generated from the old OpenAPI spec) still
+  // requires. New web/mobile clients send only `districtIds[]`.
+  const legacyRegionId = typeof body.regionId === "string" ? body.regionId : null;
+  const dParse = await parseDistrictIds(body, legacyRegionId);
+  if ("error" in dParse) { res.status(400).json({ error: dParse.error }); return; }
+  const districtIds = dParse.ids;
+  const parsed = CreateGroupBody.safeParse({ ...body, regionId: districtIds[0] });
+  if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
+  // Primary anchor = first district. Powers denormalised village/parish/etc.
+  const primaryDistrictId = districtIds[0];
+  const derived = await deriveGroupAdminColumnsFromRegion(primaryDistrictId);
   const extras: Record<string, unknown> = { ...derived };
   for (const f of ["village", "parish", "subCounty", "district"] as const) {
     if (typeof body[f] === "string" && (body[f] as string).trim()) extras[f] = (body[f] as string).trim();
@@ -133,8 +201,6 @@ router.post("/groups", requirePermission("groups.write"), async (req: AuthedRequ
     if (typeof body.parentGroupId !== "string" || !UUID_RE.test(body.parentGroupId)) {
       res.status(400).json({ error: "Invalid parentGroupId" }); return;
     }
-    // Per-user assignment scoping: scoped users may only attach a new group to a
-    // parent they themselves are assigned to.
     const parentDenied = await checkGroupAccess(body.parentGroupId, req.authedUser);
     if (parentDenied) { res.status(parentDenied.status).json({ error: parentDenied.error }); return; }
     const [parent] = await db.select().from(groupsTable).where(eq(groupsTable.id, body.parentGroupId));
@@ -143,9 +209,16 @@ router.post("/groups", requirePermission("groups.write"), async (req: AuthedRequ
     extras.parentGroupId = body.parentGroupId;
   }
 
-  const [group] = await db.insert(groupsTable).values({ ...parsed.data, ...extras }).returning();
-  await audit(group.id, "group.create", req.authedUser, { name: group.name, regionId: group.regionId, groupType: group.groupType, parentGroupId: group.parentGroupId });
-  res.status(201).json(shapeGroup(group, { memberCount: 0, activePlots: 0, procurementVolumeKg: 0, complianceScore: 0 }));
+  const group = await db.transaction(async (tx) => {
+    const [g] = await tx.insert(groupsTable).values({ ...parsed.data, regionId: primaryDistrictId, ...extras }).returning();
+    await replaceGroupRegions(tx, g.id, districtIds);
+    return g;
+  });
+  await audit(group.id, "group.create", req.authedUser, { name: group.name, regionId: group.regionId, districtIds, groupType: group.groupType, parentGroupId: group.parentGroupId });
+  res.status(201).json({
+    ...shapeGroup(group, { memberCount: 0, activePlots: 0, procurementVolumeKg: 0, complianceScore: 0 }),
+    districts: districtIds.map(id => ({ id, name: "" })),
+  });
 });
 
 router.patch("/groups/:groupId", requirePermission("groups.write"), async (req: AuthedRequest, res): Promise<void> => {
@@ -158,14 +231,16 @@ router.patch("/groups/:groupId", requirePermission("groups.write"), async (req: 
 
   const body = req.body as Record<string, unknown>;
   const patch: Record<string, unknown> = { updatedAt: new Date() };
-  // If the caller is changing region_id, re-validate the new anchor and refresh
-  // the denormalised village/parish/subCounty/district columns from it.
-  if (typeof body.regionId === "string") {
-    if (!UUID_RE.test(body.regionId)) { res.status(400).json({ error: "Invalid regionId" }); return; }
-    const anchorErr = await validateGroupRegionAnchor(body.regionId);
-    if (anchorErr) { res.status(400).json({ error: anchorErr }); return; }
-    patch.regionId = body.regionId;
-    const derived = await deriveGroupAdminColumnsFromRegion(body.regionId);
+  // Multi-district edit. Either send `districtIds: string[]` to replace the
+  // full set, or the legacy `regionId: string` to set a single-district
+  // primary anchor (kept for back-compat with older clients).
+  let nextDistrictIds: string[] | null = null;
+  if (Array.isArray(body.districtIds) || typeof body.regionId === "string") {
+    const dParse = await parseDistrictIds(body, typeof body.regionId === "string" ? body.regionId : null);
+    if ("error" in dParse) { res.status(400).json({ error: dParse.error }); return; }
+    nextDistrictIds = dParse.ids;
+    patch.regionId = nextDistrictIds[0];
+    const derived = await deriveGroupAdminColumnsFromRegion(nextDistrictIds[0]);
     Object.assign(patch, derived);
   }
   for (const f of ["name", "village", "parish", "subCounty", "district"] as const) {
@@ -200,9 +275,71 @@ router.patch("/groups/:groupId", requirePermission("groups.write"), async (req: 
     patch.parentGroupId = body.parentGroupId;
   }
 
-  const [updated] = await db.update(groupsTable).set(patch).where(eq(groupsTable.id, groupId)).returning();
-  await audit(groupId, "group.update", req.authedUser, patch, { ...current });
+  const updated = await db.transaction(async (tx) => {
+    const [u] = await tx.update(groupsTable).set(patch).where(eq(groupsTable.id, groupId)).returning();
+    if (nextDistrictIds) await replaceGroupRegions(tx, groupId, nextDistrictIds);
+    return u;
+  });
+  await audit(groupId, "group.update", req.authedUser, { ...patch, ...(nextDistrictIds ? { districtIds: nextDistrictIds } : {}) }, { ...current });
   res.json(shapeGroup(updated));
+});
+
+// ------------- COVERED DISTRICTS (multi) -------------
+
+router.get("/groups/:groupId/districts", requirePermission("groups.read"), async (req: AuthedRequest, res): Promise<void> => {
+  const groupId = req.params.groupId as string;
+  if (!UUID_RE.test(groupId)) { res.status(400).json({ error: "Invalid group id" }); return; }
+  const denied = await checkGroupAccess(groupId, req.authedUser);
+  if (denied) { res.status(denied.status).json({ error: denied.error }); return; }
+  const ids = Array.from(await getGroupDistrictIds(groupId));
+  if (ids.length === 0) { res.json([]); return; }
+  const rows = await db.select({ id: regionsTable.id, name: regionsTable.name, countryCode: regionsTable.countryCode })
+    .from(regionsTable).where(inArray(regionsTable.id, ids));
+  res.json(rows);
+});
+
+router.put("/groups/:groupId/districts", requirePermission("groups.write"), async (req: AuthedRequest, res): Promise<void> => {
+  const groupId = req.params.groupId as string;
+  if (!UUID_RE.test(groupId)) { res.status(400).json({ error: "Invalid group id" }); return; }
+  const denied = await checkGroupAccess(groupId, req.authedUser);
+  if (denied) { res.status(denied.status).json({ error: denied.error }); return; }
+  const [current] = await db.select().from(groupsTable).where(eq(groupsTable.id, groupId));
+  if (!current) { res.status(404).json({ error: "Group not found" }); return; }
+  const dParse = await parseDistrictIds(req.body as Record<string, unknown>);
+  if ("error" in dParse) { res.status(400).json({ error: dParse.error }); return; }
+  const ids = dParse.ids;
+  // Removing a district that still has resident farmers would silently
+  // unscope them. Reject with a list of farmer ids the admin must move first.
+  const beforeSet = await getGroupDistrictIds(groupId);
+  const removed = Array.from(beforeSet).filter(x => !ids.includes(x));
+  if (removed.length > 0) {
+    const members = await db.select({ id: farmersTable.id, regionId: farmersTable.regionId })
+      .from(farmersTable).where(eq(farmersTable.groupId, groupId));
+    const checkable = members.filter(m => m.regionId);
+    const districtMap = await getDistrictAncestorIdsBatch(checkable.map(m => m.regionId as string));
+    const stranded: string[] = [];
+    for (const m of checkable) {
+      const d = districtMap.get(m.regionId as string);
+      if (d && removed.includes(d)) stranded.push(m.id);
+    }
+    if (stranded.length > 0) {
+      res.status(400).json({
+        error: "Cannot remove districts that still have member farmers",
+        code: "REMOVE_DISTRICT_HAS_FARMERS",
+        farmerIds: stranded,
+      });
+      return;
+    }
+  }
+  const primary = ids[0];
+  const derived = await deriveGroupAdminColumnsFromRegion(primary);
+  await db.transaction(async (tx) => {
+    await tx.update(groupsTable).set({ regionId: primary, ...derived, updatedAt: new Date() }).where(eq(groupsTable.id, groupId));
+    await replaceGroupRegions(tx, groupId, ids);
+  });
+  await audit(groupId, "group.districts.replace", req.authedUser, { districtIds: ids }, { regionId: current.regionId });
+  const rows = await db.select({ id: regionsTable.id, name: regionsTable.name }).from(regionsTable).where(inArray(regionsTable.id, ids));
+  res.json(rows);
 });
 
 router.get("/groups/:groupId", requirePermission("groups.read"), async (req: AuthedRequest, res): Promise<void> => {
@@ -242,8 +379,14 @@ router.get("/groups/:groupId", requirePermission("groups.read"), async (req: Aut
     .limit(50);
 
   const kpis = await computeKpis([groupId]);
+  const districtIdSet = await getGroupDistrictIds(groupId);
+  const districtIds = Array.from(districtIdSet);
+  const districtRows = districtIds.length > 0
+    ? await db.select({ id: regionsTable.id, name: regionsTable.name }).from(regionsTable).where(inArray(regionsTable.id, districtIds))
+    : [];
   res.json({
     ...shapeGroup(group, kpis[groupId]),
+    districts: districtRows,
     parent,
     children,
     members: members.map(m => ({ ...m, groupName: group.name })),
@@ -356,13 +499,11 @@ router.post("/groups/:toGroupId/transfer", requirePermission("groups.transfer"),
     if (sameGroup.length === farmers.length) {
       return { error: "All selected farmers are already in the target group" as const };
     }
-    // Org-region consistency: every farmer being moved must already live in a
-    // village that shares a District ancestor with the destination group's
-    // anchor village. This preserves the implicit org-region binding for
-    // mobile-preregistered farmers and prevents cross-district drift via
-    // bulk transfer. Resolved in batch (one ancestor lookup per unique region)
-    // to keep large transfers off an N+1 path.
-    const targetDistrict = await getDistrictAncestorId(target.regionId);
+    // Org-region consistency: every farmer being moved must live in a village
+    // that sits inside one of the destination group's covered districts. With
+    // multi-district groups, the check becomes "is the farmer's district in
+    // the group's district SET" (instead of equality with a single anchor).
+    const targetDistricts = await getGroupDistrictIds(toGroupId);
     const movableFarmers = farmers.filter(f => f.groupId !== toGroupId && f.regionId);
     const districtMap = await getDistrictAncestorIdsBatch(
       movableFarmers.map(f => f.regionId as string),
@@ -370,7 +511,7 @@ router.post("/groups/:toGroupId/transfer", requirePermission("groups.transfer"),
     const districtMismatches: string[] = [];
     for (const f of movableFarmers) {
       const fd = districtMap.get(f.regionId as string) ?? null;
-      if (!targetDistrict || !fd || fd !== targetDistrict) districtMismatches.push(f.id);
+      if (targetDistricts.size === 0 || !fd || !targetDistricts.has(fd)) districtMismatches.push(f.id);
     }
     if (districtMismatches.length > 0) {
       return {
@@ -439,11 +580,9 @@ router.post("/groups/:groupId/archive", requirePermission("groups.archive"), asy
     if (denied2) { res.status(denied2.status).json({ error: denied2.error }); return; }
     const [target] = await db.select().from(groupsTable).where(eq(groupsTable.id, redistributeTo));
     if (!target || target.status !== "active") { res.status(400).json({ error: "Redistribute target not found or archived" }); return; }
-    // Org-region consistency: every member being redistributed must share a
-    // District ancestor with the new group's anchor village. We pre-check here
-    // (outside the transaction) so admins get a clear error before any rows move.
-    // Batch the ancestor lookups so large groups don't hit N+1 latency.
-    const targetDistrict = await getDistrictAncestorId(target.regionId);
+    // Org-region consistency: every member being redistributed must live in
+    // a village whose district is in the redistribute target's covered set.
+    const targetDistricts = await getGroupDistrictIds(redistributeTo);
     const checkable = members.filter(m => m.regionId);
     const districtMap = await getDistrictAncestorIdsBatch(
       checkable.map(m => m.regionId as string),
@@ -451,7 +590,7 @@ router.post("/groups/:groupId/archive", requirePermission("groups.archive"), asy
     const districtMismatches: string[] = [];
     for (const f of checkable) {
       const fd = districtMap.get(f.regionId as string) ?? null;
-      if (!targetDistrict || !fd || fd !== targetDistrict) districtMismatches.push(f.id);
+      if (targetDistricts.size === 0 || !fd || !targetDistricts.has(fd)) districtMismatches.push(f.id);
     }
     if (districtMismatches.length > 0) {
       res.status(400).json({
@@ -554,12 +693,14 @@ router.get("/groups/:groupId/report", requirePermission("groups.read"), async (r
 
   const esc = (v: unknown) => { if (v == null) return ""; const s = String(v); return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; };
   const lines: string[] = [];
+  const districtIds = Array.from(await getGroupDistrictIds(groupId));
+  const districtRows = districtIds.length > 0
+    ? await db.select({ id: regionsTable.id, name: regionsTable.name }).from(regionsTable).where(inArray(regionsTable.id, districtIds))
+    : [];
+  const districtsLabel = districtRows.map(r => r.name).filter(Boolean).join("; ") || (group.district ?? "");
   lines.push(`Group Report,${esc(group.name)}`);
   lines.push(`Generated,${new Date().toISOString()}`);
-  lines.push(`District,${esc(group.district ?? "")}`);
-  lines.push(`Sub-county,${esc(group.subCounty ?? "")}`);
-  lines.push(`Parish,${esc(group.parish ?? "")}`);
-  lines.push(`Village,${esc(group.village ?? "")}`);
+  lines.push(`Districts covered,${esc(districtsLabel)}`);
   lines.push(`Type,${esc(group.groupType)}`);
   lines.push(`Status,${esc(group.status)}`);
   lines.push(`Members,${kpis[groupId]?.memberCount ?? 0}`);

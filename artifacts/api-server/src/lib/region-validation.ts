@@ -3,14 +3,12 @@ import { db, regionsTable, countryHierarchiesTable } from "@workspace/db";
 import { getDistrictLevelForCountry, findAncestorRegionAtLevel } from "./org-region-scope";
 
 /**
- * Validate that a region id is acceptable as a group's anchor admin unit.
+ * Validate that a region id is acceptable as a "district" covered by a group.
  *
- * Rule: the anchor may sit anywhere from the country's District level down to
- * the leaf level (e.g. UG: District / Sub-County / Parish / Village). Anchors
- * ABOVE district level are rejected because the farmer-transfer / archive
- * invariant in groups.ts relies on `getDistrictAncestorId(group.regionId)`
- * returning a real district id; a Region-level (or higher) anchor would break
- * that invariant and silently allow cross-district drift.
+ * Rule (new districts-only model): a group covers one or more region rows at
+ * exactly the country's District level — UG=District, KE=County, TZ=Region,
+ * RW=Province (all level 1 in their hierarchies). Sub-units (sub-county,
+ * parish, village) are implicitly covered.
  *
  * Returns null on success or an error message string on failure.
  */
@@ -30,8 +28,8 @@ export async function validateGroupRegionAnchor(regionId: string): Promise<strin
 
   const districtLevel = await getDistrictLevelForCountry(region.countryCode);
   const districtName = levels.find(l => l.level === districtLevel)?.name ?? `level ${districtLevel}`;
-  if ((region.level ?? 0) < districtLevel) {
-    return `Group must be anchored at ${districtName} or a more specific level (got level ${region.level}). Anchoring higher than ${districtName} would break farmer-transfer district checks.`;
+  if (region.level !== districtLevel) {
+    return `Group districts must be at the ${districtName} level (level ${districtLevel}); got level ${region.level}.`;
   }
   return null;
 }

@@ -5,6 +5,7 @@ import {
   orgRegionsTable,
   orgRegionDistrictsTable,
   countryHierarchiesTable,
+  groupRegionsTable,
 } from "@workspace/db";
 
 /**
@@ -68,6 +69,37 @@ export async function getOrgRegionDistrictIds(orgRegionId: string): Promise<Set<
 }
 
 /**
+ * Returns the set of district region ids that this group covers. A group always
+ * has at least one row in group_regions (enforced at create/update time).
+ */
+export async function getGroupDistrictIds(groupId: string): Promise<Set<string>> {
+  const rows = await db
+    .select({ regionId: groupRegionsTable.regionId })
+    .from(groupRegionsTable)
+    .where(eq(groupRegionsTable.groupId, groupId));
+  return new Set(rows.map((r) => r.regionId));
+}
+
+/**
+ * Batch variant of getGroupDistrictIds. Returns a Map<groupId, Set<regionId>>.
+ * Used by the groups list endpoint and scoping checks that span many groups.
+ */
+export async function getGroupDistrictIdsBatch(groupIds: string[]): Promise<Map<string, Set<string>>> {
+  const out = new Map<string, Set<string>>();
+  if (groupIds.length === 0) return out;
+  const rows = await db
+    .select({ groupId: groupRegionsTable.groupId, regionId: groupRegionsTable.regionId })
+    .from(groupRegionsTable)
+    .where(inArray(groupRegionsTable.groupId, groupIds));
+  for (const r of rows) {
+    let s = out.get(r.groupId);
+    if (!s) { s = new Set<string>(); out.set(r.groupId, s); }
+    s.add(r.regionId);
+  }
+  return out;
+}
+
+/**
  * True iff the given village (leaf region) sits underneath one of the
  * org region's mapped districts.
  */
@@ -88,6 +120,23 @@ export async function isLeafInsideOrgRegion(
 }
 
 /**
+ * True iff ANY district covered by the group is also mapped to the org region.
+ * Replaces the old single-anchor `isLeafInsideOrgRegion(group.regionId, ...)`
+ * check now that groups can cover multiple districts.
+ */
+export async function isGroupInsideOrgRegion(
+  groupId: string,
+  orgRegionId: string,
+): Promise<boolean> {
+  const [groupDistricts, orgDistricts] = await Promise.all([
+    getGroupDistrictIds(groupId),
+    getOrgRegionDistrictIds(orgRegionId),
+  ]);
+  for (const d of groupDistricts) if (orgDistricts.has(d)) return true;
+  return false;
+}
+
+/**
  * Find the District-level ancestor (or the node itself if it IS a district) for
  * a given region. Returns null if the region doesn't exist or has no district
  * ancestor in its country's hierarchy.
@@ -104,46 +153,45 @@ export async function getDistrictAncestorId(regionId: string): Promise<string | 
 }
 
 /**
- * Batched version: resolve district ancestors for many region ids in one go,
- * deduplicating the input. Used by bulk transfer / archive paths to avoid N+1
- * per-farmer roundtrips. Returns a Map keyed by the original region id; missing
- * entries indicate the region wasn't found or had no district ancestor.
+ * Batch variant of getDistrictAncestorId. Returns a Map<regionId, districtId>.
+ * Skips any region that can't be resolved to a district.
  */
-export async function getDistrictAncestorIdsBatch(
-  regionIds: string[],
-): Promise<Map<string, string | null>> {
-  const out = new Map<string, string | null>();
-  const uniq = Array.from(new Set(regionIds));
-  // Cheap memoization within this call - many farmers usually live in the same village.
-  await Promise.all(
-    uniq.map(async (rid) => {
-      out.set(rid, await getDistrictAncestorId(rid));
-    }),
-  );
+export async function getDistrictAncestorIdsBatch(regionIds: string[]): Promise<Map<string, string>> {
+  const out = new Map<string, string>();
+  if (regionIds.length === 0) return out;
+  const unique = Array.from(new Set(regionIds));
+  for (const id of unique) {
+    const d = await getDistrictAncestorId(id);
+    if (d) out.set(id, d);
+  }
   return out;
 }
 
-/**
- * True iff two region ids share the same District-level ancestor. Used to
- * enforce the implicit org-region binding on farmer edit/transfer paths -
- * after preregister, a farmer's village and their group's anchor village must
- * remain in the same district. Returns false on any lookup failure (fail-safe).
- */
-export async function regionsShareDistrict(regionA: string, regionB: string): Promise<boolean> {
-  if (regionA === regionB) return true;
-  const [a, b] = await Promise.all([
-    getDistrictAncestorId(regionA),
-    getDistrictAncestorId(regionB),
-  ]);
-  if (!a || !b) return false;
-  return a === b;
+/** True iff two regions share the same District-level ancestor. */
+export async function regionsShareDistrict(aId: string, bId: string): Promise<boolean> {
+  if (aId === bId) return true;
+  const [a, b] = await Promise.all([getDistrictAncestorId(aId), getDistrictAncestorId(bId)]);
+  return !!a && !!b && a === b;
 }
 
 /**
- * True iff the given region row is at the deepest configured admin level for
- * its country (i.e. a "village"). Used by preregister to make sure callers
- * pass a real leaf and not an ancestor inside the org region's districts.
+ * Build a denormalised acc of region rows for a country (used by group create
+ * to build a quick lookup table of district names).
  */
+export async function listRegionsByIds(ids: string[]): Promise<Map<string, { id: string; name: string; level: number; countryCode: string }>> {
+  const acc = new Map<string, { id: string; name: string; level: number; countryCode: string }>();
+  if (ids.length === 0) return acc;
+  const rows = await db
+    .select({ id: regionsTable.id, name: regionsTable.name, level: regionsTable.level, countryCode: regionsTable.countryCode })
+    .from(regionsTable)
+    .where(inArray(regionsTable.id, ids));
+  for (const r of rows) {
+    acc.set(r.id, { id: r.id, name: r.name, level: r.level, countryCode: r.countryCode ?? "UG" });
+  }
+  return acc;
+}
+
+/** True iff the region is at its country's deepest (leaf) level. */
 export async function isLeafRegion(regionId: string): Promise<boolean> {
   const [region] = await db
     .select()

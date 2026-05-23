@@ -13,7 +13,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { ArrowLeft, Users, MapPin, Download, Archive, Shield, ArrowRightLeft, UserPlus, Pencil } from "lucide-react";
-import { RegionPicker } from "@/components/RegionPicker";
+import { useListRegions } from "@workspace/api-client-react";
+import { X } from "lucide-react";
 
 const API_BASE = import.meta.env.BASE_URL?.replace(/\/$/, "") ?? "";
 
@@ -24,6 +25,7 @@ type Group = {
   id: string; name: string; regionId: string; village: string | null; parish: string | null; subCounty: string | null; district: string | null;
   groupType: string; status: string; parentGroupId: string | null;
   parent: Group | null; children: Group[];
+  districts: { id: string; name: string }[];
   memberCount: number; activePlots: number; procurementVolumeKg: number; complianceScore: number;
   members: Member[]; leaders: Leader[]; transfers: Transfer[];
 };
@@ -51,7 +53,11 @@ export default function GroupDetail() {
   const [archiveOpen, setArchiveOpen] = useState(false);
   const [archiveForm, setArchiveForm] = useState({ redistributeToGroupId: "", reason: "" });
   const [anchorOpen, setAnchorOpen] = useState(false);
-  const [anchorRegionId, setAnchorRegionId] = useState("");
+  const [districtIds, setDistrictIds] = useState<string[]>([]);
+  const [districtFilter, setDistrictFilter] = useState("");
+  const { data: allRegions } = useListRegions();
+  const allDistricts = (allRegions ?? []).filter((r: any) => r.level === 1 && (r.countryCode ?? "UG") === "UG")
+    .sort((a: any, b: any) => a.name.localeCompare(b.name));
 
   const refetch = () => qc.invalidateQueries({ queryKey: [`/api/groups/${groupId}`] });
   const handleError = (e: any) => toast({ title: "Failed", description: e.message, variant: "destructive" });
@@ -91,13 +97,13 @@ export default function GroupDetail() {
 
   const editAnchor = useMutation({
     mutationFn: async () => {
-      const r = await fetch(`${API_BASE}/api/groups/${groupId}`, {
-        method: "PATCH", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ regionId: anchorRegionId }),
+      const r = await fetch(`${API_BASE}/api/groups/${groupId}/districts`, {
+        method: "PUT", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ districtIds }),
       });
       const j = await r.json().catch(() => ({})); if (!r.ok) throw new Error(j.error ?? "Failed"); return j;
     },
-    onSuccess: () => { refetch(); setAnchorOpen(false); toast({ title: "Administrative unit updated" }); },
+    onSuccess: () => { refetch(); setAnchorOpen(false); toast({ title: "Districts updated" }); },
     onError: handleError,
   });
 
@@ -133,20 +139,25 @@ export default function GroupDetail() {
               <Badge variant={group.status === "archived" ? "destructive" : "secondary"} data-testid="group-status">{group.status}</Badge>
               <Badge variant="outline">{group.groupType.replace(/_/g, " ")}</Badge>
             </div>
-            <p className="text-muted-foreground flex items-center gap-1 mt-1 text-sm">
-              <MapPin className="h-3 w-3" />
-              {[group.village, group.parish, group.subCounty, group.district].filter(Boolean).join(" • ") || "—"}
-              {group.status === "active" && (
-                <button
-                  type="button"
-                  className="ml-2 inline-flex items-center gap-1 text-xs text-primary hover:underline"
-                  onClick={() => { setAnchorRegionId(group.regionId); setAnchorOpen(true); }}
-                  data-testid="edit-anchor-btn"
-                >
-                  <Pencil className="h-3 w-3" /> Change
-                </button>
-              )}
-            </p>
+            <div className="text-muted-foreground mt-1 text-sm">
+              <div className="flex items-start gap-1 flex-wrap" data-testid="group-districts">
+                <MapPin className="h-3 w-3 mt-1 shrink-0" />
+                {group.districts.length > 0 ? group.districts.map(d => (
+                  <Badge key={d.id} variant="outline" data-testid={`district-chip-${d.id}`}>{d.name}</Badge>
+                )) : <span>No districts assigned</span>}
+                {group.status === "active" && (
+                  <button
+                    type="button"
+                    className="ml-1 inline-flex items-center gap-1 text-xs text-primary hover:underline"
+                    onClick={() => { setDistrictIds(group.districts.map(d => d.id)); setDistrictFilter(""); setAnchorOpen(true); }}
+                    data-testid="edit-districts-btn"
+                  >
+                    <Pencil className="h-3 w-3" /> Edit
+                  </button>
+                )}
+              </div>
+              {group.village && <p className="mt-1">Village: {group.village}</p>}
+            </div>
             {group.parent && (
               <p className="text-xs text-muted-foreground mt-1">Part of{" "}
                 <Link href={`/groups/${group.parent.id}`} className="text-primary hover:underline">{group.parent.name}</Link>
@@ -309,25 +320,66 @@ export default function GroupDetail() {
         </DialogContent>
       </Dialog>
 
-      {/* EDIT ANCHOR DIALOG */}
+      {/* EDIT DISTRICTS DIALOG */}
       <Dialog open={anchorOpen} onOpenChange={setAnchorOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Change administrative unit</DialogTitle>
-            <DialogDescription>Pick the District, Sub-county, Parish or Village this group is anchored to. Drilling deeper makes farmer transfers and reporting more precise.</DialogDescription>
+            <DialogTitle>Edit districts covered</DialogTitle>
+            <DialogDescription>A group can span multiple districts. Tick every district where its members live. Districts with member farmers cannot be removed.</DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
-            <RegionPicker
-              value={anchorRegionId}
-              onChange={setAnchorRegionId}
-              country="UG"
-              required
-              testIdPrefix="edit-anchor"
+            {districtIds.length > 0 && (
+              <div className="flex flex-wrap gap-1" data-testid="edit-selected-districts">
+                {districtIds.map(id => {
+                  const d = allDistricts.find((x: any) => x.id === id);
+                  return (
+                    <Badge key={id} variant="secondary" className="gap-1">
+                      {d?.name ?? id.slice(0, 6)}
+                      <button
+                        type="button"
+                        onClick={() => setDistrictIds(prev => prev.filter(x => x !== id))}
+                        data-testid={`edit-remove-district-${id}`}
+                        className="hover:text-destructive"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </Badge>
+                  );
+                })}
+              </div>
+            )}
+            <Input
+              placeholder="Search districts..."
+              value={districtFilter}
+              onChange={e => setDistrictFilter(e.target.value)}
+              data-testid="edit-district-search"
             />
+            <div className="max-h-64 overflow-y-auto border rounded-md p-2 space-y-1">
+              {allDistricts
+                .filter((d: any) => !districtFilter.trim() || d.name.toLowerCase().includes(districtFilter.trim().toLowerCase()))
+                .map((d: any) => (
+                  <label key={d.id} className="flex items-center gap-2 px-2 py-1 hover:bg-muted rounded cursor-pointer" data-testid={`edit-district-row-${d.id}`}>
+                    <Checkbox
+                      checked={districtIds.includes(d.id)}
+                      onCheckedChange={(v) => {
+                        setDistrictIds(prev => v ? (prev.includes(d.id) ? prev : [...prev, d.id]) : prev.filter(x => x !== d.id));
+                      }}
+                    />
+                    <span className="text-sm">{d.name}</span>
+                  </label>
+                ))}
+            </div>
+            <p className="text-xs text-muted-foreground">{districtIds.length} district{districtIds.length === 1 ? "" : "s"} selected</p>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setAnchorOpen(false)}>Cancel</Button>
-            <Button onClick={() => editAnchor.mutate()} disabled={!anchorRegionId || anchorRegionId === group.regionId || editAnchor.isPending} data-testid="submit-edit-anchor">{editAnchor.isPending ? "Saving..." : "Save"}</Button>
+            <Button
+              onClick={() => editAnchor.mutate()}
+              disabled={districtIds.length === 0 || editAnchor.isPending}
+              data-testid="submit-edit-districts"
+            >
+              {editAnchor.isPending ? "Saving..." : "Save"}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

@@ -8,7 +8,29 @@ import {
 } from "@workspace/api-zod";
 import { requirePermission, type AuthedRequest } from "../middlewares/auth";
 import { checkFarmerAccess, isUserScoped, getAssignedGroupIds } from "../lib/assignment-scope";
-import { isLeafInsideOrgRegion, isLeafRegion, regionsShareDistrict } from "../lib/org-region-scope";
+import { isLeafInsideOrgRegion, isLeafRegion, isGroupInsideOrgRegion, getGroupDistrictIds, getDistrictAncestorId } from "../lib/org-region-scope";
+
+/**
+ * Multi-district invariant: when a farmer is being created against a group,
+ * the farmer's village must roll up into one of the group's covered districts.
+ * Returns a 400-shaped error or null if all is well.
+ */
+async function ensureFarmerDistrictInGroup(
+  groupId: string,
+  farmerRegionId: string,
+): Promise<{ error: string; code: string } | null> {
+  const [farmerDistrict, groupDistricts] = await Promise.all([
+    getDistrictAncestorId(farmerRegionId),
+    getGroupDistrictIds(groupId),
+  ]);
+  if (!farmerDistrict || !groupDistricts.has(farmerDistrict)) {
+    return {
+      error: "Selected village is not in any district covered by this group",
+      code: "FARMER_DISTRICT_NOT_IN_GROUP",
+    };
+  }
+  return null;
+}
 import { getActiveTemplate, computeStageFromTemplate, type RegistrationStage } from "../lib/registration-stage";
 import {
   parseCustomFieldValues,
@@ -239,11 +261,13 @@ router.post("/farmers", requirePermission("farmers.register"), async (req: Authe
       res.status(400).json({ error: "Selected village is not inside the chosen region", code: "VILLAGE_OUT_OF_ORG_REGION" });
       return;
     }
-    const groupVillageOk = await isLeafInsideOrgRegion(group.regionId, orgRegionId);
+    const groupVillageOk = await isGroupInsideOrgRegion(group.id, orgRegionId);
     if (!groupVillageOk) {
       res.status(400).json({ error: "Selected group is not inside the chosen region", code: "GROUP_OUT_OF_ORG_REGION" });
       return;
     }
+    const inGroupDistricts = await ensureFarmerDistrictInGroup(group.id, farmerRegionId);
+    if (inGroupDistricts) { res.status(400).json(inGroupDistricts); return; }
   }
   // Optional farm + livelihood capture (mobile full-register form)
   const livelihoodPatch = pickLivelihoodPatch(req.body as Record<string, unknown>);
@@ -354,11 +378,13 @@ router.post("/farmers/preregister", requirePermission("farmers.preregister"), as
       res.status(400).json({ error: "Selected village is not inside the chosen region", code: "VILLAGE_OUT_OF_ORG_REGION" });
       return;
     }
-    const groupVillageOk = await isLeafInsideOrgRegion(grp.regionId, orgRegionId);
+    const groupVillageOk = await isGroupInsideOrgRegion(grp.id, orgRegionId);
     if (!groupVillageOk) {
       res.status(400).json({ error: "Selected group is not inside the chosen region", code: "GROUP_OUT_OF_ORG_REGION" });
       return;
     }
+    const inGroupDistricts = await ensureFarmerDistrictInGroup(grp.id, regionId);
+    if (inGroupDistricts) { res.status(400).json(inGroupDistricts); return; }
   }
   // Per-user assignment scoping: field staff with `groups.assigned_only` may only
   // pre-register into groups they are assigned to.
@@ -643,13 +669,14 @@ router.patch("/farmers/:farmerId", async (req: AuthedRequest, res): Promise<void
     const nextGroupId = patchData.groupId ?? existing.groupId;
     const nextRegionId = patchData.regionId ?? existing.regionId;
     if (nextGroupId && nextRegionId) {
-      const [grp] = await db
-        .select({ regionId: groupsTable.regionId })
-        .from(groupsTable)
-        .where(eq(groupsTable.id, nextGroupId));
-      if (grp && !(await regionsShareDistrict(nextRegionId, grp.regionId))) {
+      // Multi-district groups: farmer's district must be in the group's covered set.
+      const [farmerDistrict, groupDistricts] = await Promise.all([
+        getDistrictAncestorId(nextRegionId),
+        getGroupDistrictIds(nextGroupId),
+      ]);
+      if (!farmerDistrict || groupDistricts.size === 0 || !groupDistricts.has(farmerDistrict)) {
         res.status(400).json({
-          error: "Farmer's village and group's anchor village must be in the same district",
+          error: "Farmer's village district must be one of the group's covered districts",
           code: "FARMER_GROUP_DISTRICT_MISMATCH",
         });
         return;
