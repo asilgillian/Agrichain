@@ -10,7 +10,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
+import { Plus, RefreshCw, FileX } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 const API_BASE = import.meta.env.BASE_URL?.replace(/\/$/, "");
@@ -31,6 +32,14 @@ function fmt(n: string | null | undefined) {
 }
 
 const emptyRepay = { amount: "", paymentDate: new Date().toISOString().slice(0, 10), paymentMethod: "MTN_MOMO", reference: "" };
+const emptyRestructure = { newDueDate: "", additionalInterest: "", reason: "" };
+const emptyWriteOff = { reason: "" };
+
+async function postJson(url: string, body: any) {
+  const r = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  if (!r.ok) throw new Error((await r.json()).error ?? "Failed");
+  return r.json();
+}
 
 export default function LoanDetail() {
   const { id } = useParams<{ id: string }>();
@@ -38,6 +47,12 @@ export default function LoanDetail() {
   const queryClient = useQueryClient();
   const [repayOpen, setRepayOpen] = useState(false);
   const [repayForm, setRepayForm] = useState(emptyRepay);
+  const [restructureOpen, setRestructureOpen] = useState(false);
+  const [restructureForm, setRestructureForm] = useState(emptyRestructure);
+  const [writeOffOpen, setWriteOffOpen] = useState(false);
+  const [writeOffForm, setWriteOffForm] = useState(emptyWriteOff);
+
+  const invalidate = () => queryClient.invalidateQueries({ queryKey: ["/api/loans", id] });
 
   const { data: loan, isLoading } = useQuery({
     queryKey: ["/api/loans", id],
@@ -46,25 +61,33 @@ export default function LoanDetail() {
   });
 
   const approveMutation = useMutation({
-    mutationFn: () => fetch(`${API_BASE}/api/loans/${id}/approve`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ userId: null }) }).then(r => r.json()),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/loans", id] }); toast({ title: "Loan approved" }); },
+    mutationFn: () => postJson(`${API_BASE}/api/loans/${id}/approve`, {}),
+    onSuccess: () => { invalidate(); toast({ title: "Loan approved" }); },
+    onError: (e: any) => toast({ title: "Approve failed", description: e.message, variant: "destructive" }),
   });
 
   const disburseMutation = useMutation({
-    mutationFn: () => fetch(`${API_BASE}/api/loans/${id}/disburse`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ disbursedAmount: loan?.principalAmount }) }).then(r => r.json()),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/loans", id] }); toast({ title: "Loan disbursed" }); },
+    mutationFn: () => postJson(`${API_BASE}/api/loans/${id}/disburse`, { disbursedAmount: Number(loan?.principalAmount ?? 0) }),
+    onSuccess: () => { invalidate(); toast({ title: "Loan disbursed" }); },
+    onError: (e: any) => toast({ title: "Disburse failed", description: e.message, variant: "destructive" }),
   });
 
   const repayMutation = useMutation({
-    mutationFn: (body: any) => fetch(`${API_BASE}/api/loans/${id}/repayments`, {
-      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
-    }).then(async r => { if (!r.ok) throw new Error((await r.json()).error ?? "Failed"); return r.json(); }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/loans", id] });
-      toast({ title: "Repayment recorded" });
-      setRepayOpen(false); setRepayForm(emptyRepay);
-    },
+    mutationFn: (body: any) => postJson(`${API_BASE}/api/loans/${id}/repayments`, body),
+    onSuccess: () => { invalidate(); toast({ title: "Repayment recorded" }); setRepayOpen(false); setRepayForm(emptyRepay); },
     onError: (e: any) => toast({ title: "Failed to record repayment", description: e.message, variant: "destructive" }),
+  });
+
+  const restructureMutation = useMutation({
+    mutationFn: (body: any) => postJson(`${API_BASE}/api/loans/${id}/restructure`, body),
+    onSuccess: () => { invalidate(); toast({ title: "Loan restructured" }); setRestructureOpen(false); setRestructureForm(emptyRestructure); },
+    onError: (e: any) => toast({ title: "Restructure failed", description: e.message, variant: "destructive" }),
+  });
+
+  const writeOffMutation = useMutation({
+    mutationFn: (body: any) => postJson(`${API_BASE}/api/loans/${id}/write-off`, body),
+    onSuccess: () => { invalidate(); toast({ title: "Loan written off" }); setWriteOffOpen(false); setWriteOffForm(emptyWriteOff); },
+    onError: (e: any) => toast({ title: "Write-off failed", description: e.message, variant: "destructive" }),
   });
 
   const submitRepay = () => {
@@ -77,6 +100,21 @@ export default function LoanDetail() {
     });
   };
 
+  const submitRestructure = () => {
+    if (!restructureForm.newDueDate) { toast({ title: "New due date required", variant: "destructive" }); return; }
+    if (!restructureForm.reason.trim()) { toast({ title: "Reason required", variant: "destructive" }); return; }
+    restructureMutation.mutate({
+      newDueDate: restructureForm.newDueDate,
+      additionalInterest: restructureForm.additionalInterest ? Number(restructureForm.additionalInterest) : undefined,
+      reason: restructureForm.reason.trim(),
+    });
+  };
+
+  const submitWriteOff = () => {
+    if (!writeOffForm.reason.trim()) { toast({ title: "Reason required", variant: "destructive" }); return; }
+    writeOffMutation.mutate({ reason: writeOffForm.reason.trim() });
+  };
+
   if (isLoading) return <div className="p-8 space-y-4"><Skeleton className="h-32 w-full" /><Skeleton className="h-48 w-full" /></div>;
   if (!loan || loan.error) return <div className="p-8 text-center text-muted-foreground">Loan not found</div>;
 
@@ -84,19 +122,70 @@ export default function LoanDetail() {
   const principal = Number(loan.principalAmount ?? 0);
   const outstanding = Number(loan.outstandingBalance ?? 0);
   const progress = principal > 0 ? Math.round(((principal - outstanding) / principal) * 100) : 0;
+  const isOpen = ["DISBURSED", "REPAYING", "DEFAULTED"].includes(loan.status);
   const canRepay = ["DISBURSED", "REPAYING"].includes(loan.status);
+  const isTerminal = ["CLOSED", "WRITTEN_OFF"].includes(loan.status);
+  const restructuresLeft = loan.product ? Math.max(0, (loan.product.maxRestructures ?? 0) - (loan.restructureCount ?? 0)) : 0;
 
   return (
     <div className="space-y-6 max-w-5xl mx-auto pb-12">
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">{loan.loanNumber}</h1>
-          <p className="text-muted-foreground">{loan.loanType?.replace(/_/g, " ")} {loan.farmer ? `· ${loan.farmer.firstName} ${loan.farmer.lastName}` : ""}</p>
+          <p className="text-muted-foreground">{loan.loanType} {loan.farmer ? `· ${loan.farmer.firstName} ${loan.farmer.lastName}` : ""}</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <Badge className={`${statusColors[loan.status] ?? ""} border-0 text-sm`}>{loan.status}</Badge>
           {loan.status === "PENDING" && <Button size="sm" onClick={() => approveMutation.mutate()} disabled={approveMutation.isPending} data-testid="approve-btn">Approve</Button>}
           {loan.status === "APPROVED" && <Button size="sm" onClick={() => disburseMutation.mutate()} disabled={disburseMutation.isPending} data-testid="disburse-btn">Disburse</Button>}
+          {isOpen && !isTerminal && (
+            <Dialog open={restructureOpen} onOpenChange={setRestructureOpen}>
+              <DialogTrigger asChild>
+                <Button size="sm" variant="outline" className="gap-1" data-testid="restructure-btn" disabled={loan.product && restructuresLeft === 0}>
+                  <RefreshCw className="h-3.5 w-3.5" /> Restructure
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-md">
+                <DialogHeader>
+                  <DialogTitle>Restructure Loan</DialogTitle>
+                  <DialogDescription>
+                    {loan.product ? `${restructuresLeft} restructure(s) remaining (max ${loan.product.maxRestructures ?? 0}).` : "Extend the due date and optionally capitalize accrued interest."}
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="space-y-3">
+                  <div><Label>New Due Date *</Label><Input type="date" value={restructureForm.newDueDate} onChange={e => setRestructureForm({ ...restructureForm, newDueDate: e.target.value })} data-testid="input-new-due-date" /></div>
+                  <div><Label>Additional Interest (UGX, optional)</Label><Input type="number" placeholder="0" value={restructureForm.additionalInterest} onChange={e => setRestructureForm({ ...restructureForm, additionalInterest: e.target.value })} data-testid="input-additional-interest" /></div>
+                  <div><Label>Reason *</Label><Textarea rows={3} value={restructureForm.reason} onChange={e => setRestructureForm({ ...restructureForm, reason: e.target.value })} placeholder="Drought; farmer requested 60-day extension" data-testid="input-restructure-reason" /></div>
+                </div>
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setRestructureOpen(false)}>Cancel</Button>
+                  <Button onClick={submitRestructure} disabled={restructureMutation.isPending} data-testid="submit-restructure">{restructureMutation.isPending ? "Saving..." : "Restructure"}</Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          )}
+          {isOpen && !isTerminal && (
+            <Dialog open={writeOffOpen} onOpenChange={setWriteOffOpen}>
+              <DialogTrigger asChild>
+                <Button size="sm" variant="destructive" className="gap-1" data-testid="write-off-btn">
+                  <FileX className="h-3.5 w-3.5" /> Write Off
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-md">
+                <DialogHeader>
+                  <DialogTitle>Write Off Loan</DialogTitle>
+                  <DialogDescription>This marks the outstanding balance as uncollectable. Cannot be undone.</DialogDescription>
+                </DialogHeader>
+                <div className="space-y-3">
+                  <div><Label>Reason *</Label><Textarea rows={4} value={writeOffForm.reason} onChange={e => setWriteOffForm({ ...writeOffForm, reason: e.target.value })} placeholder="Farmer deceased / unrecoverable after 3 collection attempts" data-testid="input-writeoff-reason" /></div>
+                </div>
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setWriteOffOpen(false)}>Cancel</Button>
+                  <Button variant="destructive" onClick={submitWriteOff} disabled={writeOffMutation.isPending} data-testid="submit-writeoff">{writeOffMutation.isPending ? "Saving..." : "Confirm Write-Off"}</Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          )}
         </div>
       </div>
 
@@ -126,15 +215,24 @@ export default function LoanDetail() {
           <CardHeader><CardTitle className="text-base">Loan Details</CardTitle></CardHeader>
           <CardContent className="space-y-3">
             {[
+              ["Product", loan.product?.name ?? loan.loanType],
               ["Purpose", loan.purpose],
               ["Collateral", loan.collateral],
-              ["Interest Rate", loan.interestRatePct ? `${loan.interestRatePct}%` : null],
+              ["Interest Rate", loan.interestRatePct ? `${loan.interestRatePct}% (${loan.product?.interestType ?? "flat"})` : null],
+              ["Penalty Rate", loan.penaltyRatePct && Number(loan.penaltyRatePct) > 0 ? `${loan.penaltyRatePct}%` : null],
+              ["Grace Period", loan.gracePeriodDays ? `${loan.gracePeriodDays} days` : null],
+              ["Recovery Method", loan.product?.repaymentMethod ?? null],
               ["Due Date", loan.dueDate],
+              ["Original Due Date", loan.originalDueDate !== loan.dueDate ? loan.originalDueDate : null],
+              ["Restructured", loan.restructureCount > 0 ? `${loan.restructureCount} time(s)` : null],
               ["Disbursed At", loan.disbursedAt ? new Date(loan.disbursedAt).toLocaleDateString() : null],
+              ["Defaulted At", loan.defaultedAt ? new Date(loan.defaultedAt).toLocaleDateString() : null],
+              ["Written Off At", loan.writtenOffAt ? new Date(loan.writtenOffAt).toLocaleDateString() : null],
+              ["Write-Off Reason", loan.writeOffReason],
             ].map(([label, value]) => value ? (
               <div key={String(label)} className="flex justify-between text-sm">
                 <span className="text-muted-foreground">{label}</span>
-                <span className="font-medium">{String(value)}</span>
+                <span className="font-medium text-right max-w-[60%]">{String(value)}</span>
               </div>
             ) : null)}
           </CardContent>

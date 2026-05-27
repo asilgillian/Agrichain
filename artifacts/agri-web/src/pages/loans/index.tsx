@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { Link } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
@@ -31,11 +31,32 @@ function fmt(n: string | null | undefined) {
   return "UGX " + Number(n).toLocaleString("en-UG", { minimumFractionDigits: 0 });
 }
 
-const emptyForm = { farmerId: "", loanType: "CASH_ADVANCE", principalAmount: "", interestRatePct: "", purpose: "", collateral: "", dueDate: "", notes: "" };
+interface LoanProduct {
+  id: string;
+  name: string;
+  loanCategoryId: string;
+  interestType: string;
+  interestRate: string;
+  penaltyRate: string;
+  gracePeriodDays: number;
+  maxAmount: string | null;
+  allowFinanceOverride: boolean;
+  isActive: boolean;
+}
+
+const emptyForm = {
+  loanProductId: "",
+  farmerId: "",
+  principalAmount: "",
+  interestOverride: "",
+  purpose: "",
+  collateral: "",
+  dueDate: "",
+  notes: "",
+};
 
 export default function LoansPage() {
   const [status, setStatus] = useState("all");
-  const [loanType, setLoanType] = useState("all");
   const [page, setPage] = useState(1);
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState(emptyForm);
@@ -44,10 +65,9 @@ export default function LoansPage() {
 
   const params = new URLSearchParams({ page: String(page), limit: "20" });
   if (status !== "all") params.set("status", status);
-  if (loanType !== "all") params.set("loanType", loanType);
 
   const { data, isLoading } = useQuery({
-    queryKey: ["/api/loans", status, loanType, page],
+    queryKey: ["/api/loans", status, page],
     queryFn: () => fetch(`${API_BASE}/api/loans?${params}`).then(r => r.json()),
   });
 
@@ -61,6 +81,22 @@ export default function LoansPage() {
     queryFn: () => fetch(`${API_BASE}/api/farmers?limit=200`).then(r => r.json()),
     enabled: open,
   });
+
+  const { data: products } = useQuery<LoanProduct[]>({
+    queryKey: ["/api/loan-products"],
+    queryFn: () => fetch(`${API_BASE}/api/loan-products`).then(r => r.json()),
+    enabled: open,
+  });
+
+  const activeProducts = useMemo(() => (products ?? []).filter(p => p.isActive), [products]);
+  const selectedProduct = useMemo(
+    () => activeProducts.find(p => p.id === form.loanProductId) ?? null,
+    [activeProducts, form.loanProductId],
+  );
+
+  // When a new product is picked, clear any prior override so the user explicitly
+  // re-opts in to overriding rates (and the displayed rate matches what'll be saved).
+  useEffect(() => { setForm(f => ({ ...f, interestOverride: "" })); }, [form.loanProductId]);
 
   const createMutation = useMutation({
     mutationFn: (body: any) => fetch(`${API_BASE}/api/loans`, {
@@ -76,12 +112,18 @@ export default function LoansPage() {
   });
 
   const submit = () => {
-    if (!form.principalAmount || Number(form.principalAmount) <= 0) { toast({ title: "Valid principal amount required", variant: "destructive" }); return; }
+    if (!form.loanProductId) { toast({ title: "Please select a loan product", variant: "destructive" }); return; }
+    const principal = Number(form.principalAmount);
+    if (!principal || principal <= 0) { toast({ title: "Valid principal amount required", variant: "destructive" }); return; }
+    if (selectedProduct?.maxAmount && principal > Number(selectedProduct.maxAmount)) {
+      toast({ title: `Exceeds product max (UGX ${Number(selectedProduct.maxAmount).toLocaleString()})`, variant: "destructive" });
+      return;
+    }
     createMutation.mutate({
+      loanProductId: form.loanProductId,
       farmerId: form.farmerId || undefined,
-      loanType: form.loanType,
-      principalAmount: Number(form.principalAmount),
-      interestRatePct: form.interestRatePct ? Number(form.interestRatePct) : undefined,
+      principalAmount: principal,
+      interestRatePctOverride: form.interestOverride ? Number(form.interestOverride) : undefined,
       purpose: form.purpose.trim() || undefined,
       collateral: form.collateral.trim() || undefined,
       dueDate: form.dueDate || undefined,
@@ -99,7 +141,7 @@ export default function LoansPage() {
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Loan Management</h1>
-          <p className="text-muted-foreground mt-1">Farmer and group loans — cash advances, input loans, and welfare.</p>
+          <p className="text-muted-foreground mt-1">Farmer and group loans — backed by your loan-product catalog.</p>
         </div>
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild>
@@ -108,25 +150,42 @@ export default function LoansPage() {
           <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>New Loan</DialogTitle>
-              <DialogDescription>Create a new loan application. Loans start in PENDING status.</DialogDescription>
+              <DialogDescription>Pick a catalog product — its interest, grace and recovery rules apply automatically.</DialogDescription>
             </DialogHeader>
             <div className="space-y-3">
+              <div>
+                <Label>Loan Product *</Label>
+                <Select value={form.loanProductId} onValueChange={v => setForm({ ...form, loanProductId: v })}>
+                  <SelectTrigger data-testid="input-loan-product"><SelectValue placeholder={activeProducts.length === 0 ? "No active products — create one in Loan Products" : "Select a product"} /></SelectTrigger>
+                  <SelectContent>
+                    {activeProducts.map(p => (
+                      <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {selectedProduct && (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {selectedProduct.interestType} · default {Number(selectedProduct.interestRate)}% interest
+                    · {selectedProduct.gracePeriodDays}d grace
+                    {selectedProduct.maxAmount ? ` · max UGX ${Number(selectedProduct.maxAmount).toLocaleString()}` : ""}
+                  </p>
+                )}
+              </div>
               <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <Label>Loan Type *</Label>
-                  <Select value={form.loanType} onValueChange={v => setForm({ ...form, loanType: v })}>
-                    <SelectTrigger data-testid="input-loan-type"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="CASH_ADVANCE">Cash Advance</SelectItem>
-                      <SelectItem value="INPUT_LOAN">Input Loan</SelectItem>
-                      <SelectItem value="EMERGENCY_WELFARE">Emergency / Welfare</SelectItem>
-                      <SelectItem value="GROUP_LOAN">Group Loan</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
                 <div>
                   <Label>Principal (UGX) *</Label>
                   <Input type="number" value={form.principalAmount} onChange={e => setForm({ ...form, principalAmount: e.target.value })} placeholder="50000" data-testid="input-principal" />
+                </div>
+                <div>
+                  <Label>Interest % {selectedProduct?.allowFinanceOverride ? "" : "(locked)"}</Label>
+                  <Input
+                    type="number" step="0.1"
+                    value={form.interestOverride}
+                    placeholder={selectedProduct ? String(Number(selectedProduct.interestRate)) : "—"}
+                    disabled={!selectedProduct?.allowFinanceOverride}
+                    onChange={e => setForm({ ...form, interestOverride: e.target.value })}
+                    data-testid="input-interest"
+                  />
                 </div>
               </div>
               <div>
@@ -141,9 +200,9 @@ export default function LoansPage() {
                   </SelectContent>
                 </Select>
               </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div><Label>Interest Rate (%)</Label><Input type="number" step="0.1" value={form.interestRatePct} onChange={e => setForm({ ...form, interestRatePct: e.target.value })} placeholder="5" data-testid="input-interest" /></div>
-                <div><Label>Due Date</Label><Input type="date" value={form.dueDate} onChange={e => setForm({ ...form, dueDate: e.target.value })} data-testid="input-due-date" /></div>
+              <div>
+                <Label>Due Date</Label>
+                <Input type="date" value={form.dueDate} onChange={e => setForm({ ...form, dueDate: e.target.value })} data-testid="input-due-date" />
               </div>
               <div><Label>Purpose</Label><Input value={form.purpose} onChange={e => setForm({ ...form, purpose: e.target.value })} placeholder="e.g. School fees, fertilizer" data-testid="input-purpose" /></div>
               <div><Label>Collateral</Label><Input value={form.collateral} onChange={e => setForm({ ...form, collateral: e.target.value })} placeholder="e.g. Future harvest" data-testid="input-collateral" /></div>
@@ -175,16 +234,7 @@ export default function LoansPage() {
             <SelectItem value="REPAYING">Repaying</SelectItem>
             <SelectItem value="CLOSED">Closed</SelectItem>
             <SelectItem value="DEFAULTED">Defaulted</SelectItem>
-          </SelectContent>
-        </Select>
-        <Select value={loanType} onValueChange={v => { setLoanType(v); setPage(1); }}>
-          <SelectTrigger className="w-44" data-testid="type-filter"><SelectValue placeholder="Loan Type" /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Types</SelectItem>
-            <SelectItem value="CASH_ADVANCE">Cash Advance</SelectItem>
-            <SelectItem value="INPUT_LOAN">Input Loan</SelectItem>
-            <SelectItem value="EMERGENCY_WELFARE">Emergency / Welfare</SelectItem>
-            <SelectItem value="GROUP_LOAN">Group Loan</SelectItem>
+            <SelectItem value="WRITTEN_OFF">Written Off</SelectItem>
           </SelectContent>
         </Select>
       </div>
@@ -195,7 +245,7 @@ export default function LoansPage() {
             <TableRow>
               <TableHead>Loan Number</TableHead>
               <TableHead>Farmer</TableHead>
-              <TableHead>Type</TableHead>
+              <TableHead>Product</TableHead>
               <TableHead>Principal</TableHead>
               <TableHead>Outstanding</TableHead>
               <TableHead>Due Date</TableHead>
@@ -212,7 +262,7 @@ export default function LoansPage() {
               <TableRow key={loan.id} data-testid={`loan-row-${loan.id}`}>
                 <TableCell className="font-mono text-sm font-semibold">{loan.loanNumber}</TableCell>
                 <TableCell>{loan.farmerName ?? <span className="text-muted-foreground">Group Loan</span>}</TableCell>
-                <TableCell><span className="text-xs">{loan.loanType.replace(/_/g, " ")}</span></TableCell>
+                <TableCell><span className="text-xs">{loan.loanType}</span></TableCell>
                 <TableCell className="font-mono">{fmt(loan.principalAmount)}</TableCell>
                 <TableCell className="font-mono">{fmt(loan.outstandingBalance)}</TableCell>
                 <TableCell className="text-sm">{loan.dueDate ?? "—"}</TableCell>

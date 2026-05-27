@@ -10,6 +10,7 @@ import {
 } from "@workspace/db";
 import { InitiatePaymentBody, ListPaymentsQueryParams } from "@workspace/api-zod";
 import { checkFarmerStageForTxn } from "../lib/transaction-access";
+import { applyAutoDeductionsForFarmerPayment } from "../lib/loan-deductions";
 import { requirePermission, type AuthedRequest } from "../middlewares/auth";
 
 const router: IRouter = Router();
@@ -158,25 +159,9 @@ router.post("/payments", requirePermission("payments.write"), async (req: Authed
         } else {
           floatId = existingFloat[0].id;
         }
-        // ATOMIC conditional decrement — the WHERE clause guarantees we never
-        // over-disburse even under concurrent payouts. If two requests race,
-        // only one of them satisfies `current_balance >= amt` and the other's
-        // UPDATE matches zero rows.
-        const updated = await tx
-          .update(agentCashFloatsTable)
-          .set({
-            currentBalance: sql`(${agentCashFloatsTable.currentBalance})::numeric - ${String(amt)}::numeric`,
-            updatedAt: new Date(),
-          })
-          .where(and(
-            eq(agentCashFloatsTable.id, floatId),
-            sql`(${agentCashFloatsTable.currentBalance})::numeric >= ${String(amt)}::numeric`,
-          ))
-          .returning();
-        if (updated.length === 0) {
-          throw Object.assign(new Error("Insufficient cash float for this payment"), { status: 400 });
-        }
-        const newBalance = Number(updated[0].currentBalance);
+        // Create the payment row first (status=paid; the gross amountPaid records
+        // what the farmer was owed for the delivery, even if part of it was
+        // auto-applied to outstanding loans rather than handed over in cash).
         const [payment] = await tx.insert(paymentsTable).values({
           farmerId: data.farmerId,
           deliveryId: data.deliveryId,
@@ -187,24 +172,79 @@ router.post("/payments", requirePermission("payments.write"), async (req: Authed
           status: "paid",
           paidAt: new Date(),
         }).returning();
+
+        // Phase 2b: auto-apply this payout against the farmer's open auto_deduct loans
+        // (in product.recoveryPriority order). The net actually handed over in cash =
+        // gross minus deductions.
+        const deductions = await applyAutoDeductionsForFarmerPayment(tx, {
+          farmerId: data.farmerId,
+          grossAmount: amt,
+          sourcePaymentId: payment.id,
+          sourceDeliveryId: data.deliveryId ?? null,
+          paymentDate: new Date().toISOString().slice(0, 10),
+          collectedById: agentId,
+        });
+        const netCashHandedOver = deductions.netToFarmer;
+
+        // ATOMIC conditional decrement against the NET handed over (not the gross).
+        // The WHERE guard guarantees we never over-disburse under concurrent payouts.
+        // When netCashHandedOver == 0 (loans consumed full payout), we still touch the
+        // float row to bump updatedAt and confirm the row exists.
+        const updated = await tx
+          .update(agentCashFloatsTable)
+          .set({
+            currentBalance: sql`(${agentCashFloatsTable.currentBalance})::numeric - ${String(netCashHandedOver)}::numeric`,
+            updatedAt: new Date(),
+          })
+          .where(and(
+            eq(agentCashFloatsTable.id, floatId),
+            sql`(${agentCashFloatsTable.currentBalance})::numeric >= ${String(netCashHandedOver)}::numeric`,
+          ))
+          .returning();
+        if (updated.length === 0) {
+          throw Object.assign(new Error("Insufficient cash float for this payment"), { status: 400 });
+        }
+        const newBalance = Number(updated[0].currentBalance);
+
+        // Float ledger entries. We ALWAYS write a DEDUCTION row for every cash
+        // payment — even when net=0 — so reconciliation reports can count one
+        // float-ledger row per cash payment. When loan auto-deductions absorbed
+        // part of the gross, we also write a separate LOAN_RECOVERY row (zero
+        // balance impact) so the gross/net breakdown is visible in the ledger.
+        const noteParts = [`Cash payment to farmer ${data.farmerId} for delivery ${data.deliveryId}`];
+        if (deductions.totalDeducted > 0) {
+          noteParts.push(`(gross ${amt} - loan deductions ${deductions.totalDeducted} = ${netCashHandedOver})`);
+        }
         await tx.insert(cashFloatTransactionsTable).values({
           floatId,
           type: "DEDUCTION",
-          amount: amt.toString(),
+          amount: String(netCashHandedOver),
           balanceAfter: String(newBalance),
           reference: payment.id,
-          note: `Cash payment to farmer ${data.farmerId} for delivery ${data.deliveryId}`,
+          note: noteParts.join(" "),
         });
-        return payment;
+        if (deductions.totalDeducted > 0) {
+          await tx.insert(cashFloatTransactionsTable).values({
+            floatId,
+            type: "LOAN_RECOVERY",
+            amount: String(deductions.totalDeducted),
+            balanceAfter: String(newBalance), // unchanged — informational only
+            reference: payment.id,
+            note: `Auto-applied to loans: ${deductions.lines.map(l => `${l.loanNumber}=${l.amount}`).join(", ")}`,
+          });
+        }
+        return { ...payment, _deductions: deductions };
       });
 
       const [farmer] = await db.select().from(farmersTable).where(eq(farmersTable.id, result.farmerId));
+      const { _deductions, ...paymentOnly } = result as any;
       res.status(201).json({
-        ...result,
+        ...paymentOnly,
         farmerName: farmer ? `${farmer.firstName} ${farmer.lastName}` : "Unknown",
-        amountDue: parseFloat(result.amountDue),
-        amountPaid: result.amountPaid ? parseFloat(result.amountPaid) : null,
+        amountDue: parseFloat(paymentOnly.amountDue),
+        amountPaid: paymentOnly.amountPaid ? parseFloat(paymentOnly.amountPaid) : null,
         lotTag: null,
+        loanDeductions: _deductions ?? null,
       });
       return;
     } catch (e: any) {

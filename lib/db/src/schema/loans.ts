@@ -1,4 +1,4 @@
-import { pgTable, text, uuid, timestamp, date, numeric, boolean, integer } from "drizzle-orm/pg-core";
+import { pgTable, text, uuid, timestamp, date, numeric, integer } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -7,19 +7,29 @@ export const loansTable = pgTable("loans", {
   loanNumber: text("loan_number").notNull().unique(),
   farmerId: uuid("farmer_id"),
   groupId: uuid("group_id"),
-  loanType: text("loan_type").notNull(), // CASH_ADVANCE | INPUT_LOAN | EMERGENCY_WELFARE | STAFF_ADVANCE | GROUP_LOAN
+  // Phase 2: bridge to catalog. Nullable for legacy rows; required for new loans at API layer.
+  loanProductId: uuid("loan_product_id"),
+  loanType: text("loan_type").notNull(), // legacy free-text; mirrored from product.name for new loans
   principalAmount: numeric("principal_amount", { precision: 14, scale: 2 }).notNull(),
   interestRatePct: numeric("interest_rate_pct", { precision: 6, scale: 3 }).default("0"),
+  penaltyRatePct: numeric("penalty_rate_pct", { precision: 6, scale: 3 }).default("0"),
+  gracePeriodDays: integer("grace_period_days").default(0),
   totalRepayable: numeric("total_repayable", { precision: 14, scale: 2 }),
   disbursedAmount: numeric("disbursed_amount", { precision: 14, scale: 2 }),
   outstandingBalance: numeric("outstanding_balance", { precision: 14, scale: 2 }),
-  currency: text("currency").notNull().default("KES"),
+  currency: text("currency").notNull().default("UGX"),
   status: text("status").notNull().default("PENDING"), // PENDING | APPROVED | DISBURSED | REPAYING | CLOSED | DEFAULTED | WRITTEN_OFF
   disbursedAt: timestamp("disbursed_at", { withTimezone: true }),
   dueDate: date("due_date"),
+  originalDueDate: date("original_due_date"),
+  restructureCount: integer("restructure_count").notNull().default(0),
   approvedById: uuid("approved_by_id"),
   approvedAt: timestamp("approved_at", { withTimezone: true }),
   disbursedById: uuid("disbursed_by_id"),
+  defaultedAt: timestamp("defaulted_at", { withTimezone: true }),
+  writtenOffAt: timestamp("written_off_at", { withTimezone: true }),
+  writtenOffById: uuid("written_off_by_id"),
+  writeOffReason: text("write_off_reason"),
   purpose: text("purpose"),
   collateral: text("collateral"),
   notes: text("notes"),
@@ -35,6 +45,9 @@ export const loanRepaymentsTable = pgTable("loan_repayments", {
   paymentMethod: text("payment_method"),
   reference: text("reference"),
   collectedById: uuid("collected_by_id"),
+  // Phase 2b: when a repayment is auto-deducted from a delivery payout, link the source.
+  sourcePaymentId: uuid("source_payment_id"),
+  sourceDeliveryId: uuid("source_delivery_id"),
   notes: text("notes"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
