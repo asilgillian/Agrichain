@@ -2481,6 +2481,8 @@ components:
         loanCategoryId: { type: string, format: uuid }
         name: { type: string }
         commodityTypeId: { type: string, format: uuid, nullable: true }
+        productType: { type: string, enum: [INPUT, CASH] }
+        defaultPrincipal: { type: string, nullable: true }
         interestType: { type: string, enum: [flat, reducing, none] }
         interestRate: { type: string }
         penaltyRate: { type: string }
@@ -2496,7 +2498,7 @@ components:
         createdAt: { type: string, format: date-time }
         updatedAt: { type: string, format: date-time }
       required:
-        [id, loanCategoryId, name, interestType, interestRate, penaltyRate,
+        [id, loanCategoryId, name, productType, interestType, interestRate, penaltyRate,
          gracePeriodDays, maxRestructures, repaymentMethod, recoveryPriority,
          allowPartialRepayment, allowFinanceOverride, seasonBased, isActive,
          createdAt, updatedAt]
@@ -2507,6 +2509,8 @@ components:
         loanCategoryId: { type: string, format: uuid }
         name: { type: string, minLength: 1, maxLength: 160 }
         commodityTypeId: { type: string, format: uuid, nullable: true }
+        productType: { type: string, enum: [INPUT, CASH] }
+        defaultPrincipal: { type: number, nullable: true, minimum: 0 }
         interestType: { type: string, enum: [flat, reducing, none] }
         interestRate: { type: number, minimum: 0 }
         penaltyRate: { type: number, minimum: 0 }
@@ -2568,6 +2572,8 @@ components:
         loanCategoryId: { type: string, format: uuid }
         name: { type: string, minLength: 1, maxLength: 160 }
         commodityTypeId: { type: string, format: uuid, nullable: true }
+        productType: { type: string, enum: [INPUT, CASH] }
+        defaultPrincipal: { type: number, nullable: true, minimum: 0 }
         interestType: { type: string, enum: [flat, reducing, none] }
         interestRate: { type: number, minimum: 0 }
         penaltyRate: { type: number, minimum: 0 }

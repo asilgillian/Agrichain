@@ -164,7 +164,9 @@ const createLoanSchema = z.object({
   loanProductId: z.string().uuid(),
   farmerId: z.string().uuid().optional().nullable(),
   groupId: z.string().uuid().optional().nullable(),
-  principalAmount: z.number().positive(),
+  // Optional for INPUT products (server uses product.defaultPrincipal);
+  // required for CASH products. Validated below after product lookup.
+  principalAmount: z.number().positive().optional(),
   // Optional overrides — only honoured when the product's allowFinanceOverride = true.
   interestRatePctOverride: z.number().min(0).max(1000).optional(),
   penaltyRatePctOverride: z.number().min(0).max(1000).optional(),
@@ -184,8 +186,28 @@ router.post("/loans", requirePermission("loans.write"), async (req, res): Promis
   const [product] = await db.select().from(loanProductsTable).where(eq(loanProductsTable.id, d.loanProductId)).limit(1);
   if (!product) { res.status(404).json({ error: "Loan product not found" }); return; }
   if (!product.isActive) { res.status(409).json({ error: "Loan product is inactive" }); return; }
-  // Product-level principal cap.
-  if (product.maxAmount != null && d.principalAmount > Number(product.maxAmount)) {
+
+  // Resolve principal based on product type.
+  //   INPUT  → ALWAYS use product.defaultPrincipal (operator can't override the
+  //            in-kind package price). Client-supplied principalAmount is
+  //            ignored to prevent UI bugs from minting wrong-priced loans.
+  //   CASH   → require client-supplied principalAmount (credit-limit gating is
+  //            a Phase 4 concern).
+  let principal: number;
+  if (product.productType === "INPUT") {
+    if (product.defaultPrincipal == null || Number(product.defaultPrincipal) <= 0) {
+      res.status(409).json({ error: "Input product is missing a configured price (defaultPrincipal). Edit the product in Loans → Catalog." }); return;
+    }
+    principal = Number(product.defaultPrincipal);
+  } else {
+    if (d.principalAmount == null) {
+      res.status(400).json({ error: "principalAmount is required for CASH products" }); return;
+    }
+    principal = d.principalAmount;
+  }
+  // Product-level principal cap (still enforced for CASH; vacuously true for
+  // INPUT since the configured price is below or equal to its own cap by setup).
+  if (product.maxAmount != null && principal > Number(product.maxAmount)) {
     res.status(409).json({ error: `Principal exceeds product max (${product.maxAmount})` }); return;
   }
 
@@ -205,7 +227,6 @@ router.post("/loans", requirePermission("loans.write"), async (req, res): Promis
 
   const seq = await db.select({ count: sql<number>`count(*)::int` }).from(loansTable);
   const loanNumber = `LN${new Date().getFullYear()}${String((seq[0]?.count ?? 0) + 1).padStart(4, "0")}`;
-  const principal = d.principalAmount;
   // Flat-interest default; reducing-balance schedules belong to Phase 3 amortization work.
   const totalRepayable = product.interestType === "none"
     ? principal

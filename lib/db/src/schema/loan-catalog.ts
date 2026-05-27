@@ -26,6 +26,13 @@ export const loanProductsTable = pgTable("loan_products", {
   name: text("name").notNull(),
   // Optional: products that recover from a specific commodity (e.g. coffee delivery).
   commodityTypeId: uuid("commodity_type_id").references(() => commodityTypesTable.id, { onDelete: "set null" }),
+  // 'INPUT' (in-kind, fixed price from product) | 'CASH' (operator-entered, credit-limit gated later).
+  // Defaults to CASH for back-compat with rows created before this column existed.
+  productType: text("product_type").notNull().default("CASH"),
+  // For INPUT products: the fixed UGX value of the in-kind package issued. The
+  // operator picks the product and the principal is locked to this value.
+  // For CASH products: ignored — principal is operator-entered.
+  defaultPrincipal: numeric("default_principal", { precision: 14, scale: 2 }),
   // 'flat' | 'reducing' | 'none'
   interestType: text("interest_type").notNull().default("flat"),
   interestRate: numeric("interest_rate", { precision: 6, scale: 3 }).notNull().default("0"),

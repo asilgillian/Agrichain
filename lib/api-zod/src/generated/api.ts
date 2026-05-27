@@ -3522,6 +3522,8 @@ export const ListLoanProductsResponseItem = zod.object({
   loanCategoryId: zod.string().uuid(),
   name: zod.string(),
   commodityTypeId: zod.string().uuid().nullish(),
+  productType: zod.enum(["INPUT", "CASH"]),
+  defaultPrincipal: zod.string().nullish(),
   interestType: zod.enum(["flat", "reducing", "none"]),
   interestRate: zod.string(),
   penaltyRate: zod.string(),
@@ -3544,6 +3546,8 @@ export const ListLoanProductsResponse = zod.array(ListLoanProductsResponseItem);
  */
 export const createLoanProductBodyNameMax = 160;
 
+export const createLoanProductBodyDefaultPrincipalMin = 0;
+
 export const createLoanProductBodyInterestRateMin = 0;
 
 export const createLoanProductBodyPenaltyRateMin = 0;
@@ -3560,6 +3564,11 @@ export const CreateLoanProductBody = zod.object({
   loanCategoryId: zod.string().uuid(),
   name: zod.string().min(1).max(createLoanProductBodyNameMax),
   commodityTypeId: zod.string().uuid().nullish(),
+  productType: zod.enum(["INPUT", "CASH"]).optional(),
+  defaultPrincipal: zod
+    .number()
+    .min(createLoanProductBodyDefaultPrincipalMin)
+    .nullish(),
   interestType: zod.enum(["flat", "reducing", "none"]).optional(),
   interestRate: zod
     .number()
@@ -3599,6 +3608,8 @@ export const GetLoanProductResponse = zod
     loanCategoryId: zod.string().uuid(),
     name: zod.string(),
     commodityTypeId: zod.string().uuid().nullish(),
+    productType: zod.enum(["INPUT", "CASH"]),
+    defaultPrincipal: zod.string().nullish(),
     interestType: zod.enum(["flat", "reducing", "none"]),
     interestRate: zod.string(),
     penaltyRate: zod.string(),
@@ -3641,6 +3652,8 @@ export const UpdateLoanProductParams = zod.object({
 
 export const updateLoanProductBodyNameMax = 160;
 
+export const updateLoanProductBodyDefaultPrincipalMin = 0;
+
 export const updateLoanProductBodyInterestRateMin = 0;
 
 export const updateLoanProductBodyPenaltyRateMin = 0;
@@ -3657,6 +3670,11 @@ export const UpdateLoanProductBody = zod.object({
   loanCategoryId: zod.string().uuid().optional(),
   name: zod.string().min(1).max(updateLoanProductBodyNameMax).optional(),
   commodityTypeId: zod.string().uuid().nullish(),
+  productType: zod.enum(["INPUT", "CASH"]).optional(),
+  defaultPrincipal: zod
+    .number()
+    .min(updateLoanProductBodyDefaultPrincipalMin)
+    .nullish(),
   interestType: zod.enum(["flat", "reducing", "none"]).optional(),
   interestRate: zod
     .number()
@@ -3688,6 +3706,8 @@ export const UpdateLoanProductResponse = zod.object({
   loanCategoryId: zod.string().uuid(),
   name: zod.string(),
   commodityTypeId: zod.string().uuid().nullish(),
+  productType: zod.enum(["INPUT", "CASH"]),
+  defaultPrincipal: zod.string().nullish(),
   interestType: zod.enum(["flat", "reducing", "none"]),
   interestRate: zod.string(),
   penaltyRate: zod.string(),

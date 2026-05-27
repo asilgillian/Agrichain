@@ -94,11 +94,17 @@ router.delete("/loan-categories/:id", requirePermission("loans.write"), async (r
 // =================================================================================================
 const interestTypeSchema = z.enum(["flat", "reducing", "none"]);
 const repaymentMethodSchema = z.enum(["auto_deduct", "manual", "hybrid"]);
+const productTypeSchema = z.enum(["INPUT", "CASH"]);
 
 const createProductSchema = z.object({
   loanCategoryId: z.string().uuid(),
   name: z.string().min(1).max(160),
   commodityTypeId: z.string().uuid().optional().nullable(),
+  // INPUT = in-kind package with a fixed price baked into the product (operator
+  // selects product, principal auto-fills + locks). CASH = operator-entered
+  // principal (credit-limit gating comes later).
+  productType: productTypeSchema.optional(),
+  defaultPrincipal: z.number().min(0).optional().nullable(),
   interestType: interestTypeSchema.optional(),
   interestRate: z.number().min(0).max(1000).optional(),
   penaltyRate: z.number().min(0).max(1000).optional(),
@@ -141,11 +147,19 @@ router.post("/loan-products", requirePermission("loans.write"), async (req, res)
   const parsed = createProductSchema.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: "Invalid body", details: parsed.error.issues }); return; }
   const d = parsed.data;
+  const productType = d.productType ?? "CASH";
+  // INPUT products must carry their price — the whole point is operators don't
+  // type a principal at loan-creation time.
+  if (productType === "INPUT" && (!d.defaultPrincipal || d.defaultPrincipal <= 0)) {
+    res.status(400).json({ error: "INPUT products require a defaultPrincipal greater than zero" }); return;
+  }
   try {
     const [row] = await db.insert(loanProductsTable).values({
       loanCategoryId: d.loanCategoryId,
       name: d.name,
       commodityTypeId: d.commodityTypeId ?? null,
+      productType,
+      defaultPrincipal: d.defaultPrincipal != null ? String(d.defaultPrincipal) : null,
       interestType: d.interestType ?? "flat",
       interestRate: String(d.interestRate ?? 0),
       penaltyRate: String(d.penaltyRate ?? 0),
@@ -178,6 +192,8 @@ router.patch("/loan-products/:id", requirePermission("loans.write"), async (req,
   if (d.loanCategoryId !== undefined) update.loanCategoryId = d.loanCategoryId;
   if (d.name !== undefined) update.name = d.name;
   if (d.commodityTypeId !== undefined) update.commodityTypeId = d.commodityTypeId;
+  if (d.productType !== undefined) update.productType = d.productType;
+  if (d.defaultPrincipal !== undefined) update.defaultPrincipal = d.defaultPrincipal == null ? null : String(d.defaultPrincipal);
   if (d.interestType !== undefined) update.interestType = d.interestType;
   if (d.interestRate !== undefined) update.interestRate = String(d.interestRate);
   if (d.penaltyRate !== undefined) update.penaltyRate = String(d.penaltyRate);
@@ -190,11 +206,34 @@ router.patch("/loan-products/:id", requirePermission("loans.write"), async (req,
   if (d.allowFinanceOverride !== undefined) update.allowFinanceOverride = d.allowFinanceOverride;
   if (d.seasonBased !== undefined) update.seasonBased = d.seasonBased;
   if (d.isActive !== undefined) update.isActive = d.isActive;
+  // Lock-read + invariant-check + write in one tx so two concurrent patches
+  // can't end up with productType='INPUT' AND defaultPrincipal=null. Without
+  // FOR UPDATE, request A could read CASH/null, request B could flip type to
+  // INPUT and add a price, then request A's write lands and wipes the price.
   try {
-    const [row] = await db.update(loanProductsTable).set(update).where(eq(loanProductsTable.id, id)).returning();
+    const row = await db.transaction(async (tx) => {
+      const locked = await tx.execute(sql`
+        SELECT product_type, default_principal FROM loan_products WHERE id = ${id} FOR UPDATE
+      `);
+      const current = (locked.rows ?? locked)[0] as any;
+      if (!current) return null;
+      // Only revalidate when either field is in play in this patch.
+      if (d.productType !== undefined || d.defaultPrincipal !== undefined) {
+        const effectiveType = d.productType ?? current.product_type;
+        const effectivePrincipal = d.defaultPrincipal !== undefined
+          ? d.defaultPrincipal
+          : (current.default_principal != null ? Number(current.default_principal) : null);
+        if (effectiveType === "INPUT" && (effectivePrincipal == null || effectivePrincipal <= 0)) {
+          throw Object.assign(new Error("INPUT products require a defaultPrincipal greater than zero"), { status: 400 });
+        }
+      }
+      const [r] = await tx.update(loanProductsTable).set(update).where(eq(loanProductsTable.id, id)).returning();
+      return r ?? null;
+    });
     if (!row) { res.status(404).json({ error: "Loan product not found" }); return; }
     res.json(row);
   } catch (e: any) {
+    if (e?.status) { res.status(e.status).json({ error: e.message }); return; }
     if (String(e?.message ?? "").includes("loan_products_category_name_uniq")) {
       res.status(409).json({ error: "A loan product with that name already exists in this category" }); return;
     }

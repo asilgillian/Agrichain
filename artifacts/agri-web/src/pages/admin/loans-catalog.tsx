@@ -303,6 +303,8 @@ function ProductsPanel() {
               <TableRow>
                 <TableHead>Name</TableHead>
                 <TableHead>Category</TableHead>
+                <TableHead>Type</TableHead>
+                <TableHead>Price</TableHead>
                 <TableHead>Interest</TableHead>
                 <TableHead>Penalty</TableHead>
                 <TableHead>Grace</TableHead>
@@ -316,6 +318,8 @@ function ProductsPanel() {
                 <TableRow key={p.id} data-testid={`product-row-${p.id}`}>
                   <TableCell className="font-medium">{p.name}</TableCell>
                   <TableCell>{categoryName(p.loanCategoryId)}</TableCell>
+                  <TableCell><Badge variant={p.productType === "INPUT" ? "default" : "outline"}>{p.productType}</Badge></TableCell>
+                  <TableCell className="font-mono text-xs">{p.defaultPrincipal ? `UGX ${Number(p.defaultPrincipal).toLocaleString()}` : "—"}</TableCell>
                   <TableCell>{p.interestRate}% <span className="text-xs text-muted-foreground">({p.interestType})</span></TableCell>
                   <TableCell>{p.penaltyRate}%</TableCell>
                   <TableCell>{p.gracePeriodDays}d</TableCell>
@@ -382,6 +386,8 @@ function ProductDialog({
         loanCategoryId: editing.loanCategoryId,
         name: editing.name,
         commodityTypeId: editing.commodityTypeId ?? null,
+        productType: editing.productType,
+        defaultPrincipal: editing.defaultPrincipal != null ? Number(editing.defaultPrincipal) : null,
         interestType: editing.interestType,
         interestRate: Number(editing.interestRate),
         penaltyRate: Number(editing.penaltyRate),
@@ -399,6 +405,8 @@ function ProductDialog({
         loanCategoryId: defaultCategoryId || categories[0]?.id || "",
         name: "",
         commodityTypeId: null,
+        productType: "CASH",
+        defaultPrincipal: null,
         interestType: "flat",
         interestRate: 0,
         penaltyRate: 0,
@@ -445,6 +453,35 @@ function ProductDialog({
               </SelectContent>
             </Select>
           </div>
+
+          <div>
+            <Label>Product type</Label>
+            <Select value={form.productType ?? "CASH"} onValueChange={(v) => set("productType", v as LoanProductInput["productType"])}>
+              <SelectTrigger data-testid="select-product-type"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="INPUT">Input (in-kind, fixed price)</SelectItem>
+                <SelectItem value="CASH">Cash (operator-entered)</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {form.productType === "INPUT" && (
+            <div className="col-span-2">
+              <Label>Price (UGX) — required for input loans</Label>
+              <Input
+                type="number"
+                step="1"
+                min="0"
+                value={form.defaultPrincipal ?? ""}
+                onChange={(e) => set("defaultPrincipal", e.target.value ? Number(e.target.value) : null)}
+                placeholder="e.g. 50000"
+                data-testid="input-default-principal"
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                Operators won't be asked for a principal — every loan of this product is priced at this amount.
+              </p>
+            </div>
+          )}
 
           <div>
             <Label>Interest type</Label>
@@ -506,7 +543,13 @@ function ProductDialog({
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
           <Button
-            disabled={!form.name.trim() || !form.loanCategoryId || submitting}
+            // INPUT products need a positive price before they're usable for loan issuance.
+            disabled={
+              !form.name.trim() ||
+              !form.loanCategoryId ||
+              (form.productType === "INPUT" && (!form.defaultPrincipal || form.defaultPrincipal <= 0)) ||
+              submitting
+            }
             onClick={() => onSubmit(form)}
             data-testid="btn-save-product"
           >

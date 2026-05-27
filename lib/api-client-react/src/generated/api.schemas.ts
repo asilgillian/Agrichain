@@ -24,6 +24,14 @@ export interface LoanCategoryInput {
   isActive?: boolean;
 }
 
+export type LoanProductProductType =
+  (typeof LoanProductProductType)[keyof typeof LoanProductProductType];
+
+export const LoanProductProductType = {
+  INPUT: "INPUT",
+  CASH: "CASH",
+} as const;
+
 export type LoanProductInterestType =
   (typeof LoanProductInterestType)[keyof typeof LoanProductInterestType];
 
@@ -47,6 +55,8 @@ export interface LoanProduct {
   loanCategoryId: string;
   name: string;
   commodityTypeId?: string | null;
+  productType: LoanProductProductType;
+  defaultPrincipal?: string | null;
   interestType: LoanProductInterestType;
   interestRate: string;
   penaltyRate: string;
@@ -62,6 +72,14 @@ export interface LoanProduct {
   createdAt: string;
   updatedAt: string;
 }
+
+export type LoanProductInputProductType =
+  (typeof LoanProductInputProductType)[keyof typeof LoanProductInputProductType];
+
+export const LoanProductInputProductType = {
+  INPUT: "INPUT",
+  CASH: "CASH",
+} as const;
 
 export type LoanProductInputInterestType =
   (typeof LoanProductInputInterestType)[keyof typeof LoanProductInputInterestType];
@@ -89,6 +107,9 @@ export interface LoanProductInput {
    */
   name: string;
   commodityTypeId?: string | null;
+  productType?: LoanProductInputProductType;
+  /** @minimum 0 */
+  defaultPrincipal?: number | null;
   interestType?: LoanProductInputInterestType;
   /** @minimum 0 */
   interestRate?: number;
@@ -148,6 +169,14 @@ export interface LoanCategoryUpdate {
   isActive?: boolean;
 }
 
+export type LoanProductUpdateProductType =
+  (typeof LoanProductUpdateProductType)[keyof typeof LoanProductUpdateProductType];
+
+export const LoanProductUpdateProductType = {
+  INPUT: "INPUT",
+  CASH: "CASH",
+} as const;
+
 export type LoanProductUpdateInterestType =
   (typeof LoanProductUpdateInterestType)[keyof typeof LoanProductUpdateInterestType];
 
@@ -174,6 +203,9 @@ export interface LoanProductUpdate {
    */
   name?: string;
   commodityTypeId?: string | null;
+  productType?: LoanProductUpdateProductType;
+  /** @minimum 0 */
+  defaultPrincipal?: number | null;
   interestType?: LoanProductUpdateInterestType;
   /** @minimum 0 */
   interestRate?: number;

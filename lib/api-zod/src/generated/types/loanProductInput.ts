@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { LoanProductInputInterestType } from "./loanProductInputInterestType";
+import type { LoanProductInputProductType } from "./loanProductInputProductType";
 import type { LoanProductInputRepaymentMethod } from "./loanProductInputRepaymentMethod";
 
 export interface LoanProductInput {
@@ -16,6 +17,9 @@ export interface LoanProductInput {
    */
   name: string;
   commodityTypeId?: string | null;
+  productType?: LoanProductInputProductType;
+  /** @minimum 0 */
+  defaultPrincipal?: number | null;
   interestType?: LoanProductInputInterestType;
   /** @minimum 0 */
   interestRate?: number;
