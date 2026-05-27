@@ -3452,3 +3452,322 @@ export const ListSyncQueueResponse = zod.object({
     }),
   ),
 });
+
+/**
+ * @summary List loan categories
+ */
+export const ListLoanCategoriesResponseItem = zod.object({
+  id: zod.string().uuid(),
+  name: zod.string(),
+  description: zod.string().nullish(),
+  isActive: zod.boolean(),
+  createdAt: zod.coerce.date(),
+  updatedAt: zod.coerce.date(),
+});
+export const ListLoanCategoriesResponse = zod.array(
+  ListLoanCategoriesResponseItem,
+);
+
+/**
+ * @summary Create loan category
+ */
+export const createLoanCategoryBodyNameMax = 120;
+
+export const CreateLoanCategoryBody = zod.object({
+  name: zod.string().min(1).max(createLoanCategoryBodyNameMax),
+  description: zod.string().nullish(),
+  isActive: zod.boolean().optional(),
+});
+
+/**
+ * @summary Update loan category
+ */
+export const UpdateLoanCategoryParams = zod.object({
+  id: zod.coerce.string().uuid(),
+});
+
+export const updateLoanCategoryBodyNameMax = 120;
+
+export const UpdateLoanCategoryBody = zod.object({
+  name: zod.string().min(1).max(updateLoanCategoryBodyNameMax).optional(),
+  description: zod.string().nullish(),
+  isActive: zod.boolean().optional(),
+});
+
+export const UpdateLoanCategoryResponse = zod.object({
+  id: zod.string().uuid(),
+  name: zod.string(),
+  description: zod.string().nullish(),
+  isActive: zod.boolean(),
+  createdAt: zod.coerce.date(),
+  updatedAt: zod.coerce.date(),
+});
+
+/**
+ * @summary Delete loan category (only if it has no products)
+ */
+export const DeleteLoanCategoryParams = zod.object({
+  id: zod.coerce.string().uuid(),
+});
+
+/**
+ * @summary List loan products
+ */
+export const ListLoanProductsQueryParams = zod.object({
+  loanCategoryId: zod.coerce.string().uuid().optional(),
+});
+
+export const ListLoanProductsResponseItem = zod.object({
+  id: zod.string().uuid(),
+  loanCategoryId: zod.string().uuid(),
+  name: zod.string(),
+  commodityTypeId: zod.string().uuid().nullish(),
+  interestType: zod.enum(["flat", "reducing", "none"]),
+  interestRate: zod.string(),
+  penaltyRate: zod.string(),
+  gracePeriodDays: zod.number(),
+  maxAmount: zod.string().nullish(),
+  maxRestructures: zod.number(),
+  repaymentMethod: zod.enum(["auto_deduct", "manual", "hybrid"]),
+  recoveryPriority: zod.number(),
+  allowPartialRepayment: zod.boolean(),
+  allowFinanceOverride: zod.boolean(),
+  seasonBased: zod.boolean(),
+  isActive: zod.boolean(),
+  createdAt: zod.coerce.date(),
+  updatedAt: zod.coerce.date(),
+});
+export const ListLoanProductsResponse = zod.array(ListLoanProductsResponseItem);
+
+/**
+ * @summary Create loan product
+ */
+export const createLoanProductBodyNameMax = 160;
+
+export const createLoanProductBodyInterestRateMin = 0;
+
+export const createLoanProductBodyPenaltyRateMin = 0;
+
+export const createLoanProductBodyGracePeriodDaysMin = 0;
+
+export const createLoanProductBodyMaxAmountMin = 0;
+
+export const createLoanProductBodyMaxRestructuresMin = 0;
+
+export const createLoanProductBodyRecoveryPriorityMin = 0;
+
+export const CreateLoanProductBody = zod.object({
+  loanCategoryId: zod.string().uuid(),
+  name: zod.string().min(1).max(createLoanProductBodyNameMax),
+  commodityTypeId: zod.string().uuid().nullish(),
+  interestType: zod.enum(["flat", "reducing", "none"]).optional(),
+  interestRate: zod
+    .number()
+    .min(createLoanProductBodyInterestRateMin)
+    .optional(),
+  penaltyRate: zod.number().min(createLoanProductBodyPenaltyRateMin).optional(),
+  gracePeriodDays: zod
+    .number()
+    .min(createLoanProductBodyGracePeriodDaysMin)
+    .optional(),
+  maxAmount: zod.number().min(createLoanProductBodyMaxAmountMin).nullish(),
+  maxRestructures: zod
+    .number()
+    .min(createLoanProductBodyMaxRestructuresMin)
+    .optional(),
+  repaymentMethod: zod.enum(["auto_deduct", "manual", "hybrid"]).optional(),
+  recoveryPriority: zod
+    .number()
+    .min(createLoanProductBodyRecoveryPriorityMin)
+    .optional(),
+  allowPartialRepayment: zod.boolean().optional(),
+  allowFinanceOverride: zod.boolean().optional(),
+  seasonBased: zod.boolean().optional(),
+  isActive: zod.boolean().optional(),
+});
+
+/**
+ * @summary Get loan product with items
+ */
+export const GetLoanProductParams = zod.object({
+  id: zod.coerce.string().uuid(),
+});
+
+export const GetLoanProductResponse = zod
+  .object({
+    id: zod.string().uuid(),
+    loanCategoryId: zod.string().uuid(),
+    name: zod.string(),
+    commodityTypeId: zod.string().uuid().nullish(),
+    interestType: zod.enum(["flat", "reducing", "none"]),
+    interestRate: zod.string(),
+    penaltyRate: zod.string(),
+    gracePeriodDays: zod.number(),
+    maxAmount: zod.string().nullish(),
+    maxRestructures: zod.number(),
+    repaymentMethod: zod.enum(["auto_deduct", "manual", "hybrid"]),
+    recoveryPriority: zod.number(),
+    allowPartialRepayment: zod.boolean(),
+    allowFinanceOverride: zod.boolean(),
+    seasonBased: zod.boolean(),
+    isActive: zod.boolean(),
+    createdAt: zod.coerce.date(),
+    updatedAt: zod.coerce.date(),
+  })
+  .and(
+    zod.object({
+      items: zod.array(
+        zod.object({
+          id: zod.string().uuid(),
+          loanProductId: zod.string().uuid(),
+          itemName: zod.string(),
+          unitPrice: zod.string(),
+          inventoryItemId: zod.string().uuid().nullish(),
+          supplierId: zod.string().uuid().nullish(),
+          isActive: zod.boolean(),
+          createdAt: zod.coerce.date(),
+          updatedAt: zod.coerce.date(),
+        }),
+      ),
+    }),
+  );
+
+/**
+ * @summary Update loan product
+ */
+export const UpdateLoanProductParams = zod.object({
+  id: zod.coerce.string().uuid(),
+});
+
+export const updateLoanProductBodyNameMax = 160;
+
+export const updateLoanProductBodyInterestRateMin = 0;
+
+export const updateLoanProductBodyPenaltyRateMin = 0;
+
+export const updateLoanProductBodyGracePeriodDaysMin = 0;
+
+export const updateLoanProductBodyMaxAmountMin = 0;
+
+export const updateLoanProductBodyMaxRestructuresMin = 0;
+
+export const updateLoanProductBodyRecoveryPriorityMin = 0;
+
+export const UpdateLoanProductBody = zod.object({
+  loanCategoryId: zod.string().uuid().optional(),
+  name: zod.string().min(1).max(updateLoanProductBodyNameMax).optional(),
+  commodityTypeId: zod.string().uuid().nullish(),
+  interestType: zod.enum(["flat", "reducing", "none"]).optional(),
+  interestRate: zod
+    .number()
+    .min(updateLoanProductBodyInterestRateMin)
+    .optional(),
+  penaltyRate: zod.number().min(updateLoanProductBodyPenaltyRateMin).optional(),
+  gracePeriodDays: zod
+    .number()
+    .min(updateLoanProductBodyGracePeriodDaysMin)
+    .optional(),
+  maxAmount: zod.number().min(updateLoanProductBodyMaxAmountMin).nullish(),
+  maxRestructures: zod
+    .number()
+    .min(updateLoanProductBodyMaxRestructuresMin)
+    .optional(),
+  repaymentMethod: zod.enum(["auto_deduct", "manual", "hybrid"]).optional(),
+  recoveryPriority: zod
+    .number()
+    .min(updateLoanProductBodyRecoveryPriorityMin)
+    .optional(),
+  allowPartialRepayment: zod.boolean().optional(),
+  allowFinanceOverride: zod.boolean().optional(),
+  seasonBased: zod.boolean().optional(),
+  isActive: zod.boolean().optional(),
+});
+
+export const UpdateLoanProductResponse = zod.object({
+  id: zod.string().uuid(),
+  loanCategoryId: zod.string().uuid(),
+  name: zod.string(),
+  commodityTypeId: zod.string().uuid().nullish(),
+  interestType: zod.enum(["flat", "reducing", "none"]),
+  interestRate: zod.string(),
+  penaltyRate: zod.string(),
+  gracePeriodDays: zod.number(),
+  maxAmount: zod.string().nullish(),
+  maxRestructures: zod.number(),
+  repaymentMethod: zod.enum(["auto_deduct", "manual", "hybrid"]),
+  recoveryPriority: zod.number(),
+  allowPartialRepayment: zod.boolean(),
+  allowFinanceOverride: zod.boolean(),
+  seasonBased: zod.boolean(),
+  isActive: zod.boolean(),
+  createdAt: zod.coerce.date(),
+  updatedAt: zod.coerce.date(),
+});
+
+/**
+ * @summary Delete loan product
+ */
+export const DeleteLoanProductParams = zod.object({
+  id: zod.coerce.string().uuid(),
+});
+
+/**
+ * @summary Add an in-kind item to a loan product
+ */
+export const CreateLoanProductItemParams = zod.object({
+  id: zod.coerce.string().uuid(),
+});
+
+export const createLoanProductItemBodyItemNameMax = 160;
+
+export const createLoanProductItemBodyUnitPriceMin = 0;
+
+export const CreateLoanProductItemBody = zod.object({
+  itemName: zod.string().min(1).max(createLoanProductItemBodyItemNameMax),
+  unitPrice: zod.number().min(createLoanProductItemBodyUnitPriceMin),
+  inventoryItemId: zod.string().uuid().nullish(),
+  supplierId: zod.string().uuid().nullish(),
+  isActive: zod.boolean().optional(),
+});
+
+/**
+ * @summary Update loan product item
+ */
+export const UpdateLoanProductItemParams = zod.object({
+  itemId: zod.coerce.string().uuid(),
+});
+
+export const updateLoanProductItemBodyItemNameMax = 160;
+
+export const updateLoanProductItemBodyUnitPriceMin = 0;
+
+export const UpdateLoanProductItemBody = zod.object({
+  itemName: zod
+    .string()
+    .min(1)
+    .max(updateLoanProductItemBodyItemNameMax)
+    .optional(),
+  unitPrice: zod.number().min(updateLoanProductItemBodyUnitPriceMin).optional(),
+  inventoryItemId: zod.string().uuid().nullish(),
+  supplierId: zod.string().uuid().nullish(),
+  isActive: zod.boolean().optional(),
+});
+
+export const UpdateLoanProductItemResponse = zod.object({
+  id: zod.string().uuid(),
+  loanProductId: zod.string().uuid(),
+  itemName: zod.string(),
+  unitPrice: zod.string(),
+  inventoryItemId: zod.string().uuid().nullish(),
+  supplierId: zod.string().uuid().nullish(),
+  isActive: zod.boolean(),
+  createdAt: zod.coerce.date(),
+  updatedAt: zod.coerce.date(),
+});
+
+/**
+ * @summary Delete loan product item
+ */
+export const DeleteLoanProductItemParams = zod.object({
+  itemId: zod.coerce.string().uuid(),
+});

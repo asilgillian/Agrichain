@@ -20,6 +20,7 @@ export * from "./payments";
 export * from "./compliance";
 export * from "./exports";
 export * from "./loans";
+export * from "./loan-catalog";
 export * from "./sales";
 export * from "./procurement-contracts";
 export * from "./procurement-workflows";

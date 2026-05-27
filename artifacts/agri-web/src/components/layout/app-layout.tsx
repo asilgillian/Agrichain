@@ -17,6 +17,7 @@ import {
   Wallet,
   Shield,
   Landmark,
+  Layers,
   Globe,
   FileBarChart2,
   Building2,
@@ -80,6 +81,7 @@ const operationsItems: NavItem[] = [
 
 const financeItems: NavItem[] = [
   { title: "Loans", icon: Landmark, href: "/loans", requiredAny: ["loans.read"] },
+  { title: "Loan Products", icon: Layers, href: "/admin/loans-catalog", requiredAny: ["loans.write"] },
   { title: "Buyers", icon: Globe, href: "/buyers", requiredAny: ["sales.read"] },
   { title: "Sales & Exit", icon: FileBarChart2, href: "/sales", requiredAny: ["sales.read"] },
 ];

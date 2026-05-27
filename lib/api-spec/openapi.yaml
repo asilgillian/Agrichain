@@ -46,6 +46,8 @@ tags:
     description: Audit log
   - name: admin
     description: System administration
+  - name: loan-catalog
+    description: Loan categories, products and product items (Phase 1 catalog)
 
 paths:
   /healthz:
@@ -2247,8 +2249,347 @@ paths:
               schema:
                 $ref: "#/components/schemas/SyncQueueStatus"
 
+  # ============================================================
+  # LOAN CATALOG (Phase 1)
+  # ============================================================
+  /loan-categories:
+    get:
+      operationId: listLoanCategories
+      tags: [loan-catalog]
+      summary: List loan categories
+      responses:
+        "200":
+          description: Categories
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/LoanCategory" }
+    post:
+      operationId: createLoanCategory
+      tags: [loan-catalog]
+      summary: Create loan category
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/LoanCategoryInput" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/LoanCategory" }
+
+  /loan-categories/{id}:
+    patch:
+      operationId: updateLoanCategory
+      tags: [loan-catalog]
+      summary: Update loan category
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/LoanCategoryUpdate" }
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/LoanCategory" }
+    delete:
+      operationId: deleteLoanCategory
+      tags: [loan-catalog]
+      summary: Delete loan category (only if it has no products)
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "204":
+          description: Deleted
+
+  /loan-products:
+    get:
+      operationId: listLoanProducts
+      tags: [loan-catalog]
+      summary: List loan products
+      parameters:
+        - in: query
+          name: loanCategoryId
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Products
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/LoanProduct" }
+    post:
+      operationId: createLoanProduct
+      tags: [loan-catalog]
+      summary: Create loan product
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/LoanProductInput" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/LoanProduct" }
+
+  /loan-products/{id}:
+    get:
+      operationId: getLoanProduct
+      tags: [loan-catalog]
+      summary: Get loan product with items
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Product with items
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/LoanProductDetail" }
+    patch:
+      operationId: updateLoanProduct
+      tags: [loan-catalog]
+      summary: Update loan product
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/LoanProductUpdate" }
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/LoanProduct" }
+    delete:
+      operationId: deleteLoanProduct
+      tags: [loan-catalog]
+      summary: Delete loan product
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "204":
+          description: Deleted
+
+  /loan-products/{id}/items:
+    post:
+      operationId: createLoanProductItem
+      tags: [loan-catalog]
+      summary: Add an in-kind item to a loan product
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/LoanProductItemInput" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/LoanProductItem" }
+
+  /loan-product-items/{itemId}:
+    patch:
+      operationId: updateLoanProductItem
+      tags: [loan-catalog]
+      summary: Update loan product item
+      parameters:
+        - in: path
+          name: itemId
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/LoanProductItemUpdate" }
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/LoanProductItem" }
+    delete:
+      operationId: deleteLoanProductItem
+      tags: [loan-catalog]
+      summary: Delete loan product item
+      parameters:
+        - in: path
+          name: itemId
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "204":
+          description: Deleted
+
 components:
   schemas:
+    LoanCategory:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        description: { type: string, nullable: true }
+        isActive: { type: boolean }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+      required: [id, name, isActive, createdAt, updatedAt]
+
+    LoanCategoryInput:
+      type: object
+      properties:
+        name: { type: string, minLength: 1, maxLength: 120 }
+        description: { type: string, nullable: true }
+        isActive: { type: boolean }
+      required: [name]
+
+    LoanProduct:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        loanCategoryId: { type: string, format: uuid }
+        name: { type: string }
+        commodityTypeId: { type: string, format: uuid, nullable: true }
+        interestType: { type: string, enum: [flat, reducing, none] }
+        interestRate: { type: string }
+        penaltyRate: { type: string }
+        gracePeriodDays: { type: integer }
+        maxAmount: { type: string, nullable: true }
+        maxRestructures: { type: integer }
+        repaymentMethod: { type: string, enum: [auto_deduct, manual, hybrid] }
+        recoveryPriority: { type: integer }
+        allowPartialRepayment: { type: boolean }
+        allowFinanceOverride: { type: boolean }
+        seasonBased: { type: boolean }
+        isActive: { type: boolean }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+      required:
+        [id, loanCategoryId, name, interestType, interestRate, penaltyRate,
+         gracePeriodDays, maxRestructures, repaymentMethod, recoveryPriority,
+         allowPartialRepayment, allowFinanceOverride, seasonBased, isActive,
+         createdAt, updatedAt]
+
+    LoanProductInput:
+      type: object
+      properties:
+        loanCategoryId: { type: string, format: uuid }
+        name: { type: string, minLength: 1, maxLength: 160 }
+        commodityTypeId: { type: string, format: uuid, nullable: true }
+        interestType: { type: string, enum: [flat, reducing, none] }
+        interestRate: { type: number, minimum: 0 }
+        penaltyRate: { type: number, minimum: 0 }
+        gracePeriodDays: { type: integer, minimum: 0 }
+        maxAmount: { type: number, nullable: true, minimum: 0 }
+        maxRestructures: { type: integer, minimum: 0 }
+        repaymentMethod: { type: string, enum: [auto_deduct, manual, hybrid] }
+        recoveryPriority: { type: integer, minimum: 0 }
+        allowPartialRepayment: { type: boolean }
+        allowFinanceOverride: { type: boolean }
+        seasonBased: { type: boolean }
+        isActive: { type: boolean }
+      required: [loanCategoryId, name]
+
+    LoanProductItem:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        loanProductId: { type: string, format: uuid }
+        itemName: { type: string }
+        unitPrice: { type: string }
+        inventoryItemId: { type: string, format: uuid, nullable: true }
+        supplierId: { type: string, format: uuid, nullable: true }
+        isActive: { type: boolean }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+      required: [id, loanProductId, itemName, unitPrice, isActive, createdAt, updatedAt]
+
+    LoanProductItemInput:
+      type: object
+      properties:
+        itemName: { type: string, minLength: 1, maxLength: 160 }
+        unitPrice: { type: number, minimum: 0 }
+        inventoryItemId: { type: string, format: uuid, nullable: true }
+        supplierId: { type: string, format: uuid, nullable: true }
+        isActive: { type: boolean }
+      required: [itemName, unitPrice]
+
+    LoanProductDetail:
+      allOf:
+        - $ref: "#/components/schemas/LoanProduct"
+        - type: object
+          properties:
+            items:
+              type: array
+              items: { $ref: "#/components/schemas/LoanProductItem" }
+          required: [items]
+
+    LoanCategoryUpdate:
+      type: object
+      properties:
+        name: { type: string, minLength: 1, maxLength: 120 }
+        description: { type: string, nullable: true }
+        isActive: { type: boolean }
+
+    LoanProductUpdate:
+      type: object
+      properties:
+        loanCategoryId: { type: string, format: uuid }
+        name: { type: string, minLength: 1, maxLength: 160 }
+        commodityTypeId: { type: string, format: uuid, nullable: true }
+        interestType: { type: string, enum: [flat, reducing, none] }
+        interestRate: { type: number, minimum: 0 }
+        penaltyRate: { type: number, minimum: 0 }
+        gracePeriodDays: { type: integer, minimum: 0 }
+        maxAmount: { type: number, nullable: true, minimum: 0 }
+        maxRestructures: { type: integer, minimum: 0 }
+        repaymentMethod: { type: string, enum: [auto_deduct, manual, hybrid] }
+        recoveryPriority: { type: integer, minimum: 0 }
+        allowPartialRepayment: { type: boolean }
+        allowFinanceOverride: { type: boolean }
+        seasonBased: { type: boolean }
+        isActive: { type: boolean }
+
+    LoanProductItemUpdate:
+      type: object
+      properties:
+        itemName: { type: string, minLength: 1, maxLength: 160 }
+        unitPrice: { type: number, minimum: 0 }
+        inventoryItemId: { type: string, format: uuid, nullable: true }
+        supplierId: { type: string, format: uuid, nullable: true }
+        isActive: { type: boolean }
+
     HealthStatus:
       type: object
       properties:

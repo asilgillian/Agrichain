@@ -5,6 +5,208 @@
  * AgriChain Digital Agriculture Platform API
  * OpenAPI spec version: 0.1.0
  */
+export interface LoanCategory {
+  id: string;
+  name: string;
+  description?: string | null;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface LoanCategoryInput {
+  /**
+   * @minLength 1
+   * @maxLength 120
+   */
+  name: string;
+  description?: string | null;
+  isActive?: boolean;
+}
+
+export type LoanProductInterestType =
+  (typeof LoanProductInterestType)[keyof typeof LoanProductInterestType];
+
+export const LoanProductInterestType = {
+  flat: "flat",
+  reducing: "reducing",
+  none: "none",
+} as const;
+
+export type LoanProductRepaymentMethod =
+  (typeof LoanProductRepaymentMethod)[keyof typeof LoanProductRepaymentMethod];
+
+export const LoanProductRepaymentMethod = {
+  auto_deduct: "auto_deduct",
+  manual: "manual",
+  hybrid: "hybrid",
+} as const;
+
+export interface LoanProduct {
+  id: string;
+  loanCategoryId: string;
+  name: string;
+  commodityTypeId?: string | null;
+  interestType: LoanProductInterestType;
+  interestRate: string;
+  penaltyRate: string;
+  gracePeriodDays: number;
+  maxAmount?: string | null;
+  maxRestructures: number;
+  repaymentMethod: LoanProductRepaymentMethod;
+  recoveryPriority: number;
+  allowPartialRepayment: boolean;
+  allowFinanceOverride: boolean;
+  seasonBased: boolean;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type LoanProductInputInterestType =
+  (typeof LoanProductInputInterestType)[keyof typeof LoanProductInputInterestType];
+
+export const LoanProductInputInterestType = {
+  flat: "flat",
+  reducing: "reducing",
+  none: "none",
+} as const;
+
+export type LoanProductInputRepaymentMethod =
+  (typeof LoanProductInputRepaymentMethod)[keyof typeof LoanProductInputRepaymentMethod];
+
+export const LoanProductInputRepaymentMethod = {
+  auto_deduct: "auto_deduct",
+  manual: "manual",
+  hybrid: "hybrid",
+} as const;
+
+export interface LoanProductInput {
+  loanCategoryId: string;
+  /**
+   * @minLength 1
+   * @maxLength 160
+   */
+  name: string;
+  commodityTypeId?: string | null;
+  interestType?: LoanProductInputInterestType;
+  /** @minimum 0 */
+  interestRate?: number;
+  /** @minimum 0 */
+  penaltyRate?: number;
+  /** @minimum 0 */
+  gracePeriodDays?: number;
+  /** @minimum 0 */
+  maxAmount?: number | null;
+  /** @minimum 0 */
+  maxRestructures?: number;
+  repaymentMethod?: LoanProductInputRepaymentMethod;
+  /** @minimum 0 */
+  recoveryPriority?: number;
+  allowPartialRepayment?: boolean;
+  allowFinanceOverride?: boolean;
+  seasonBased?: boolean;
+  isActive?: boolean;
+}
+
+export interface LoanProductItem {
+  id: string;
+  loanProductId: string;
+  itemName: string;
+  unitPrice: string;
+  inventoryItemId?: string | null;
+  supplierId?: string | null;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface LoanProductItemInput {
+  /**
+   * @minLength 1
+   * @maxLength 160
+   */
+  itemName: string;
+  /** @minimum 0 */
+  unitPrice: number;
+  inventoryItemId?: string | null;
+  supplierId?: string | null;
+  isActive?: boolean;
+}
+
+export type LoanProductDetail = LoanProduct & {
+  items: LoanProductItem[];
+};
+
+export interface LoanCategoryUpdate {
+  /**
+   * @minLength 1
+   * @maxLength 120
+   */
+  name?: string;
+  description?: string | null;
+  isActive?: boolean;
+}
+
+export type LoanProductUpdateInterestType =
+  (typeof LoanProductUpdateInterestType)[keyof typeof LoanProductUpdateInterestType];
+
+export const LoanProductUpdateInterestType = {
+  flat: "flat",
+  reducing: "reducing",
+  none: "none",
+} as const;
+
+export type LoanProductUpdateRepaymentMethod =
+  (typeof LoanProductUpdateRepaymentMethod)[keyof typeof LoanProductUpdateRepaymentMethod];
+
+export const LoanProductUpdateRepaymentMethod = {
+  auto_deduct: "auto_deduct",
+  manual: "manual",
+  hybrid: "hybrid",
+} as const;
+
+export interface LoanProductUpdate {
+  loanCategoryId?: string;
+  /**
+   * @minLength 1
+   * @maxLength 160
+   */
+  name?: string;
+  commodityTypeId?: string | null;
+  interestType?: LoanProductUpdateInterestType;
+  /** @minimum 0 */
+  interestRate?: number;
+  /** @minimum 0 */
+  penaltyRate?: number;
+  /** @minimum 0 */
+  gracePeriodDays?: number;
+  /** @minimum 0 */
+  maxAmount?: number | null;
+  /** @minimum 0 */
+  maxRestructures?: number;
+  repaymentMethod?: LoanProductUpdateRepaymentMethod;
+  /** @minimum 0 */
+  recoveryPriority?: number;
+  allowPartialRepayment?: boolean;
+  allowFinanceOverride?: boolean;
+  seasonBased?: boolean;
+  isActive?: boolean;
+}
+
+export interface LoanProductItemUpdate {
+  /**
+   * @minLength 1
+   * @maxLength 160
+   */
+  itemName?: string;
+  /** @minimum 0 */
+  unitPrice?: number;
+  inventoryItemId?: string | null;
+  supplierId?: string | null;
+  isActive?: boolean;
+}
+
 export interface HealthStatus {
   status: string;
 }
@@ -1774,4 +1976,8 @@ export type CreateRoleBody = {
   name: string;
   description?: string;
   permissions: string[];
+};
+
+export type ListLoanProductsParams = {
+  loanCategoryId?: string;
 };
