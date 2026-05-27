@@ -1,0 +1,499 @@
+# Compact Loan Module Specification (Replit / Developer Ready)
+
+## Module: Loan Management & Recovery
+
+### Purpose
+
+Manage seasonal agricultural loans linked to commodities, with:
+
+* configurable loan products
+* automatic deduction-at-source
+* seasonal maturity handling
+* restructuring
+* penalties
+* write-offs
+* blacklisting
+* approval workflows
+
+---
+
+# 1. Core Concepts
+
+## 1.1 Loan Categories
+
+Examples:
+
+* Input Loans
+* Cash Advances
+* Emergency Loans
+* Group Loans
+* Staff Advances
+
+---
+
+## 1.2 Loan Products
+
+Products belong to a category.
+
+Example:
+Category = Input Loans
+Products:
+
+* NPK Fertiliser
+* Urea Fertiliser
+* Coffee Seedlings
+
+Products may have different prices but share:
+
+* interest rate
+* penalty rules
+* maturity rules
+* recovery logic
+
+---
+
+# 2. Core Tables
+
+---
+
+## LoanCategory
+
+```plaintext
+id
+name
+description
+is_active
+```
+
+---
+
+## LoanProduct
+
+```plaintext
+id
+loan_category_id
+name
+commodity_type_id
+interest_type            // flat | reducing | none
+interest_rate
+penalty_rate
+grace_period_days
+max_amount
+max_restructures
+repayment_method         // auto_deduct | manual | hybrid
+recovery_priority
+allow_partial_repayment
+allow_finance_override
+season_based             // true/false
+is_active
+```
+
+---
+
+## LoanProductItem
+
+(used for input loans)
+
+```plaintext
+id
+loan_product_id
+item_name
+unit_price
+inventory_item_id
+supplier_id
+is_active
+```
+
+Example:
+
+* Fertiliser 50kg
+* Fertiliser 25kg
+
+---
+
+## CommoditySeason
+
+```plaintext
+id
+commodity_type_id
+name
+start_date
+end_date
+is_active
+```
+
+---
+
+## Loan
+
+```plaintext
+id
+farmer_id
+loan_product_id
+commodity_season_id
+principal_amount
+interest_amount
+penalty_amount
+total_due
+outstanding_balance
+status
+disbursement_date
+maturity_date
+grace_end_date
+expected_recovery_amount
+current_recovery_amount
+restructure_count
+is_blacklisted
+is_frozen
+created_by
+```
+
+---
+
+## LoanRepayment
+
+```plaintext
+id
+loan_id
+payment_batch_id
+commodity_delivery_id
+amount
+principal_component
+interest_component
+penalty_component
+payment_method
+created_by
+created_at
+```
+
+---
+
+## LoanRestructure
+
+```plaintext
+id
+loan_id
+old_maturity_date
+new_maturity_date
+old_balance
+new_balance
+reason
+approved_by
+approved_at
+```
+
+---
+
+## LoanWriteOff
+
+```plaintext
+id
+loan_id
+writeoff_type           // partial | full | interest_only
+amount
+reason
+status
+requested_by
+approved_by
+approved_at
+```
+
+---
+
+# 3. Loan Lifecycle
+
+---
+
+## ACTIVE SEASON
+
+If:
+
+* loan partially repaid
+* season still active
+
+Then:
+
+* loan remains OPEN
+* no penalties
+* deduction-at-source continues
+
+Loan statuses:
+
+```plaintext
+ACTIVE
+RECOVERING
+PARTIALLY_REPAID
+```
+
+---
+
+## SEASON CLOSED
+
+If season ends and balance exists:
+
+### Step 1 — Grace Period
+
+* no penalties
+* recovery still allowed
+
+### Step 2 — Penalty Period
+
+* penalties applied automatically
+
+### Step 3 — Restructure Eligible
+
+* finance may restructure
+
+### Step 4 — Non Performing
+
+* loan marked overdue
+
+### Step 5 — Frozen / Blacklisted
+
+* new loans blocked
+
+---
+
+# 4. Auto Deduction Logic
+
+When commodity payment is generated:
+
+```plaintext
+payment_amount
+- active_loan_deductions
+= farmer_net_payment
+```
+
+System:
+
+1. retrieves active loans
+2. checks deduction rules
+3. applies repayment
+4. updates balances
+5. records repayment history
+
+---
+
+# 5. Farmer Controlled Repayment
+
+At commodity delivery farmer may choose:
+
+* repayment amount
+* repayment percentage
+* loan priority
+
+Example:
+
+```plaintext
+Farmer Payment = 500,000
+Farmer Chooses Repayment = 100,000
+```
+
+---
+
+# 6. Finance Override
+
+Finance may override farmer repayment choice.
+
+Example reasons:
+
+* season ending
+* overdue loan
+* high risk
+* forced recovery campaign
+
+Finance can:
+
+* increase repayment
+* recover full amount
+* prioritise penalties first
+
+All overrides require:
+
+```plaintext
+reason
+user
+timestamp
+audit log
+```
+
+---
+
+# 7. Deduction Priority Engine
+
+Recommended order:
+
+```plaintext
+1. penalties
+2. accrued interest
+3. overdue loans
+4. active loans
+5. group liabilities
+```
+
+Configurable per organisation.
+
+---
+
+# 8. Loan Statuses
+
+```plaintext
+PENDING_APPROVAL
+APPROVED
+DISBURSED
+ACTIVE
+RECOVERING
+GRACE_PERIOD
+OVERDUE
+RESTRUCTURED
+NON_PERFORMING
+FROZEN
+BLACKLISTED
+WRITTEN_OFF
+CLOSED
+```
+
+---
+
+# 9. Approval Workflow
+
+Threshold-based approvals.
+
+Example:
+
+```plaintext
+< 200k        = Loan Officer
+200k–1M       = + Finance
+1M–5M         = + Manager
+> 5M          = + Executive
+```
+
+Rules:
+
+* maker-checker enforced
+* submitter cannot approve own request
+
+Applies to:
+
+* loan approvals
+* restructures
+* write-offs
+
+---
+
+# 10. Write-Off Logic
+
+Supported:
+
+```plaintext
+partial_principal
+full_principal
+interest_only
+penalty_waiver
+```
+
+Requirements:
+
+* multi-level approval
+* mandatory reason
+* audit trail
+
+Written-off loans remain visible historically.
+
+---
+
+# 11. Blacklisting Rules
+
+Triggered when:
+
+* overdue exceeds threshold
+* restructure limit exceeded
+* fraud detected
+* finance manually freezes
+
+Effects:
+
+* no new loans
+* optional commodity purchase restrictions
+* finance alerts
+
+---
+
+# 12. Inventory Integration (Input Loans)
+
+For in-kind loans:
+
+Example:
+
+```plaintext
+20 bags fertiliser issued
+```
+
+System:
+
+1. deducts inventory
+2. creates loan
+3. links inventory transaction to loan
+
+---
+
+# 13. Recommended APIs
+
+## Loan Setup
+
+```plaintext
+POST   /loan-products
+GET    /loan-products
+PUT    /loan-products/:id
+```
+
+---
+
+## Loan Origination
+
+```plaintext
+POST   /loans
+GET    /loans/:id
+POST   /loans/:id/approve
+POST   /loans/:id/disburse
+```
+
+---
+
+## Recovery
+
+```plaintext
+POST   /loan-repayments
+POST   /loan-auto-deduct
+```
+
+---
+
+## Restructure
+
+```plaintext
+POST   /loans/:id/restructure
+```
+
+---
+
+## Write-Off
+
+```plaintext
+POST   /loans/:id/writeoff
+```
+
+---
+
+# 14. Critical Business Rules
+
+```plaintext
+- season active = no penalties
+- partial repayment allowed
+- deductions happen automatically during farmer payment
+- finance override allowed with audit trail
+- all approvals use maker-checker
+- frozen/blacklisted farmers cannot receive new loans
+- write-offs require multiple approvers
+- all loan events are auditable
+```
