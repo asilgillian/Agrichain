@@ -169,17 +169,31 @@ function CategoriesPanel() {
   );
 }
 
+type CategoryFormData = {
+  name: string;
+  description?: string | null;
+  interestType?: "flat" | "reducing" | "none";
+  interestRate?: number;
+  penaltyRate?: number;
+  gracePeriodDays?: number;
+  isActive?: boolean;
+};
+
 function CategoryDialog({
   open, onOpenChange, editing, onSubmit, submitting,
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
   editing: LoanCategory | null;
-  onSubmit: (data: { name: string; description?: string | null; isActive?: boolean }) => void;
+  onSubmit: (data: CategoryFormData) => void;
   submitting: boolean;
 }) {
   const [name, setName] = useState(editing?.name ?? "");
   const [description, setDescription] = useState(editing?.description ?? "");
+  const [interestType, setInterestType] = useState<"flat" | "reducing" | "none">(editing?.interestType ?? "flat");
+  const [interestRate, setInterestRate] = useState<string>(editing ? String(Number(editing.interestRate)) : "0");
+  const [penaltyRate, setPenaltyRate] = useState<string>(editing ? String(Number(editing.penaltyRate)) : "0");
+  const [gracePeriodDays, setGracePeriodDays] = useState<string>(editing ? String(editing.gracePeriodDays) : "0");
   const [isActive, setIsActive] = useState(editing?.isActive ?? true);
 
   return (
@@ -187,14 +201,18 @@ function CategoryDialog({
       if (v) {
         setName(editing?.name ?? "");
         setDescription(editing?.description ?? "");
+        setInterestType(editing?.interestType ?? "flat");
+        setInterestRate(editing ? String(Number(editing.interestRate)) : "0");
+        setPenaltyRate(editing ? String(Number(editing.penaltyRate)) : "0");
+        setGracePeriodDays(editing ? String(editing.gracePeriodDays) : "0");
         setIsActive(editing?.isActive ?? true);
       }
       onOpenChange(v);
     }}>
-      <DialogContent>
+      <DialogContent className="max-w-lg">
         <DialogHeader>
           <DialogTitle>{editing ? "Edit Category" : "New Loan Category"}</DialogTitle>
-          <DialogDescription>Groups related loan products (e.g. Input Loans, Cash Advances).</DialogDescription>
+          <DialogDescription>Groups related loan products. Rate defaults below apply to every product unless individually overridden.</DialogDescription>
         </DialogHeader>
         <div className="space-y-3">
           <div>
@@ -205,7 +223,33 @@ function CategoryDialog({
             <Label>Description</Label>
             <Textarea value={description ?? ""} onChange={(e) => setDescription(e.target.value)} data-testid="input-category-description" />
           </div>
-          <div className="flex items-center gap-2">
+          <div className="grid grid-cols-2 gap-3 pt-2 border-t">
+            <div className="col-span-2 text-xs text-muted-foreground -mb-1">Rate defaults (products inherit unless overridden)</div>
+            <div>
+              <Label>Interest type</Label>
+              <Select value={interestType} onValueChange={(v) => setInterestType(v as any)}>
+                <SelectTrigger data-testid="select-category-interest-type"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="flat">Flat</SelectItem>
+                  <SelectItem value="reducing">Reducing balance</SelectItem>
+                  <SelectItem value="none">No interest</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Interest rate (%)</Label>
+              <Input type="number" step="0.01" value={interestRate} onChange={(e) => setInterestRate(e.target.value)} data-testid="input-category-interest-rate" />
+            </div>
+            <div>
+              <Label>Penalty rate (%)</Label>
+              <Input type="number" step="0.01" value={penaltyRate} onChange={(e) => setPenaltyRate(e.target.value)} data-testid="input-category-penalty-rate" />
+            </div>
+            <div>
+              <Label>Grace period (days)</Label>
+              <Input type="number" value={gracePeriodDays} onChange={(e) => setGracePeriodDays(e.target.value)} data-testid="input-category-grace-days" />
+            </div>
+          </div>
+          <div className="flex items-center gap-2 pt-2">
             <Switch checked={isActive} onCheckedChange={setIsActive} data-testid="switch-category-active" />
             <Label>Active</Label>
           </div>
@@ -214,7 +258,15 @@ function CategoryDialog({
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
           <Button
             disabled={!name.trim() || submitting}
-            onClick={() => onSubmit({ name: name.trim(), description: description || null, isActive })}
+            onClick={() => onSubmit({
+              name: name.trim(),
+              description: description || null,
+              interestType,
+              interestRate: Number(interestRate) || 0,
+              penaltyRate: Number(penaltyRate) || 0,
+              gracePeriodDays: Number(gracePeriodDays) || 0,
+              isActive,
+            })}
             data-testid="btn-save-category"
           >
             {submitting ? "Saving…" : "Save"}
@@ -304,7 +356,8 @@ function ProductsPanel() {
                 <TableHead>Name</TableHead>
                 <TableHead>Category</TableHead>
                 <TableHead>Type</TableHead>
-                <TableHead>Price</TableHead>
+                <TableHead>Unit price</TableHead>
+                <TableHead>Unit</TableHead>
                 <TableHead>Interest</TableHead>
                 <TableHead>Penalty</TableHead>
                 <TableHead>Grace</TableHead>
@@ -314,15 +367,29 @@ function ProductsPanel() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {products.map((p) => (
+              {products.map((p) => {
+                const cat = categories.find((c) => c.id === p.loanCategoryId);
+                // Show the effective value with a subtle "inherits" hint when
+                // the product hasn't overridden the category default.
+                const effInterestType = p.interestType ?? cat?.interestType ?? "flat";
+                const effInterestRate = p.interestRate ?? cat?.interestRate ?? "0";
+                const effPenaltyRate = p.penaltyRate ?? cat?.penaltyRate ?? "0";
+                const effGrace = p.gracePeriodDays ?? cat?.gracePeriodDays ?? 0;
+                const inheritsInterest = p.interestRate == null;
+                const inheritsPenalty = p.penaltyRate == null;
+                const inheritsGrace = p.gracePeriodDays == null;
+                return (
                 <TableRow key={p.id} data-testid={`product-row-${p.id}`}>
                   <TableCell className="font-medium">{p.name}</TableCell>
                   <TableCell>{categoryName(p.loanCategoryId)}</TableCell>
                   <TableCell><Badge variant={p.productType === "INPUT" ? "default" : "outline"}>{p.productType}</Badge></TableCell>
-                  <TableCell className="font-mono text-xs">{p.defaultPrincipal ? `UGX ${Number(p.defaultPrincipal).toLocaleString()}` : "—"}</TableCell>
-                  <TableCell>{p.interestRate}% <span className="text-xs text-muted-foreground">({p.interestType})</span></TableCell>
-                  <TableCell>{p.penaltyRate}%</TableCell>
-                  <TableCell>{p.gracePeriodDays}d</TableCell>
+                  <TableCell className="font-mono text-xs">{p.unitPrice ? `UGX ${Number(p.unitPrice).toLocaleString()}` : "—"}</TableCell>
+                  <TableCell className="text-xs">{p.unit ?? "—"}</TableCell>
+                  <TableCell className={inheritsInterest ? "text-muted-foreground" : undefined}>
+                    {Number(effInterestRate)}% <span className="text-xs">({effInterestType}){inheritsInterest ? " · inherited" : ""}</span>
+                  </TableCell>
+                  <TableCell className={inheritsPenalty ? "text-muted-foreground" : undefined}>{Number(effPenaltyRate)}%{inheritsPenalty ? " ·i" : ""}</TableCell>
+                  <TableCell className={inheritsGrace ? "text-muted-foreground" : undefined}>{effGrace}d{inheritsGrace ? " ·i" : ""}</TableCell>
                   <TableCell className="text-xs">{p.repaymentMethod}</TableCell>
                   <TableCell>
                     <Badge variant={p.isActive ? "default" : "secondary"}>{p.isActive ? "Active" : "Inactive"}</Badge>
@@ -341,7 +408,8 @@ function ProductsPanel() {
                     </Button>
                   </TableCell>
                 </TableRow>
-              ))}
+              );
+              })}
             </TableBody>
           </Table>
         )}
@@ -387,11 +455,14 @@ function ProductDialog({
         name: editing.name,
         commodityTypeId: editing.commodityTypeId ?? null,
         productType: editing.productType,
-        defaultPrincipal: editing.defaultPrincipal != null ? Number(editing.defaultPrincipal) : null,
-        interestType: editing.interestType,
-        interestRate: Number(editing.interestRate),
-        penaltyRate: Number(editing.penaltyRate),
-        gracePeriodDays: editing.gracePeriodDays,
+        unitPrice: editing.unitPrice != null ? Number(editing.unitPrice) : null,
+        unit: editing.unit ?? null,
+        // null = inherit from category. Keep nulls as nulls so the UI shows
+        // the placeholder hint instead of mistakenly stamping a 0 override.
+        interestType: editing.interestType ?? null,
+        interestRate: editing.interestRate != null ? Number(editing.interestRate) : null,
+        penaltyRate: editing.penaltyRate != null ? Number(editing.penaltyRate) : null,
+        gracePeriodDays: editing.gracePeriodDays ?? null,
         maxAmount: editing.maxAmount != null ? Number(editing.maxAmount) : null,
         maxRestructures: editing.maxRestructures,
         repaymentMethod: editing.repaymentMethod,
@@ -406,11 +477,12 @@ function ProductDialog({
         name: "",
         commodityTypeId: null,
         productType: "CASH",
-        defaultPrincipal: null,
-        interestType: "flat",
-        interestRate: 0,
-        penaltyRate: 0,
-        gracePeriodDays: 0,
+        unitPrice: null,
+        unit: null,
+        interestType: null,
+        interestRate: null,
+        penaltyRate: null,
+        gracePeriodDays: null,
         maxAmount: null,
         maxRestructures: 0,
         repaymentMethod: "auto_deduct",
@@ -422,6 +494,9 @@ function ProductDialog({
       };
 
   const [form, setForm] = useState<LoanProductInput>(initial());
+  // Look up the category currently bound to the form so the rate inputs can
+  // show the inherited default as placeholder text.
+  const boundCategory = categories.find((c) => c.id === form.loanCategoryId);
 
   const reset = () => setForm(initial());
   const set = <K extends keyof LoanProductInput>(k: K, v: LoanProductInput[K]) =>
@@ -466,28 +541,48 @@ function ProductDialog({
           </div>
 
           {form.productType === "INPUT" && (
-            <div className="col-span-2">
-              <Label>Price (UGX) — required for input loans</Label>
-              <Input
-                type="number"
-                step="1"
-                min="0"
-                value={form.defaultPrincipal ?? ""}
-                onChange={(e) => set("defaultPrincipal", e.target.value ? Number(e.target.value) : null)}
-                placeholder="e.g. 50000"
-                data-testid="input-default-principal"
-              />
-              <p className="text-xs text-muted-foreground mt-1">
-                Operators won't be asked for a principal — every loan of this product is priced at this amount.
+            <>
+              <div>
+                <Label>Unit price (UGX)</Label>
+                <Input
+                  type="number"
+                  step="1"
+                  min="0"
+                  value={form.unitPrice ?? ""}
+                  onChange={(e) => set("unitPrice", e.target.value ? Number(e.target.value) : null)}
+                  placeholder="e.g. 50000"
+                  data-testid="input-unit-price"
+                />
+              </div>
+              <div>
+                <Label>Unit</Label>
+                <Input
+                  value={form.unit ?? ""}
+                  onChange={(e) => set("unit", e.target.value || null)}
+                  placeholder="e.g. 50kg bag, litre"
+                  data-testid="input-unit"
+                  maxLength={40}
+                />
+              </div>
+              <p className="col-span-2 text-xs text-muted-foreground -mt-1">
+                Operators pick a quantity at issuance; principal = unit price × quantity.
               </p>
-            </div>
+            </>
           )}
+
+          <div className="col-span-2 text-xs text-muted-foreground pt-2 border-t -mb-1">
+            Rate overrides — leave blank to inherit from <span className="font-medium">{boundCategory?.name ?? "category"}</span>.
+          </div>
 
           <div>
             <Label>Interest type</Label>
-            <Select value={form.interestType ?? "flat"} onValueChange={(v) => set("interestType", v as LoanProductInput["interestType"])}>
+            <Select
+              value={form.interestType ?? "__inherit"}
+              onValueChange={(v) => set("interestType", v === "__inherit" ? null : (v as LoanProductInput["interestType"]))}
+            >
               <SelectTrigger data-testid="select-interest-type"><SelectValue /></SelectTrigger>
               <SelectContent>
+                <SelectItem value="__inherit">Inherit ({boundCategory?.interestType ?? "flat"})</SelectItem>
                 <SelectItem value="flat">Flat</SelectItem>
                 <SelectItem value="reducing">Reducing balance</SelectItem>
                 <SelectItem value="none">No interest</SelectItem>
@@ -497,16 +592,34 @@ function ProductDialog({
 
           <div>
             <Label>Interest rate (%)</Label>
-            <Input type="number" step="0.01" value={form.interestRate ?? 0} onChange={(e) => set("interestRate", Number(e.target.value))} data-testid="input-interest-rate" />
+            <Input
+              type="number" step="0.01"
+              value={form.interestRate ?? ""}
+              onChange={(e) => set("interestRate", e.target.value === "" ? null : Number(e.target.value))}
+              placeholder={boundCategory ? `inherits ${Number(boundCategory.interestRate)}` : "0"}
+              data-testid="input-interest-rate"
+            />
           </div>
           <div>
             <Label>Penalty rate (%)</Label>
-            <Input type="number" step="0.01" value={form.penaltyRate ?? 0} onChange={(e) => set("penaltyRate", Number(e.target.value))} data-testid="input-penalty-rate" />
+            <Input
+              type="number" step="0.01"
+              value={form.penaltyRate ?? ""}
+              onChange={(e) => set("penaltyRate", e.target.value === "" ? null : Number(e.target.value))}
+              placeholder={boundCategory ? `inherits ${Number(boundCategory.penaltyRate)}` : "0"}
+              data-testid="input-penalty-rate"
+            />
           </div>
 
           <div>
             <Label>Grace period (days)</Label>
-            <Input type="number" value={form.gracePeriodDays ?? 0} onChange={(e) => set("gracePeriodDays", Number(e.target.value))} data-testid="input-grace-days" />
+            <Input
+              type="number"
+              value={form.gracePeriodDays ?? ""}
+              onChange={(e) => set("gracePeriodDays", e.target.value === "" ? null : Number(e.target.value))}
+              placeholder={boundCategory ? `inherits ${boundCategory.gracePeriodDays}` : "0"}
+              data-testid="input-grace-days"
+            />
           </div>
           <div>
             <Label>Max amount (UGX, optional)</Label>
@@ -543,11 +656,11 @@ function ProductDialog({
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
           <Button
-            // INPUT products need a positive price before they're usable for loan issuance.
+            // INPUT products need a positive unit price + unit label before they're usable.
             disabled={
               !form.name.trim() ||
               !form.loanCategoryId ||
-              (form.productType === "INPUT" && (!form.defaultPrincipal || form.defaultPrincipal <= 0)) ||
+              (form.productType === "INPUT" && (!form.unitPrice || form.unitPrice <= 0 || !form.unit?.trim())) ||
               submitting
             }
             onClick={() => onSubmit(form)}

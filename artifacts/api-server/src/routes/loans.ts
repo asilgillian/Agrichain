@@ -5,6 +5,7 @@ import {
   loanRepaymentsTable,
   loanGuarantorsTable,
   loanProductsTable,
+  loanCategoriesTable,
   farmersTable,
   auditLogsTable,
 } from "@workspace/db";
@@ -164,8 +165,10 @@ const createLoanSchema = z.object({
   loanProductId: z.string().uuid(),
   farmerId: z.string().uuid().optional().nullable(),
   groupId: z.string().uuid().optional().nullable(),
-  // Optional for INPUT products (server uses product.defaultPrincipal);
-  // required for CASH products. Validated below after product lookup.
+  // INPUT loans: required (server computes principal = unitPrice × quantity).
+  // CASH loans: ignored.
+  quantity: z.number().positive().optional(),
+  // CASH loans only: operator-entered principal. Ignored for INPUT.
   principalAmount: z.number().positive().optional(),
   // Optional overrides — only honoured when the product's allowFinanceOverride = true.
   interestRatePctOverride: z.number().min(0).max(1000).optional(),
@@ -182,23 +185,31 @@ router.post("/loans", requirePermission("loans.write"), async (req, res): Promis
   if (!parsed.success) { res.status(400).json({ error: "Invalid body", details: parsed.error.issues }); return; }
   const d = parsed.data;
 
-  // Resolve product — must be active, and we use its config as the source of truth.
+  // Resolve product — must be active. Also fetch its category so we can inherit
+  // rate defaults for any rate fields the product leaves null.
   const [product] = await db.select().from(loanProductsTable).where(eq(loanProductsTable.id, d.loanProductId)).limit(1);
   if (!product) { res.status(404).json({ error: "Loan product not found" }); return; }
   if (!product.isActive) { res.status(409).json({ error: "Loan product is inactive" }); return; }
+  const [category] = await db.select().from(loanCategoriesTable).where(eq(loanCategoriesTable.id, product.loanCategoryId)).limit(1);
+  if (!category) { res.status(409).json({ error: "Loan product is orphaned from its category" }); return; }
 
-  // Resolve principal based on product type.
-  //   INPUT  → ALWAYS use product.defaultPrincipal (operator can't override the
-  //            in-kind package price). Client-supplied principalAmount is
-  //            ignored to prevent UI bugs from minting wrong-priced loans.
-  //   CASH   → require client-supplied principalAmount (credit-limit gating is
-  //            a Phase 4 concern).
+  // Resolve principal + quantity based on product type.
+  //   INPUT  → require quantity > 0; principal = product.unitPrice × quantity.
+  //            Client-supplied principalAmount is ignored to prevent UI bugs
+  //            from minting wrong-priced loans.
+  //   CASH   → require client-supplied principalAmount (credit-limit gating
+  //            is a Phase 4 concern).
   let principal: number;
+  let quantity: number | null = null;
   if (product.productType === "INPUT") {
-    if (product.defaultPrincipal == null || Number(product.defaultPrincipal) <= 0) {
-      res.status(409).json({ error: "Input product is missing a configured price (defaultPrincipal). Edit the product in Loans → Catalog." }); return;
+    if (product.unitPrice == null || Number(product.unitPrice) <= 0) {
+      res.status(409).json({ error: "Input product is missing a unit price. Edit the product in Loans → Catalog." }); return;
     }
-    principal = Number(product.defaultPrincipal);
+    if (d.quantity == null || d.quantity <= 0) {
+      res.status(400).json({ error: "quantity is required for INPUT products" }); return;
+    }
+    quantity = d.quantity;
+    principal = Number((Number(product.unitPrice) * quantity).toFixed(2));
   } else {
     if (d.principalAmount == null) {
       res.status(400).json({ error: "principalAmount is required for CASH products" }); return;
@@ -217,18 +228,23 @@ router.post("/loans", requirePermission("loans.write"), async (req, res): Promis
     if (denial) { res.status(denial.status).json(denial.body); return; }
   }
 
-  // Apply finance-officer overrides only if the product permits.
+  // Effective rates: product override (non-null) wins; otherwise inherit from category.
+  const effectiveInterestType = product.interestType ?? category.interestType;
+  const productInterest = product.interestRate != null ? Number(product.interestRate) : Number(category.interestRate);
+  const productPenalty = product.penaltyRate != null ? Number(product.penaltyRate) : Number(category.penaltyRate);
+  const productGrace = product.gracePeriodDays != null ? product.gracePeriodDays : category.gracePeriodDays;
+  // Apply finance-officer overrides on top, only if the product permits.
   const interestRate = (product.allowFinanceOverride && d.interestRatePctOverride != null)
-    ? d.interestRatePctOverride : Number(product.interestRate ?? 0);
+    ? d.interestRatePctOverride : productInterest;
   const penaltyRate = (product.allowFinanceOverride && d.penaltyRatePctOverride != null)
-    ? d.penaltyRatePctOverride : Number(product.penaltyRate ?? 0);
+    ? d.penaltyRatePctOverride : productPenalty;
   const gracePeriod = (product.allowFinanceOverride && d.gracePeriodDaysOverride != null)
-    ? d.gracePeriodDaysOverride : (product.gracePeriodDays ?? 0);
+    ? d.gracePeriodDaysOverride : productGrace;
 
   const seq = await db.select({ count: sql<number>`count(*)::int` }).from(loansTable);
   const loanNumber = `LN${new Date().getFullYear()}${String((seq[0]?.count ?? 0) + 1).padStart(4, "0")}`;
   // Flat-interest default; reducing-balance schedules belong to Phase 3 amortization work.
-  const totalRepayable = product.interestType === "none"
+  const totalRepayable = effectiveInterestType === "none"
     ? principal
     : Number((principal * (1 + interestRate / 100)).toFixed(2));
 
@@ -238,6 +254,7 @@ router.post("/loans", requirePermission("loans.write"), async (req, res): Promis
     groupId: d.groupId ?? null,
     loanProductId: product.id,
     loanType: product.name, // legacy column mirrors product name for back-compat
+    quantity: quantity != null ? String(quantity) : null,
     principalAmount: String(principal),
     interestRatePct: String(interestRate),
     penaltyRatePct: String(penaltyRate),

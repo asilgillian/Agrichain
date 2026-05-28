@@ -24,9 +24,15 @@ function parseUuid(value: unknown): string | null {
 // =================================================================================================
 // Loan Categories
 // =================================================================================================
+const interestTypeSchema = z.enum(["flat", "reducing", "none"]);
 const createCategorySchema = z.object({
   name: z.string().min(1).max(120),
   description: z.string().max(2000).optional().nullable(),
+  // Rate defaults live here — products inherit unless they override.
+  interestType: interestTypeSchema.optional(),
+  interestRate: z.number().min(0).max(1000).optional(),
+  penaltyRate: z.number().min(0).max(1000).optional(),
+  gracePeriodDays: z.number().int().min(0).max(3650).optional(),
   isActive: z.boolean().optional(),
 });
 const updateCategorySchema = createCategorySchema.partial();
@@ -40,10 +46,15 @@ router.post("/loan-categories", requirePermission("loans.write"), async (req, re
   const parsed = createCategorySchema.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: "Invalid body", details: parsed.error.issues }); return; }
   try {
+    const d = parsed.data;
     const [row] = await db.insert(loanCategoriesTable).values({
-      name: parsed.data.name,
-      description: parsed.data.description ?? null,
-      isActive: parsed.data.isActive ?? true,
+      name: d.name,
+      description: d.description ?? null,
+      interestType: d.interestType ?? "flat",
+      interestRate: String(d.interestRate ?? 0),
+      penaltyRate: String(d.penaltyRate ?? 0),
+      gracePeriodDays: d.gracePeriodDays ?? 0,
+      isActive: d.isActive ?? true,
     }).returning();
     res.status(201).json(row);
   } catch (e: any) {
@@ -59,9 +70,18 @@ router.patch("/loan-categories/:id", requirePermission("loans.write"), async (re
   if (!id) { res.status(400).json({ error: "Invalid id" }); return; }
   const parsed = updateCategorySchema.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: "Invalid body", details: parsed.error.issues }); return; }
+  const d = parsed.data;
+  const update: Record<string, unknown> = { updatedAt: new Date() };
+  if (d.name !== undefined) update.name = d.name;
+  if (d.description !== undefined) update.description = d.description;
+  if (d.interestType !== undefined) update.interestType = d.interestType;
+  if (d.interestRate !== undefined) update.interestRate = String(d.interestRate);
+  if (d.penaltyRate !== undefined) update.penaltyRate = String(d.penaltyRate);
+  if (d.gracePeriodDays !== undefined) update.gracePeriodDays = d.gracePeriodDays;
+  if (d.isActive !== undefined) update.isActive = d.isActive;
   try {
     const [row] = await db.update(loanCategoriesTable)
-      .set({ ...parsed.data, updatedAt: new Date() })
+      .set(update)
       .where(eq(loanCategoriesTable.id, id))
       .returning();
     if (!row) { res.status(404).json({ error: "Loan category not found" }); return; }
@@ -90,9 +110,9 @@ router.delete("/loan-categories/:id", requirePermission("loans.write"), async (r
 });
 
 // =================================================================================================
-// Loan Products
+// Loan Products — rate fields are NULLABLE: null means "inherit from category".
+// INPUT products require unitPrice + unit; principal at issuance = unitPrice × quantity.
 // =================================================================================================
-const interestTypeSchema = z.enum(["flat", "reducing", "none"]);
 const repaymentMethodSchema = z.enum(["auto_deduct", "manual", "hybrid"]);
 const productTypeSchema = z.enum(["INPUT", "CASH"]);
 
@@ -100,15 +120,16 @@ const createProductSchema = z.object({
   loanCategoryId: z.string().uuid(),
   name: z.string().min(1).max(160),
   commodityTypeId: z.string().uuid().optional().nullable(),
-  // INPUT = in-kind package with a fixed price baked into the product (operator
-  // selects product, principal auto-fills + locks). CASH = operator-entered
-  // principal (credit-limit gating comes later).
   productType: productTypeSchema.optional(),
-  defaultPrincipal: z.number().min(0).optional().nullable(),
-  interestType: interestTypeSchema.optional(),
-  interestRate: z.number().min(0).max(1000).optional(),
-  penaltyRate: z.number().min(0).max(1000).optional(),
-  gracePeriodDays: z.number().int().min(0).max(3650).optional(),
+  // INPUT product economics: price per unit + human-readable unit label.
+  // (Inventory link will come later in Phase 4.)
+  unitPrice: z.number().min(0).optional().nullable(),
+  unit: z.string().max(40).optional().nullable(),
+  // Rate overrides — all optional + nullable; null = inherit from category.
+  interestType: interestTypeSchema.optional().nullable(),
+  interestRate: z.number().min(0).max(1000).optional().nullable(),
+  penaltyRate: z.number().min(0).max(1000).optional().nullable(),
+  gracePeriodDays: z.number().int().min(0).max(3650).optional().nullable(),
   maxAmount: z.number().min(0).optional().nullable(),
   maxRestructures: z.number().int().min(0).max(50).optional(),
   repaymentMethod: repaymentMethodSchema.optional(),
@@ -148,10 +169,15 @@ router.post("/loan-products", requirePermission("loans.write"), async (req, res)
   if (!parsed.success) { res.status(400).json({ error: "Invalid body", details: parsed.error.issues }); return; }
   const d = parsed.data;
   const productType = d.productType ?? "CASH";
-  // INPUT products must carry their price — the whole point is operators don't
-  // type a principal at loan-creation time.
-  if (productType === "INPUT" && (!d.defaultPrincipal || d.defaultPrincipal <= 0)) {
-    res.status(400).json({ error: "INPUT products require a defaultPrincipal greater than zero" }); return;
+  // INPUT products must carry both price-per-unit AND a unit label — the
+  // operator picks quantity at issuance, server computes principal.
+  if (productType === "INPUT") {
+    if (!d.unitPrice || d.unitPrice <= 0) {
+      res.status(400).json({ error: "INPUT products require a unitPrice greater than zero" }); return;
+    }
+    if (!d.unit || !d.unit.trim()) {
+      res.status(400).json({ error: "INPUT products require a unit label (e.g. \"50kg bag\", \"litre\")" }); return;
+    }
   }
   try {
     const [row] = await db.insert(loanProductsTable).values({
@@ -159,11 +185,13 @@ router.post("/loan-products", requirePermission("loans.write"), async (req, res)
       name: d.name,
       commodityTypeId: d.commodityTypeId ?? null,
       productType,
-      defaultPrincipal: d.defaultPrincipal != null ? String(d.defaultPrincipal) : null,
-      interestType: d.interestType ?? "flat",
-      interestRate: String(d.interestRate ?? 0),
-      penaltyRate: String(d.penaltyRate ?? 0),
-      gracePeriodDays: d.gracePeriodDays ?? 0,
+      unitPrice: d.unitPrice != null ? String(d.unitPrice) : null,
+      unit: d.unit?.trim() ? d.unit.trim() : null,
+      // null = inherit from category. Explicit values are overrides.
+      interestType: d.interestType ?? null,
+      interestRate: d.interestRate != null ? String(d.interestRate) : null,
+      penaltyRate: d.penaltyRate != null ? String(d.penaltyRate) : null,
+      gracePeriodDays: d.gracePeriodDays ?? null,
       maxAmount: d.maxAmount != null ? String(d.maxAmount) : null,
       maxRestructures: d.maxRestructures ?? 0,
       repaymentMethod: d.repaymentMethod ?? "auto_deduct",
@@ -193,10 +221,11 @@ router.patch("/loan-products/:id", requirePermission("loans.write"), async (req,
   if (d.name !== undefined) update.name = d.name;
   if (d.commodityTypeId !== undefined) update.commodityTypeId = d.commodityTypeId;
   if (d.productType !== undefined) update.productType = d.productType;
-  if (d.defaultPrincipal !== undefined) update.defaultPrincipal = d.defaultPrincipal == null ? null : String(d.defaultPrincipal);
+  if (d.unitPrice !== undefined) update.unitPrice = d.unitPrice == null ? null : String(d.unitPrice);
+  if (d.unit !== undefined) update.unit = d.unit == null ? null : (d.unit.trim() || null);
   if (d.interestType !== undefined) update.interestType = d.interestType;
-  if (d.interestRate !== undefined) update.interestRate = String(d.interestRate);
-  if (d.penaltyRate !== undefined) update.penaltyRate = String(d.penaltyRate);
+  if (d.interestRate !== undefined) update.interestRate = d.interestRate == null ? null : String(d.interestRate);
+  if (d.penaltyRate !== undefined) update.penaltyRate = d.penaltyRate == null ? null : String(d.penaltyRate);
   if (d.gracePeriodDays !== undefined) update.gracePeriodDays = d.gracePeriodDays;
   if (d.maxAmount !== undefined) update.maxAmount = d.maxAmount == null ? null : String(d.maxAmount);
   if (d.maxRestructures !== undefined) update.maxRestructures = d.maxRestructures;
@@ -207,24 +236,30 @@ router.patch("/loan-products/:id", requirePermission("loans.write"), async (req,
   if (d.seasonBased !== undefined) update.seasonBased = d.seasonBased;
   if (d.isActive !== undefined) update.isActive = d.isActive;
   // Lock-read + invariant-check + write in one tx so two concurrent patches
-  // can't end up with productType='INPUT' AND defaultPrincipal=null. Without
+  // can't end up with productType='INPUT' AND unitPrice/unit=null. Without
   // FOR UPDATE, request A could read CASH/null, request B could flip type to
-  // INPUT and add a price, then request A's write lands and wipes the price.
+  // INPUT and add price+unit, then request A's write lands and wipes them.
   try {
     const row = await db.transaction(async (tx) => {
       const locked = await tx.execute(sql`
-        SELECT product_type, default_principal FROM loan_products WHERE id = ${id} FOR UPDATE
+        SELECT product_type, unit_price, unit FROM loan_products WHERE id = ${id} FOR UPDATE
       `);
       const current = (locked.rows ?? locked)[0] as any;
       if (!current) return null;
-      // Only revalidate when either field is in play in this patch.
-      if (d.productType !== undefined || d.defaultPrincipal !== undefined) {
+      // Revalidate when type, price, or unit are in play.
+      if (d.productType !== undefined || d.unitPrice !== undefined || d.unit !== undefined) {
         const effectiveType = d.productType ?? current.product_type;
-        const effectivePrincipal = d.defaultPrincipal !== undefined
-          ? d.defaultPrincipal
-          : (current.default_principal != null ? Number(current.default_principal) : null);
-        if (effectiveType === "INPUT" && (effectivePrincipal == null || effectivePrincipal <= 0)) {
-          throw Object.assign(new Error("INPUT products require a defaultPrincipal greater than zero"), { status: 400 });
+        const effectiveUnitPrice = d.unitPrice !== undefined
+          ? d.unitPrice
+          : (current.unit_price != null ? Number(current.unit_price) : null);
+        const effectiveUnit = d.unit !== undefined ? d.unit : current.unit;
+        if (effectiveType === "INPUT") {
+          if (effectiveUnitPrice == null || effectiveUnitPrice <= 0) {
+            throw Object.assign(new Error("INPUT products require a unitPrice greater than zero"), { status: 400 });
+          }
+          if (!effectiveUnit || !String(effectiveUnit).trim()) {
+            throw Object.assign(new Error("INPUT products require a unit label"), { status: 400 });
+          }
         }
       }
       const [r] = await tx.update(loanProductsTable).set(update).where(eq(loanProductsTable.id, id)).returning();

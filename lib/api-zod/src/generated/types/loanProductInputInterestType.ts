@@ -7,7 +7,8 @@
  */
 
 export type LoanProductInputInterestType =
-  (typeof LoanProductInputInterestType)[keyof typeof LoanProductInputInterestType];
+  | (typeof LoanProductInputInterestType)[keyof typeof LoanProductInputInterestType]
+  | null;
 
 export const LoanProductInputInterestType = {
   flat: "flat",

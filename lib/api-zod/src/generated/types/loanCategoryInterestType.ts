@@ -6,11 +6,10 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export type LoanProductUpdateInterestType =
-  | (typeof LoanProductUpdateInterestType)[keyof typeof LoanProductUpdateInterestType]
-  | null;
+export type LoanCategoryInterestType =
+  (typeof LoanCategoryInterestType)[keyof typeof LoanCategoryInterestType];
 
-export const LoanProductUpdateInterestType = {
+export const LoanCategoryInterestType = {
   flat: "flat",
   reducing: "reducing",
   none: "none",

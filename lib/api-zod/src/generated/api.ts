@@ -3460,6 +3460,10 @@ export const ListLoanCategoriesResponseItem = zod.object({
   id: zod.string().uuid(),
   name: zod.string(),
   description: zod.string().nullish(),
+  interestType: zod.enum(["flat", "reducing", "none"]),
+  interestRate: zod.string(),
+  penaltyRate: zod.string(),
+  gracePeriodDays: zod.number(),
   isActive: zod.boolean(),
   createdAt: zod.coerce.date(),
   updatedAt: zod.coerce.date(),
@@ -3473,9 +3477,28 @@ export const ListLoanCategoriesResponse = zod.array(
  */
 export const createLoanCategoryBodyNameMax = 120;
 
+export const createLoanCategoryBodyInterestRateMin = 0;
+
+export const createLoanCategoryBodyPenaltyRateMin = 0;
+
+export const createLoanCategoryBodyGracePeriodDaysMin = 0;
+
 export const CreateLoanCategoryBody = zod.object({
   name: zod.string().min(1).max(createLoanCategoryBodyNameMax),
   description: zod.string().nullish(),
+  interestType: zod.enum(["flat", "reducing", "none"]).optional(),
+  interestRate: zod
+    .number()
+    .min(createLoanCategoryBodyInterestRateMin)
+    .optional(),
+  penaltyRate: zod
+    .number()
+    .min(createLoanCategoryBodyPenaltyRateMin)
+    .optional(),
+  gracePeriodDays: zod
+    .number()
+    .min(createLoanCategoryBodyGracePeriodDaysMin)
+    .optional(),
   isActive: zod.boolean().optional(),
 });
 
@@ -3488,9 +3511,28 @@ export const UpdateLoanCategoryParams = zod.object({
 
 export const updateLoanCategoryBodyNameMax = 120;
 
+export const updateLoanCategoryBodyInterestRateMin = 0;
+
+export const updateLoanCategoryBodyPenaltyRateMin = 0;
+
+export const updateLoanCategoryBodyGracePeriodDaysMin = 0;
+
 export const UpdateLoanCategoryBody = zod.object({
   name: zod.string().min(1).max(updateLoanCategoryBodyNameMax).optional(),
   description: zod.string().nullish(),
+  interestType: zod.enum(["flat", "reducing", "none"]).optional(),
+  interestRate: zod
+    .number()
+    .min(updateLoanCategoryBodyInterestRateMin)
+    .optional(),
+  penaltyRate: zod
+    .number()
+    .min(updateLoanCategoryBodyPenaltyRateMin)
+    .optional(),
+  gracePeriodDays: zod
+    .number()
+    .min(updateLoanCategoryBodyGracePeriodDaysMin)
+    .optional(),
   isActive: zod.boolean().optional(),
 });
 
@@ -3498,6 +3540,10 @@ export const UpdateLoanCategoryResponse = zod.object({
   id: zod.string().uuid(),
   name: zod.string(),
   description: zod.string().nullish(),
+  interestType: zod.enum(["flat", "reducing", "none"]),
+  interestRate: zod.string(),
+  penaltyRate: zod.string(),
+  gracePeriodDays: zod.number(),
   isActive: zod.boolean(),
   createdAt: zod.coerce.date(),
   updatedAt: zod.coerce.date(),
@@ -3523,11 +3569,12 @@ export const ListLoanProductsResponseItem = zod.object({
   name: zod.string(),
   commodityTypeId: zod.string().uuid().nullish(),
   productType: zod.enum(["INPUT", "CASH"]),
-  defaultPrincipal: zod.string().nullish(),
-  interestType: zod.enum(["flat", "reducing", "none"]),
-  interestRate: zod.string(),
-  penaltyRate: zod.string(),
-  gracePeriodDays: zod.number(),
+  unitPrice: zod.string().nullish(),
+  unit: zod.string().nullish(),
+  interestType: zod.enum(["flat", "reducing", "none"]).nullish(),
+  interestRate: zod.string().nullish(),
+  penaltyRate: zod.string().nullish(),
+  gracePeriodDays: zod.number().nullish(),
   maxAmount: zod.string().nullish(),
   maxRestructures: zod.number(),
   repaymentMethod: zod.enum(["auto_deduct", "manual", "hybrid"]),
@@ -3546,7 +3593,9 @@ export const ListLoanProductsResponse = zod.array(ListLoanProductsResponseItem);
  */
 export const createLoanProductBodyNameMax = 160;
 
-export const createLoanProductBodyDefaultPrincipalMin = 0;
+export const createLoanProductBodyUnitPriceMin = 0;
+
+export const createLoanProductBodyUnitMax = 40;
 
 export const createLoanProductBodyInterestRateMin = 0;
 
@@ -3565,20 +3614,18 @@ export const CreateLoanProductBody = zod.object({
   name: zod.string().min(1).max(createLoanProductBodyNameMax),
   commodityTypeId: zod.string().uuid().nullish(),
   productType: zod.enum(["INPUT", "CASH"]).optional(),
-  defaultPrincipal: zod
-    .number()
-    .min(createLoanProductBodyDefaultPrincipalMin)
-    .nullish(),
-  interestType: zod.enum(["flat", "reducing", "none"]).optional(),
+  unitPrice: zod.number().min(createLoanProductBodyUnitPriceMin).nullish(),
+  unit: zod.string().max(createLoanProductBodyUnitMax).nullish(),
+  interestType: zod.enum(["flat", "reducing", "none"]).nullish(),
   interestRate: zod
     .number()
     .min(createLoanProductBodyInterestRateMin)
-    .optional(),
-  penaltyRate: zod.number().min(createLoanProductBodyPenaltyRateMin).optional(),
+    .nullish(),
+  penaltyRate: zod.number().min(createLoanProductBodyPenaltyRateMin).nullish(),
   gracePeriodDays: zod
     .number()
     .min(createLoanProductBodyGracePeriodDaysMin)
-    .optional(),
+    .nullish(),
   maxAmount: zod.number().min(createLoanProductBodyMaxAmountMin).nullish(),
   maxRestructures: zod
     .number()
@@ -3609,11 +3656,12 @@ export const GetLoanProductResponse = zod
     name: zod.string(),
     commodityTypeId: zod.string().uuid().nullish(),
     productType: zod.enum(["INPUT", "CASH"]),
-    defaultPrincipal: zod.string().nullish(),
-    interestType: zod.enum(["flat", "reducing", "none"]),
-    interestRate: zod.string(),
-    penaltyRate: zod.string(),
-    gracePeriodDays: zod.number(),
+    unitPrice: zod.string().nullish(),
+    unit: zod.string().nullish(),
+    interestType: zod.enum(["flat", "reducing", "none"]).nullish(),
+    interestRate: zod.string().nullish(),
+    penaltyRate: zod.string().nullish(),
+    gracePeriodDays: zod.number().nullish(),
     maxAmount: zod.string().nullish(),
     maxRestructures: zod.number(),
     repaymentMethod: zod.enum(["auto_deduct", "manual", "hybrid"]),
@@ -3652,7 +3700,9 @@ export const UpdateLoanProductParams = zod.object({
 
 export const updateLoanProductBodyNameMax = 160;
 
-export const updateLoanProductBodyDefaultPrincipalMin = 0;
+export const updateLoanProductBodyUnitPriceMin = 0;
+
+export const updateLoanProductBodyUnitMax = 40;
 
 export const updateLoanProductBodyInterestRateMin = 0;
 
@@ -3671,20 +3721,18 @@ export const UpdateLoanProductBody = zod.object({
   name: zod.string().min(1).max(updateLoanProductBodyNameMax).optional(),
   commodityTypeId: zod.string().uuid().nullish(),
   productType: zod.enum(["INPUT", "CASH"]).optional(),
-  defaultPrincipal: zod
-    .number()
-    .min(updateLoanProductBodyDefaultPrincipalMin)
-    .nullish(),
-  interestType: zod.enum(["flat", "reducing", "none"]).optional(),
+  unitPrice: zod.number().min(updateLoanProductBodyUnitPriceMin).nullish(),
+  unit: zod.string().max(updateLoanProductBodyUnitMax).nullish(),
+  interestType: zod.enum(["flat", "reducing", "none"]).nullish(),
   interestRate: zod
     .number()
     .min(updateLoanProductBodyInterestRateMin)
-    .optional(),
-  penaltyRate: zod.number().min(updateLoanProductBodyPenaltyRateMin).optional(),
+    .nullish(),
+  penaltyRate: zod.number().min(updateLoanProductBodyPenaltyRateMin).nullish(),
   gracePeriodDays: zod
     .number()
     .min(updateLoanProductBodyGracePeriodDaysMin)
-    .optional(),
+    .nullish(),
   maxAmount: zod.number().min(updateLoanProductBodyMaxAmountMin).nullish(),
   maxRestructures: zod
     .number()
@@ -3707,11 +3755,12 @@ export const UpdateLoanProductResponse = zod.object({
   name: zod.string(),
   commodityTypeId: zod.string().uuid().nullish(),
   productType: zod.enum(["INPUT", "CASH"]),
-  defaultPrincipal: zod.string().nullish(),
-  interestType: zod.enum(["flat", "reducing", "none"]),
-  interestRate: zod.string(),
-  penaltyRate: zod.string(),
-  gracePeriodDays: zod.number(),
+  unitPrice: zod.string().nullish(),
+  unit: zod.string().nullish(),
+  interestType: zod.enum(["flat", "reducing", "none"]).nullish(),
+  interestRate: zod.string().nullish(),
+  penaltyRate: zod.string().nullish(),
+  gracePeriodDays: zod.number().nullish(),
   maxAmount: zod.string().nullish(),
   maxRestructures: zod.number(),
   repaymentMethod: zod.enum(["auto_deduct", "manual", "hybrid"]),

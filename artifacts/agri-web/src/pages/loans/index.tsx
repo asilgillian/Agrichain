@@ -36,11 +36,13 @@ interface LoanProduct {
   name: string;
   loanCategoryId: string;
   productType: "INPUT" | "CASH";
-  defaultPrincipal: string | null;
-  interestType: string;
-  interestRate: string;
-  penaltyRate: string;
-  gracePeriodDays: number;
+  unitPrice: string | null;
+  unit: string | null;
+  // Rate fields are now nullable on the product (null = inherit from category).
+  interestType: string | null;
+  interestRate: string | null;
+  penaltyRate: string | null;
+  gracePeriodDays: number | null;
   maxAmount: string | null;
   allowFinanceOverride: boolean;
   isActive: boolean;
@@ -49,6 +51,7 @@ interface LoanProduct {
 const emptyForm = {
   loanProductId: "",
   farmerId: "",
+  quantity: "",
   principalAmount: "",
   interestOverride: "",
   purpose: "",
@@ -97,19 +100,22 @@ export default function LoansPage() {
   );
 
   // When a new product is picked: clear any prior override AND, for INPUT
-  // products, prefill the principal from the product's configured price so the
-  // operator sees the exact amount that'll be issued.
+  // products, clear the principal (server derives it from quantity × unitPrice).
   useEffect(() => {
     setForm(f => ({
       ...f,
       interestOverride: "",
-      principalAmount: selectedProduct?.productType === "INPUT" && selectedProduct.defaultPrincipal
-        ? String(Number(selectedProduct.defaultPrincipal))
-        : selectedProduct?.productType === "CASH" ? "" : f.principalAmount,
+      quantity: "",
+      principalAmount: selectedProduct?.productType === "CASH" ? "" : f.principalAmount,
     }));
-  }, [form.loanProductId, selectedProduct?.productType, selectedProduct?.defaultPrincipal]);
+  }, [form.loanProductId, selectedProduct?.productType]);
 
   const isInputProduct = selectedProduct?.productType === "INPUT";
+  // Live preview: quantity × unitPrice for INPUT loans, so the operator sees
+  // the principal that will be created before they hit submit.
+  const inputPrincipalPreview = isInputProduct && form.quantity && selectedProduct?.unitPrice
+    ? Number(form.quantity) * Number(selectedProduct.unitPrice)
+    : null;
 
   const createMutation = useMutation({
     mutationFn: (body: any) => fetch(`${API_BASE}/api/loans`, {
@@ -126,12 +132,12 @@ export default function LoansPage() {
 
   const submit = () => {
     if (!form.loanProductId) { toast({ title: "Please select a loan product", variant: "destructive" }); return; }
-    // For INPUT loans, the server uses product.defaultPrincipal regardless of
-    // what we send — but we still skip client-side validation since there's
-    // nothing for the operator to enter.
     let principal: number | undefined;
+    let quantity: number | undefined;
     if (isInputProduct) {
-      principal = undefined; // server-derived from product
+      // INPUT: send quantity; server computes principal = quantity × unitPrice.
+      quantity = Number(form.quantity);
+      if (!quantity || quantity <= 0) { toast({ title: "Quantity required for input loans", variant: "destructive" }); return; }
     } else {
       principal = Number(form.principalAmount);
       if (!principal || principal <= 0) { toast({ title: "Valid principal amount required", variant: "destructive" }); return; }
@@ -143,6 +149,7 @@ export default function LoansPage() {
     createMutation.mutate({
       loanProductId: form.loanProductId,
       farmerId: form.farmerId || undefined,
+      quantity,
       principalAmount: principal,
       interestRatePctOverride: form.interestOverride ? Number(form.interestOverride) : undefined,
       purpose: form.purpose.trim() || undefined,
@@ -187,26 +194,45 @@ export default function LoansPage() {
                 {selectedProduct && (
                   <p className="text-xs text-muted-foreground mt-1">
                     {selectedProduct.productType === "INPUT"
-                      ? <><span className="font-medium">Input loan</span> · price UGX {Number(selectedProduct.defaultPrincipal ?? 0).toLocaleString()} · </>
+                      ? <><span className="font-medium">Input loan</span> · UGX {Number(selectedProduct.unitPrice ?? 0).toLocaleString()} per {selectedProduct.unit ?? "unit"} · </>
                       : <><span className="font-medium">Cash loan</span> · </>}
-                    {selectedProduct.interestType} · default {Number(selectedProduct.interestRate)}% interest
-                    · {selectedProduct.gracePeriodDays}d grace
+                    {selectedProduct.interestType ?? "inherited"} · default {Number(selectedProduct.interestRate ?? 0)}% interest
+                    · {selectedProduct.gracePeriodDays ?? 0}d grace
                     {selectedProduct.maxAmount ? ` · max UGX ${Number(selectedProduct.maxAmount).toLocaleString()}` : ""}
                   </p>
                 )}
               </div>
               <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <Label>Principal (UGX) {isInputProduct ? "(set by product)" : "*"}</Label>
-                  <Input
-                    type="number"
-                    value={form.principalAmount}
-                    onChange={e => setForm({ ...form, principalAmount: e.target.value })}
-                    placeholder="50000"
-                    disabled={isInputProduct}
-                    data-testid="input-principal"
-                  />
-                </div>
+                {isInputProduct ? (
+                  <div>
+                    <Label>Quantity ({selectedProduct?.unit ?? "units"}) *</Label>
+                    <Input
+                      type="number"
+                      step="any"
+                      min="0"
+                      value={form.quantity}
+                      onChange={e => setForm({ ...form, quantity: e.target.value })}
+                      placeholder="1"
+                      data-testid="input-quantity"
+                    />
+                    {inputPrincipalPreview != null && (
+                      <p className="text-xs text-muted-foreground mt-1">
+                        = UGX {inputPrincipalPreview.toLocaleString()}
+                      </p>
+                    )}
+                  </div>
+                ) : (
+                  <div>
+                    <Label>Principal (UGX) *</Label>
+                    <Input
+                      type="number"
+                      value={form.principalAmount}
+                      onChange={e => setForm({ ...form, principalAmount: e.target.value })}
+                      placeholder="50000"
+                      data-testid="input-principal"
+                    />
+                  </div>
+                )}
                 <div>
                   <Label>Interest % {selectedProduct?.allowFinanceOverride ? "" : "(locked)"}</Label>
                   <Input

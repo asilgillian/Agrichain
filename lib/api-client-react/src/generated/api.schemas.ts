@@ -5,14 +5,36 @@
  * AgriChain Digital Agriculture Platform API
  * OpenAPI spec version: 0.1.0
  */
+export type LoanCategoryInterestType =
+  (typeof LoanCategoryInterestType)[keyof typeof LoanCategoryInterestType];
+
+export const LoanCategoryInterestType = {
+  flat: "flat",
+  reducing: "reducing",
+  none: "none",
+} as const;
+
 export interface LoanCategory {
   id: string;
   name: string;
   description?: string | null;
+  interestType: LoanCategoryInterestType;
+  interestRate: string;
+  penaltyRate: string;
+  gracePeriodDays: number;
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
 }
+
+export type LoanCategoryInputInterestType =
+  (typeof LoanCategoryInputInterestType)[keyof typeof LoanCategoryInputInterestType];
+
+export const LoanCategoryInputInterestType = {
+  flat: "flat",
+  reducing: "reducing",
+  none: "none",
+} as const;
 
 export interface LoanCategoryInput {
   /**
@@ -21,6 +43,13 @@ export interface LoanCategoryInput {
    */
   name: string;
   description?: string | null;
+  interestType?: LoanCategoryInputInterestType;
+  /** @minimum 0 */
+  interestRate?: number;
+  /** @minimum 0 */
+  penaltyRate?: number;
+  /** @minimum 0 */
+  gracePeriodDays?: number;
   isActive?: boolean;
 }
 
@@ -33,7 +62,8 @@ export const LoanProductProductType = {
 } as const;
 
 export type LoanProductInterestType =
-  (typeof LoanProductInterestType)[keyof typeof LoanProductInterestType];
+  | (typeof LoanProductInterestType)[keyof typeof LoanProductInterestType]
+  | null;
 
 export const LoanProductInterestType = {
   flat: "flat",
@@ -56,11 +86,12 @@ export interface LoanProduct {
   name: string;
   commodityTypeId?: string | null;
   productType: LoanProductProductType;
-  defaultPrincipal?: string | null;
-  interestType: LoanProductInterestType;
-  interestRate: string;
-  penaltyRate: string;
-  gracePeriodDays: number;
+  unitPrice?: string | null;
+  unit?: string | null;
+  interestType?: LoanProductInterestType;
+  interestRate?: string | null;
+  penaltyRate?: string | null;
+  gracePeriodDays?: number | null;
   maxAmount?: string | null;
   maxRestructures: number;
   repaymentMethod: LoanProductRepaymentMethod;
@@ -82,7 +113,8 @@ export const LoanProductInputProductType = {
 } as const;
 
 export type LoanProductInputInterestType =
-  (typeof LoanProductInputInterestType)[keyof typeof LoanProductInputInterestType];
+  | (typeof LoanProductInputInterestType)[keyof typeof LoanProductInputInterestType]
+  | null;
 
 export const LoanProductInputInterestType = {
   flat: "flat",
@@ -109,14 +141,16 @@ export interface LoanProductInput {
   commodityTypeId?: string | null;
   productType?: LoanProductInputProductType;
   /** @minimum 0 */
-  defaultPrincipal?: number | null;
+  unitPrice?: number | null;
+  /** @maxLength 40 */
+  unit?: string | null;
   interestType?: LoanProductInputInterestType;
   /** @minimum 0 */
-  interestRate?: number;
+  interestRate?: number | null;
   /** @minimum 0 */
-  penaltyRate?: number;
+  penaltyRate?: number | null;
   /** @minimum 0 */
-  gracePeriodDays?: number;
+  gracePeriodDays?: number | null;
   /** @minimum 0 */
   maxAmount?: number | null;
   /** @minimum 0 */
@@ -159,6 +193,15 @@ export type LoanProductDetail = LoanProduct & {
   items: LoanProductItem[];
 };
 
+export type LoanCategoryUpdateInterestType =
+  (typeof LoanCategoryUpdateInterestType)[keyof typeof LoanCategoryUpdateInterestType];
+
+export const LoanCategoryUpdateInterestType = {
+  flat: "flat",
+  reducing: "reducing",
+  none: "none",
+} as const;
+
 export interface LoanCategoryUpdate {
   /**
    * @minLength 1
@@ -166,6 +209,13 @@ export interface LoanCategoryUpdate {
    */
   name?: string;
   description?: string | null;
+  interestType?: LoanCategoryUpdateInterestType;
+  /** @minimum 0 */
+  interestRate?: number;
+  /** @minimum 0 */
+  penaltyRate?: number;
+  /** @minimum 0 */
+  gracePeriodDays?: number;
   isActive?: boolean;
 }
 
@@ -178,7 +228,8 @@ export const LoanProductUpdateProductType = {
 } as const;
 
 export type LoanProductUpdateInterestType =
-  (typeof LoanProductUpdateInterestType)[keyof typeof LoanProductUpdateInterestType];
+  | (typeof LoanProductUpdateInterestType)[keyof typeof LoanProductUpdateInterestType]
+  | null;
 
 export const LoanProductUpdateInterestType = {
   flat: "flat",
@@ -205,14 +256,16 @@ export interface LoanProductUpdate {
   commodityTypeId?: string | null;
   productType?: LoanProductUpdateProductType;
   /** @minimum 0 */
-  defaultPrincipal?: number | null;
+  unitPrice?: number | null;
+  /** @maxLength 40 */
+  unit?: string | null;
   interestType?: LoanProductUpdateInterestType;
   /** @minimum 0 */
-  interestRate?: number;
+  interestRate?: number | null;
   /** @minimum 0 */
-  penaltyRate?: number;
+  penaltyRate?: number | null;
   /** @minimum 0 */
-  gracePeriodDays?: number;
+  gracePeriodDays?: number | null;
   /** @minimum 0 */
   maxAmount?: number | null;
   /** @minimum 0 */

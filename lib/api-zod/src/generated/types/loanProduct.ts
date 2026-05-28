@@ -15,11 +15,12 @@ export interface LoanProduct {
   name: string;
   commodityTypeId?: string | null;
   productType: LoanProductProductType;
-  defaultPrincipal?: string | null;
-  interestType: LoanProductInterestType;
-  interestRate: string;
-  penaltyRate: string;
-  gracePeriodDays: number;
+  unitPrice?: string | null;
+  unit?: string | null;
+  interestType?: LoanProductInterestType;
+  interestRate?: string | null;
+  penaltyRate?: string | null;
+  gracePeriodDays?: number | null;
   maxAmount?: string | null;
   maxRestructures: number;
   repaymentMethod: LoanProductRepaymentMethod;

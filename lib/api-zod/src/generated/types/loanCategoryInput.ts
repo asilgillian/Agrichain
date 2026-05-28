@@ -5,6 +5,7 @@
  * AgriChain Digital Agriculture Platform API
  * OpenAPI spec version: 0.1.0
  */
+import type { LoanCategoryInputInterestType } from "./loanCategoryInputInterestType";
 
 export interface LoanCategoryInput {
   /**
@@ -13,5 +14,12 @@ export interface LoanCategoryInput {
    */
   name: string;
   description?: string | null;
+  interestType?: LoanCategoryInputInterestType;
+  /** @minimum 0 */
+  interestRate?: number;
+  /** @minimum 0 */
+  penaltyRate?: number;
+  /** @minimum 0 */
+  gracePeriodDays?: number;
   isActive?: boolean;
 }

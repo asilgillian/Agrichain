@@ -19,14 +19,16 @@ export interface LoanProductInput {
   commodityTypeId?: string | null;
   productType?: LoanProductInputProductType;
   /** @minimum 0 */
-  defaultPrincipal?: number | null;
+  unitPrice?: number | null;
+  /** @maxLength 40 */
+  unit?: string | null;
   interestType?: LoanProductInputInterestType;
   /** @minimum 0 */
-  interestRate?: number;
+  interestRate?: number | null;
   /** @minimum 0 */
-  penaltyRate?: number;
+  penaltyRate?: number | null;
   /** @minimum 0 */
-  gracePeriodDays?: number;
+  gracePeriodDays?: number | null;
   /** @minimum 0 */
   maxAmount?: number | null;
   /** @minimum 0 */
