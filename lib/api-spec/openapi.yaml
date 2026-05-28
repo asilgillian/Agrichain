@@ -2461,16 +2461,24 @@ components:
         id: { type: string, format: uuid }
         name: { type: string }
         description: { type: string, nullable: true }
+        interestType: { type: string, enum: [flat, reducing, none] }
+        interestRate: { type: string }
+        penaltyRate: { type: string }
+        gracePeriodDays: { type: integer }
         isActive: { type: boolean }
         createdAt: { type: string, format: date-time }
         updatedAt: { type: string, format: date-time }
-      required: [id, name, isActive, createdAt, updatedAt]
+      required: [id, name, interestType, interestRate, penaltyRate, gracePeriodDays, isActive, createdAt, updatedAt]
 
     LoanCategoryInput:
       type: object
       properties:
         name: { type: string, minLength: 1, maxLength: 120 }
         description: { type: string, nullable: true }
+        interestType: { type: string, enum: [flat, reducing, none] }
+        interestRate: { type: number, minimum: 0 }
+        penaltyRate: { type: number, minimum: 0 }
+        gracePeriodDays: { type: integer, minimum: 0 }
         isActive: { type: boolean }
       required: [name]
 
@@ -2482,11 +2490,12 @@ components:
         name: { type: string }
         commodityTypeId: { type: string, format: uuid, nullable: true }
         productType: { type: string, enum: [INPUT, CASH] }
-        defaultPrincipal: { type: string, nullable: true }
-        interestType: { type: string, enum: [flat, reducing, none] }
-        interestRate: { type: string }
-        penaltyRate: { type: string }
-        gracePeriodDays: { type: integer }
+        unitPrice: { type: string, nullable: true }
+        unit: { type: string, nullable: true }
+        interestType: { type: string, enum: [flat, reducing, none], nullable: true }
+        interestRate: { type: string, nullable: true }
+        penaltyRate: { type: string, nullable: true }
+        gracePeriodDays: { type: integer, nullable: true }
         maxAmount: { type: string, nullable: true }
         maxRestructures: { type: integer }
         repaymentMethod: { type: string, enum: [auto_deduct, manual, hybrid] }
@@ -2498,8 +2507,7 @@ components:
         createdAt: { type: string, format: date-time }
         updatedAt: { type: string, format: date-time }
       required:
-        [id, loanCategoryId, name, productType, interestType, interestRate, penaltyRate,
-         gracePeriodDays, maxRestructures, repaymentMethod, recoveryPriority,
+        [id, loanCategoryId, name, productType, maxRestructures, repaymentMethod, recoveryPriority,
          allowPartialRepayment, allowFinanceOverride, seasonBased, isActive,
          createdAt, updatedAt]
 
@@ -2510,11 +2518,12 @@ components:
         name: { type: string, minLength: 1, maxLength: 160 }
         commodityTypeId: { type: string, format: uuid, nullable: true }
         productType: { type: string, enum: [INPUT, CASH] }
-        defaultPrincipal: { type: number, nullable: true, minimum: 0 }
-        interestType: { type: string, enum: [flat, reducing, none] }
-        interestRate: { type: number, minimum: 0 }
-        penaltyRate: { type: number, minimum: 0 }
-        gracePeriodDays: { type: integer, minimum: 0 }
+        unitPrice: { type: number, nullable: true, minimum: 0 }
+        unit: { type: string, nullable: true, maxLength: 40 }
+        interestType: { type: string, enum: [flat, reducing, none], nullable: true }
+        interestRate: { type: number, nullable: true, minimum: 0 }
+        penaltyRate: { type: number, nullable: true, minimum: 0 }
+        gracePeriodDays: { type: integer, nullable: true, minimum: 0 }
         maxAmount: { type: number, nullable: true, minimum: 0 }
         maxRestructures: { type: integer, minimum: 0 }
         repaymentMethod: { type: string, enum: [auto_deduct, manual, hybrid] }
@@ -2564,6 +2573,10 @@ components:
       properties:
         name: { type: string, minLength: 1, maxLength: 120 }
         description: { type: string, nullable: true }
+        interestType: { type: string, enum: [flat, reducing, none] }
+        interestRate: { type: number, minimum: 0 }
+        penaltyRate: { type: number, minimum: 0 }
+        gracePeriodDays: { type: integer, minimum: 0 }
         isActive: { type: boolean }
 
     LoanProductUpdate:
@@ -2573,11 +2586,12 @@ components:
         name: { type: string, minLength: 1, maxLength: 160 }
         commodityTypeId: { type: string, format: uuid, nullable: true }
         productType: { type: string, enum: [INPUT, CASH] }
-        defaultPrincipal: { type: number, nullable: true, minimum: 0 }
-        interestType: { type: string, enum: [flat, reducing, none] }
-        interestRate: { type: number, minimum: 0 }
-        penaltyRate: { type: number, minimum: 0 }
-        gracePeriodDays: { type: integer, minimum: 0 }
+        unitPrice: { type: number, nullable: true, minimum: 0 }
+        unit: { type: string, nullable: true, maxLength: 40 }
+        interestType: { type: string, enum: [flat, reducing, none], nullable: true }
+        interestRate: { type: number, nullable: true, minimum: 0 }
+        penaltyRate: { type: number, nullable: true, minimum: 0 }
+        gracePeriodDays: { type: integer, nullable: true, minimum: 0 }
         maxAmount: { type: number, nullable: true, minimum: 0 }
         maxRestructures: { type: integer, minimum: 0 }
         repaymentMethod: { type: string, enum: [auto_deduct, manual, hybrid] }

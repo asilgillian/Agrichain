@@ -13,6 +13,12 @@ export const loanCategoriesTable = pgTable("loan_categories", {
   id: uuid("id").primaryKey().defaultRandom(),
   name: text("name").notNull(),
   description: text("description"),
+  // Rate defaults live on the category — products inherit unless they override.
+  // 'flat' | 'reducing' | 'none'
+  interestType: text("interest_type").notNull().default("flat"),
+  interestRate: numeric("interest_rate", { precision: 6, scale: 3 }).notNull().default("0"),
+  penaltyRate: numeric("penalty_rate", { precision: 6, scale: 3 }).notNull().default("0"),
+  gracePeriodDays: integer("grace_period_days").notNull().default(0),
   isActive: boolean("is_active").notNull().default(true),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
@@ -26,18 +32,19 @@ export const loanProductsTable = pgTable("loan_products", {
   name: text("name").notNull(),
   // Optional: products that recover from a specific commodity (e.g. coffee delivery).
   commodityTypeId: uuid("commodity_type_id").references(() => commodityTypesTable.id, { onDelete: "set null" }),
-  // 'INPUT' (in-kind, fixed price from product) | 'CASH' (operator-entered, credit-limit gated later).
-  // Defaults to CASH for back-compat with rows created before this column existed.
+  // 'INPUT' (in-kind: principal = unitPrice × quantity at issuance time)
+  // | 'CASH' (operator-entered principal; credit-limit gated later).
   productType: text("product_type").notNull().default("CASH"),
-  // For INPUT products: the fixed UGX value of the in-kind package issued. The
-  // operator picks the product and the principal is locked to this value.
-  // For CASH products: ignored — principal is operator-entered.
-  defaultPrincipal: numeric("default_principal", { precision: 14, scale: 2 }),
-  // 'flat' | 'reducing' | 'none'
-  interestType: text("interest_type").notNull().default("flat"),
-  interestRate: numeric("interest_rate", { precision: 6, scale: 3 }).notNull().default("0"),
-  penaltyRate: numeric("penalty_rate", { precision: 6, scale: 3 }).notNull().default("0"),
-  gracePeriodDays: integer("grace_period_days").notNull().default(0),
+  // INPUT: price per unit (UGX). Required by API for INPUT products; ignored for CASH.
+  unitPrice: numeric("unit_price", { precision: 14, scale: 2 }),
+  // Human-readable unit label (e.g. "50kg bag", "kg", "litre"). Inventory link comes later.
+  unit: text("unit"),
+  // Rate fields below are NULLABLE — null means "inherit the category default".
+  // A non-null value is an explicit per-product override.
+  interestType: text("interest_type"),
+  interestRate: numeric("interest_rate", { precision: 6, scale: 3 }),
+  penaltyRate: numeric("penalty_rate", { precision: 6, scale: 3 }),
+  gracePeriodDays: integer("grace_period_days"),
   maxAmount: numeric("max_amount", { precision: 14, scale: 2 }),
   maxRestructures: integer("max_restructures").notNull().default(0),
   // 'auto_deduct' | 'manual' | 'hybrid'

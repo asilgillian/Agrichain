@@ -10,6 +10,9 @@ export const loansTable = pgTable("loans", {
   // Phase 2: bridge to catalog. Nullable for legacy rows; required for new loans at API layer.
   loanProductId: uuid("loan_product_id"),
   loanType: text("loan_type").notNull(), // legacy free-text; mirrored from product.name for new loans
+  // INPUT loans only: number of units issued (principal = unitPrice × quantity).
+  // null for CASH loans.
+  quantity: numeric("quantity", { precision: 14, scale: 3 }),
   principalAmount: numeric("principal_amount", { precision: 14, scale: 2 }).notNull(),
   interestRatePct: numeric("interest_rate_pct", { precision: 6, scale: 3 }).default("0"),
   penaltyRatePct: numeric("penalty_rate_pct", { precision: 6, scale: 3 }).default("0"),
