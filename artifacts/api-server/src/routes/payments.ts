@@ -13,12 +13,26 @@ import { InitiatePaymentBody, ListPaymentsQueryParams } from "@workspace/api-zod
 import { checkFarmerStageForTxn } from "../lib/transaction-access";
 import { applyAutoDeductionsForFarmerPayment } from "../lib/loan-deductions";
 import { requirePermission, type AuthedRequest } from "../middlewares/auth";
+import {
+  initiateDisbursement,
+  queryDisbursementStatus,
+  isProviderLive,
+  isMomoEnabled,
+  type MomoProvider,
+} from "../lib/momo";
 
 const router: IRouter = Router();
 
-// Mobile-money is gated behind this flag while we wire the real provider. When
-// off, MoMo payments are recorded as `pending_external` (audit trail only).
-const MOMO_ENABLED = process.env.MOMO_ENABLED === "true";
+// Map a normalized gateway status onto the persisted payment row.
+function statusFieldsFor(norm: "pending" | "success" | "failed", failureReason?: string) {
+  if (norm === "success") {
+    return { status: "paid", amountPaidFromDue: true, paidAt: new Date(), failureReason: null as string | null };
+  }
+  if (norm === "failed") {
+    return { status: "failed", amountPaidFromDue: false, paidAt: null as Date | null, failureReason: failureReason ?? "Disbursement failed" };
+  }
+  return { status: "pending_external", amountPaidFromDue: false, paidAt: null as Date | null, failureReason: null as string | null };
+}
 
 // Loose Uganda MSISDN check: +256 7XXXXXXXX or 07XXXXXXXX, exactly 9 digits
 // after the leading 7. We don't pretend to validate carrier ranges.
@@ -52,9 +66,11 @@ router.get("/payments", requirePermission("payments.read"), async (req, res): Pr
   }
   const { farmerId, status } = parsed.data;
   const supplierIdFilter = typeof req.query.supplierId === "string" ? req.query.supplierId : null;
+  const deliveryIdFilter = typeof req.query.deliveryId === "string" ? req.query.deliveryId : null;
   const conditions: any[] = [];
   if (farmerId) conditions.push(eq(paymentsTable.farmerId, farmerId));
   if (supplierIdFilter) conditions.push(eq(paymentsTable.supplierId, supplierIdFilter));
+  if (deliveryIdFilter) conditions.push(eq(paymentsTable.deliveryId, deliveryIdFilter));
   if (status) conditions.push(eq(paymentsTable.status, status));
 
   const payments = conditions.length > 0
@@ -303,18 +319,11 @@ router.post("/payments", requirePermission("payments.write"), async (req: Authed
     }
   }
 
-  // MOBILE-MONEY / BANK paths. Real gateway integration is not wired yet, so we
-  // record the intent as `pending_external` with a clear stub reference. When
-  // MOMO_ENABLED is flipped on we'll call the provider here and update status
-  // synchronously (or via a webhook) — the rest of the app already understands
-  // the pending_external state.
-  const isMomo = method === "mobile_money";
-  if (isMomo && MOMO_ENABLED) {
-    req.log.warn({ provider, msisdn }, "MOMO_ENABLED is true but no provider client wired — falling through to stub");
-  }
-  const reference = isMomo
-    ? `STUB:${provider}:${msisdn}`
-    : `STUB:${method}`;
+  // MOBILE-MONEY path. We always create the payment row FIRST (status
+  // pending_external) so there is an auditable record before we touch the
+  // gateway, then attempt a real disbursement. The DB partial-unique index is
+  // our race-safe duplicate guard.
+  const live = isProviderLive(provider as MomoProvider);
   let payment;
   try {
     [payment] = await db.insert(paymentsTable).values({
@@ -325,8 +334,11 @@ router.post("/payments", requirePermission("payments.write"), async (req: Authed
       currency: data.currency,
       paymentMethod: method,
       status: "pending_external",
-      paymentReference: reference,
-      msisdn: isMomo ? msisdn : null,
+      momoProvider: provider,
+      msisdn,
+      // Until a real gateway accepts it, mark the reference as stubbed so it's
+      // obvious in the audit trail that no live disbursement was attempted.
+      paymentReference: live ? null : `STUB:${provider}:${msisdn}`,
     }).returning();
   } catch (e: any) {
     if (e?.code === "23505") {
@@ -335,12 +347,162 @@ router.post("/payments", requirePermission("payments.write"), async (req: Authed
     }
     throw e;
   }
+
+  // When the provider is enabled + configured, fire the real disbursement.
+  // A synchronous rejection flips the row to `failed` (retryable); acceptance
+  // leaves it `pending_external` until a callback/refresh confirms settlement.
+  if (live) {
+    try {
+      const result = await initiateDisbursement({
+        provider: provider as MomoProvider,
+        amount: Number(data.amountDue),
+        currency: data.currency,
+        msisdn: msisdn!,
+        externalId: payment.id,
+      });
+      const fields = statusFieldsFor(result.status);
+      const [updated] = await db.update(paymentsTable).set({
+        providerTxnId: result.providerTxnId,
+        paymentReference: result.providerTxnId,
+        status: fields.status,
+        paidAt: fields.paidAt,
+        amountPaid: fields.amountPaidFromDue ? payment.amountDue : null,
+        updatedAt: new Date(),
+      }).where(eq(paymentsTable.id, payment.id)).returning();
+      payment = updated;
+    } catch (e: any) {
+      req.log.error({ err: e, provider, paymentId: payment.id }, "mobile-money disbursement failed");
+      const [updated] = await db.update(paymentsTable).set({
+        status: "failed",
+        failureReason: (e?.message ?? "Disbursement failed").slice(0, 500),
+        updatedAt: new Date(),
+      }).where(eq(paymentsTable.id, payment.id)).returning();
+      payment = updated;
+    }
+  } else if (isMomoEnabled()) {
+    req.log.warn({ provider }, "MOMO_ENABLED but provider not configured — recorded as pending_external stub");
+  }
+
+  const payeeName = await resolvePayeeName(payment.farmerId, payment.supplierId);
   res.status(201).json({
     ...payment,
-    payeeName: await resolvePayeeName(payment.farmerId, payment.supplierId),
-    farmerName: await resolvePayeeName(payment.farmerId, payment.supplierId),
+    payeeName,
+    farmerName: payeeName,
     amountDue: parseFloat(payment.amountDue),
-    amountPaid: null,
+    amountPaid: payment.amountPaid ? parseFloat(payment.amountPaid) : null,
+    lotTag: null,
+  });
+});
+
+// Re-query the gateway for the authoritative status of a mobile-money payment
+// and persist any transition. Safe to call repeatedly (polling fallback for
+// when callbacks don't arrive). Only meaningful while a payment is in flight.
+router.post("/payments/:id/refresh-status", requirePermission("payments.read"), async (req, res): Promise<void> => {
+  const { id } = req.params;
+  const [payment] = await db.select().from(paymentsTable).where(eq(paymentsTable.id, id as string));
+  if (!payment) { res.status(404).json({ error: "Payment not found" }); return; }
+  if (payment.paymentMethod !== "mobile_money") {
+    res.status(400).json({ error: "Only mobile-money payments can be refreshed" }); return;
+  }
+  if (!payment.momoProvider || !payment.providerTxnId) {
+    res.status(409).json({ error: "Payment has no live gateway reference to query" }); return;
+  }
+  if (!isProviderLive(payment.momoProvider as MomoProvider)) {
+    res.status(409).json({ error: "Provider is not enabled/configured" }); return;
+  }
+  let updatedPayment = payment;
+  try {
+    const status = await queryDisbursementStatus({
+      provider: payment.momoProvider as MomoProvider,
+      providerTxnId: payment.providerTxnId,
+    });
+    const fields = statusFieldsFor(status.status, status.failureReason);
+    const [updated] = await db.update(paymentsTable).set({
+      status: fields.status,
+      paidAt: fields.paidAt ?? payment.paidAt,
+      amountPaid: fields.amountPaidFromDue ? payment.amountDue : payment.amountPaid,
+      failureReason: fields.failureReason,
+      updatedAt: new Date(),
+    }).where(eq(paymentsTable.id, payment.id)).returning();
+    updatedPayment = updated;
+  } catch (e: any) {
+    res.status(502).json({ error: `Gateway status query failed: ${e?.message ?? "unknown"}` }); return;
+  }
+  const payeeName = await resolvePayeeName(updatedPayment.farmerId, updatedPayment.supplierId);
+  res.json({
+    ...updatedPayment,
+    payeeName,
+    farmerName: payeeName,
+    amountDue: parseFloat(updatedPayment.amountDue),
+    amountPaid: updatedPayment.amountPaid ? parseFloat(updatedPayment.amountPaid) : null,
+    lotTag: null,
+  });
+});
+
+// Retry a FAILED mobile-money disbursement. We reuse the same row (so the
+// duplicate-payment guard still holds) — flip it back to pending_external,
+// bump retryCount, and fire a fresh disbursement.
+router.post("/payments/:id/retry", requirePermission("payments.disburse.momo"), async (req, res): Promise<void> => {
+  const { id } = req.params;
+  const [payment] = await db.select().from(paymentsTable).where(eq(paymentsTable.id, id as string));
+  if (!payment) { res.status(404).json({ error: "Payment not found" }); return; }
+  if (payment.paymentMethod !== "mobile_money") {
+    res.status(400).json({ error: "Only mobile-money payments can be retried" }); return;
+  }
+  if (payment.status !== "failed") {
+    res.status(409).json({ error: `Only failed payments can be retried (current: ${payment.status})` }); return;
+  }
+  const provider = (payment.momoProvider ?? "mtn_momo") as MomoProvider;
+  if (!payment.msisdn) { res.status(409).json({ error: "Payment has no recipient msisdn" }); return; }
+  if (!isProviderLive(provider)) {
+    res.status(409).json({ error: "Provider is not enabled/configured" }); return;
+  }
+
+  // Move to in-flight first so a concurrent retry can't double-send.
+  const [claimed] = await db.update(paymentsTable).set({
+    status: "pending_external",
+    failureReason: null,
+    providerTxnId: null,
+    retryCount: payment.retryCount + 1,
+    updatedAt: new Date(),
+  }).where(and(eq(paymentsTable.id, payment.id), eq(paymentsTable.status, "failed"))).returning();
+  if (!claimed) { res.status(409).json({ error: "Payment is no longer in a retryable state" }); return; }
+
+  let result = claimed;
+  try {
+    const disbursement = await initiateDisbursement({
+      provider,
+      amount: Number(claimed.amountDue),
+      currency: claimed.currency,
+      msisdn: claimed.msisdn!,
+      externalId: claimed.id,
+    });
+    const fields = statusFieldsFor(disbursement.status);
+    const [updated] = await db.update(paymentsTable).set({
+      providerTxnId: disbursement.providerTxnId,
+      paymentReference: disbursement.providerTxnId,
+      status: fields.status,
+      paidAt: fields.paidAt,
+      amountPaid: fields.amountPaidFromDue ? claimed.amountDue : null,
+      updatedAt: new Date(),
+    }).where(eq(paymentsTable.id, claimed.id)).returning();
+    result = updated;
+  } catch (e: any) {
+    req.log.error({ err: e, provider, paymentId: claimed.id }, "mobile-money retry failed");
+    const [updated] = await db.update(paymentsTable).set({
+      status: "failed",
+      failureReason: (e?.message ?? "Disbursement failed").slice(0, 500),
+      updatedAt: new Date(),
+    }).where(eq(paymentsTable.id, claimed.id)).returning();
+    result = updated;
+  }
+  const payeeName = await resolvePayeeName(result.farmerId, result.supplierId);
+  res.json({
+    ...result,
+    payeeName,
+    farmerName: payeeName,
+    amountDue: parseFloat(result.amountDue),
+    amountPaid: result.amountPaid ? parseFloat(result.amountPaid) : null,
     lotTag: null,
   });
 });

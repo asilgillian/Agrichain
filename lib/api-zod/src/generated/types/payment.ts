@@ -5,6 +5,7 @@
  * AgriChain Digital Agriculture Platform API
  * OpenAPI spec version: 0.1.0
  */
+import type { PaymentMomoProvider } from "./paymentMomoProvider";
 import type { PaymentPaymentMethod } from "./paymentPaymentMethod";
 import type { PaymentStatus } from "./paymentStatus";
 
@@ -16,10 +17,17 @@ export interface Payment {
   lotTag?: string;
   amountDue: number;
   amountPaid?: number;
+  supplierId?: string | null;
+  payeeName?: string;
   currency: string;
   paymentMethod: PaymentPaymentMethod;
   status: PaymentStatus;
-  paymentReference?: string;
-  paidAt?: Date;
+  paymentReference?: string | null;
+  momoProvider?: PaymentMomoProvider;
+  msisdn?: string | null;
+  providerTxnId?: string | null;
+  failureReason?: string | null;
+  retryCount?: number;
+  paidAt?: Date | null;
   createdAt: Date;
 }

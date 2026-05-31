@@ -1498,6 +1498,16 @@ export const PaymentStatus = {
   processing: "processing",
   paid: "paid",
   failed: "failed",
+  pending_external: "pending_external",
+} as const;
+
+export type PaymentMomoProvider =
+  | (typeof PaymentMomoProvider)[keyof typeof PaymentMomoProvider]
+  | null;
+
+export const PaymentMomoProvider = {
+  mtn_momo: "mtn_momo",
+  airtel_money: "airtel_money",
 } as const;
 
 export interface Payment {
@@ -1508,11 +1518,18 @@ export interface Payment {
   lotTag?: string;
   amountDue: number;
   amountPaid?: number;
+  supplierId?: string | null;
+  payeeName?: string;
   currency: string;
   paymentMethod: PaymentPaymentMethod;
   status: PaymentStatus;
-  paymentReference?: string;
-  paidAt?: string;
+  paymentReference?: string | null;
+  momoProvider?: PaymentMomoProvider;
+  msisdn?: string | null;
+  providerTxnId?: string | null;
+  failureReason?: string | null;
+  retryCount?: number;
+  paidAt?: string | null;
   createdAt: string;
 }
 
@@ -1525,6 +1542,17 @@ export const InitiatePaymentBodyPaymentMethod = {
   cash: "cash",
 } as const;
 
+/**
+ * Required when paymentMethod is mobile_money.
+ */
+export type InitiatePaymentBodyProvider =
+  (typeof InitiatePaymentBodyProvider)[keyof typeof InitiatePaymentBodyProvider];
+
+export const InitiatePaymentBodyProvider = {
+  mtn_momo: "mtn_momo",
+  airtel_money: "airtel_money",
+} as const;
+
 export interface InitiatePaymentBody {
   deliveryId: string;
   farmerId?: string | null;
@@ -1532,6 +1560,10 @@ export interface InitiatePaymentBody {
   amountDue: number;
   paymentMethod: InitiatePaymentBodyPaymentMethod;
   currency: string;
+  /** Required when paymentMethod is mobile_money. */
+  provider?: InitiatePaymentBodyProvider;
+  /** Recipient phone (+256…). Required when paymentMethod is mobile_money. */
+  msisdn?: string;
 }
 
 export interface PaymentSummary {
@@ -2183,6 +2215,8 @@ export const ListLotsStatus = {
 
 export type ListPaymentsParams = {
   farmerId?: string;
+  supplierId?: string;
+  deliveryId?: string;
   status?: ListPaymentsStatus;
   dateFrom?: string;
 };
@@ -2195,6 +2229,7 @@ export const ListPaymentsStatus = {
   processing: "processing",
   paid: "paid",
   failed: "failed",
+  pending_external: "pending_external",
 } as const;
 
 export type ListGapAssessmentsParams = {

@@ -1485,10 +1485,18 @@ paths:
           schema:
             type: string
         - in: query
+          name: supplierId
+          schema:
+            type: string
+        - in: query
+          name: deliveryId
+          schema:
+            type: string
+        - in: query
           name: status
           schema:
             type: string
-            enum: [pending, processing, paid, failed]
+            enum: [pending, processing, paid, failed, pending_external]
         - in: query
           name: dateFrom
           schema:
@@ -1517,6 +1525,44 @@ paths:
       responses:
         "201":
           description: Payment initiated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Payment"
+
+  /payments/{id}/refresh-status:
+    post:
+      operationId: refreshPaymentStatus
+      tags: [payments]
+      summary: Re-query the gateway for a mobile-money payment's status
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Updated payment
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Payment"
+
+  /payments/{id}/retry:
+    post:
+      operationId: retryPayment
+      tags: [payments]
+      summary: Retry a failed mobile-money disbursement
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Updated payment
           content:
             application/json:
               schema:
@@ -4010,6 +4056,11 @@ components:
           type: number
         amountPaid:
           type: number
+        supplierId:
+          type: string
+          nullable: true
+        payeeName:
+          type: string
         currency:
           type: string
         paymentMethod:
@@ -4017,12 +4068,29 @@ components:
           enum: [mobile_money, bank_transfer, cash]
         status:
           type: string
-          enum: [pending, processing, paid, failed]
+          enum: [pending, processing, paid, failed, pending_external]
         paymentReference:
           type: string
+          nullable: true
+        momoProvider:
+          type: string
+          nullable: true
+          enum: [mtn_momo, airtel_money]
+        msisdn:
+          type: string
+          nullable: true
+        providerTxnId:
+          type: string
+          nullable: true
+        failureReason:
+          type: string
+          nullable: true
+        retryCount:
+          type: integer
         paidAt:
           type: string
           format: date-time
+          nullable: true
         createdAt:
           type: string
           format: date-time
@@ -4046,6 +4114,13 @@ components:
           enum: [mobile_money, bank_transfer, cash]
         currency:
           type: string
+        provider:
+          type: string
+          enum: [mtn_momo, airtel_money]
+          description: Required when paymentMethod is mobile_money.
+        msisdn:
+          type: string
+          description: Recipient phone (+256…). Required when paymentMethod is mobile_money.
       required: [deliveryId, amountDue, paymentMethod, currency]
 
     PaymentSummary:

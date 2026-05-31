@@ -1,4 +1,4 @@
-import { pgTable, text, uuid, timestamp, numeric, uniqueIndex } from "drizzle-orm/pg-core";
+import { pgTable, text, uuid, timestamp, numeric, integer, uniqueIndex } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
@@ -18,11 +18,15 @@ export const paymentsTable = pgTable("payments", {
   paymentMethod: text("payment_method").notNull(), // cash | mtn_momo | airtel_money
   status: text("status").notNull().default("pending"), // pending | paid | failed | pending_external
   paymentReference: text("payment_reference"),
-  // Mobile-money fields. msisdn is the recipient phone in +256… format; providerTxnId
-  // is filled in once a real MoMo gateway returns a transaction id (currently stubbed).
+  // Mobile-money fields. msisdn is the recipient phone in +256… format; momoProvider
+  // records which gateway ('mtn_momo' | 'airtel_money'); providerTxnId holds the
+  // gateway reference used to query authoritative status / reconcile callbacks.
   msisdn: text("msisdn"),
+  momoProvider: text("momo_provider"),
   providerTxnId: text("provider_txn_id"),
   failureReason: text("failure_reason"),
+  // How many times a failed mobile-money disbursement has been retried.
+  retryCount: integer("retry_count").notNull().default(0),
   paidAt: timestamp("paid_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),

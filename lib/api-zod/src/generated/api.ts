@@ -2816,7 +2816,11 @@ export const GetWarehouseMassBalanceResponse = zod.object({
  */
 export const ListPaymentsQueryParams = zod.object({
   farmerId: zod.coerce.string().optional(),
-  status: zod.enum(["pending", "processing", "paid", "failed"]).optional(),
+  supplierId: zod.coerce.string().optional(),
+  deliveryId: zod.coerce.string().optional(),
+  status: zod
+    .enum(["pending", "processing", "paid", "failed", "pending_external"])
+    .optional(),
   dateFrom: zod.date().optional(),
 });
 
@@ -2828,11 +2832,24 @@ export const ListPaymentsResponseItem = zod.object({
   lotTag: zod.string().optional(),
   amountDue: zod.number(),
   amountPaid: zod.number().optional(),
+  supplierId: zod.string().nullish(),
+  payeeName: zod.string().optional(),
   currency: zod.string(),
   paymentMethod: zod.enum(["mobile_money", "bank_transfer", "cash"]),
-  status: zod.enum(["pending", "processing", "paid", "failed"]),
-  paymentReference: zod.string().optional(),
-  paidAt: zod.coerce.date().optional(),
+  status: zod.enum([
+    "pending",
+    "processing",
+    "paid",
+    "failed",
+    "pending_external",
+  ]),
+  paymentReference: zod.string().nullish(),
+  momoProvider: zod.enum(["mtn_momo", "airtel_money"]).nullish(),
+  msisdn: zod.string().nullish(),
+  providerTxnId: zod.string().nullish(),
+  failureReason: zod.string().nullish(),
+  retryCount: zod.number().optional(),
+  paidAt: zod.coerce.date().nullish(),
   createdAt: zod.coerce.date(),
 });
 export const ListPaymentsResponse = zod.array(ListPaymentsResponseItem);
@@ -2847,6 +2864,88 @@ export const InitiatePaymentBody = zod.object({
   amountDue: zod.number(),
   paymentMethod: zod.enum(["mobile_money", "bank_transfer", "cash"]),
   currency: zod.string(),
+  provider: zod
+    .enum(["mtn_momo", "airtel_money"])
+    .optional()
+    .describe("Required when paymentMethod is mobile_money."),
+  msisdn: zod
+    .string()
+    .optional()
+    .describe(
+      "Recipient phone (+256…). Required when paymentMethod is mobile_money.",
+    ),
+});
+
+/**
+ * @summary Re-query the gateway for a mobile-money payment's status
+ */
+export const RefreshPaymentStatusParams = zod.object({
+  id: zod.coerce.string(),
+});
+
+export const RefreshPaymentStatusResponse = zod.object({
+  id: zod.string(),
+  farmerId: zod.string(),
+  farmerName: zod.string().optional(),
+  deliveryId: zod.string(),
+  lotTag: zod.string().optional(),
+  amountDue: zod.number(),
+  amountPaid: zod.number().optional(),
+  supplierId: zod.string().nullish(),
+  payeeName: zod.string().optional(),
+  currency: zod.string(),
+  paymentMethod: zod.enum(["mobile_money", "bank_transfer", "cash"]),
+  status: zod.enum([
+    "pending",
+    "processing",
+    "paid",
+    "failed",
+    "pending_external",
+  ]),
+  paymentReference: zod.string().nullish(),
+  momoProvider: zod.enum(["mtn_momo", "airtel_money"]).nullish(),
+  msisdn: zod.string().nullish(),
+  providerTxnId: zod.string().nullish(),
+  failureReason: zod.string().nullish(),
+  retryCount: zod.number().optional(),
+  paidAt: zod.coerce.date().nullish(),
+  createdAt: zod.coerce.date(),
+});
+
+/**
+ * @summary Retry a failed mobile-money disbursement
+ */
+export const RetryPaymentParams = zod.object({
+  id: zod.coerce.string(),
+});
+
+export const RetryPaymentResponse = zod.object({
+  id: zod.string(),
+  farmerId: zod.string(),
+  farmerName: zod.string().optional(),
+  deliveryId: zod.string(),
+  lotTag: zod.string().optional(),
+  amountDue: zod.number(),
+  amountPaid: zod.number().optional(),
+  supplierId: zod.string().nullish(),
+  payeeName: zod.string().optional(),
+  currency: zod.string(),
+  paymentMethod: zod.enum(["mobile_money", "bank_transfer", "cash"]),
+  status: zod.enum([
+    "pending",
+    "processing",
+    "paid",
+    "failed",
+    "pending_external",
+  ]),
+  paymentReference: zod.string().nullish(),
+  momoProvider: zod.enum(["mtn_momo", "airtel_money"]).nullish(),
+  msisdn: zod.string().nullish(),
+  providerTxnId: zod.string().nullish(),
+  failureReason: zod.string().nullish(),
+  retryCount: zod.number().optional(),
+  paidAt: zod.coerce.date().nullish(),
+  createdAt: zod.coerce.date(),
 });
 
 /**

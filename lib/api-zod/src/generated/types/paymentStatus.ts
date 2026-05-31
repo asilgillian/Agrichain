@@ -13,4 +13,5 @@ export const PaymentStatus = {
   processing: "processing",
   paid: "paid",
   failed: "failed",
+  pending_external: "pending_external",
 } as const;

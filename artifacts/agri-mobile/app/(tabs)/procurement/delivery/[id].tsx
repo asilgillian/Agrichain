@@ -26,6 +26,19 @@ type Delivery = {
   qcApproved: boolean;
 };
 
+type Payment = {
+  id: string;
+  paymentMethod: string;
+  status: string;
+  momoProvider: string | null;
+  msisdn: string | null;
+  amountDue: number | null;
+  currency: string;
+  failureReason: string | null;
+  retryCount: number;
+  paidAt: string | null;
+};
+
 const STATUS_LABEL: Record<string, string> = {
   pending_weight_submit: "Awaiting weight",
   pending_weight_approve: "Awaiting weight approval",
@@ -71,6 +84,24 @@ export default function DeliveryDetailScreen() {
     onError: (e: any) => Alert.alert("Failed", e?.message ?? "Could not submit QC"),
   });
 
+  // Payments recorded against this delivery — surfaced so field agents can see
+  // whether a mobile-money disbursement went through, and retry it if it failed.
+  const { data: payments } = useQuery<Payment[]>({
+    queryKey: ["delivery-payments", id],
+    enabled: !!id,
+    queryFn: () => api<Payment[]>(`/api/payments?deliveryId=${encodeURIComponent(id)}`),
+  });
+  const refreshPay = useMutation({
+    mutationFn: (paymentId: string) => api(`/api/payments/${paymentId}/refresh-status`, { method: "POST" }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["delivery-payments", id] }); },
+    onError: (e: any) => Alert.alert("Refresh failed", e?.message ?? "Failed"),
+  });
+  const retryPay = useMutation({
+    mutationFn: (paymentId: string) => api(`/api/payments/${paymentId}/retry`, { method: "POST" }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["delivery-payments", id] }); Alert.alert("Disbursement retried"); },
+    onError: (e: any) => Alert.alert("Retry failed", e?.message ?? "Failed"),
+  });
+
   // Pay-farmer mini flow. Cash is the field default — agents rarely have
   // an MSISDN handy on a paper-trail delivery — but we let them flip to MoMo.
   const [payMethod, setPayMethod] = useState<"cash" | "mobile_money">("cash");
@@ -89,7 +120,7 @@ export default function DeliveryDetailScreen() {
       if (payMethod === "mobile_money") { body.provider = provider; body.msisdn = msisdn.trim(); }
       return api("/api/payments", { method: "POST", body });
     },
-    onSuccess: () => { setMsisdn(""); qc.invalidateQueries({ queryKey: ["delivery", id] }); Alert.alert("Payment recorded"); },
+    onSuccess: () => { setMsisdn(""); qc.invalidateQueries({ queryKey: ["delivery", id] }); qc.invalidateQueries({ queryKey: ["delivery-payments", id] }); Alert.alert("Payment recorded"); },
     onError: (e: any) => Alert.alert("Payment failed", e?.message ?? "Failed"),
   });
 
@@ -191,7 +222,58 @@ export default function DeliveryDetailScreen() {
         </View>
       )}
 
-      <Pressable onPress={() => refetch()} hitSlop={10} style={{ alignSelf: "center", padding: 8 }}>
+      {payments && payments.length > 0 && (
+        <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <Text style={[styles.cardTitle, { color: colors.foreground }]}>Payments</Text>
+          {payments.map((p) => {
+            const isMomo = p.paymentMethod === "mobile_money";
+            const statusColor = p.status === "paid" ? colors.primary : p.status === "failed" ? "#dc2626" : colors.mutedForeground;
+            const statusLabel = p.status === "pending_external" ? "Pending — awaiting gateway" : p.status;
+            const busy = refreshPay.isPending || retryPay.isPending;
+            return (
+              <View key={p.id} style={{ borderTopWidth: 1, borderTopColor: colors.border, paddingTop: 8, gap: 4 }} testID={`m-payment-${p.id}`}>
+                <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+                  <Text style={{ color: colors.foreground, fontSize: 13, fontWeight: "600" }}>
+                    {isMomo ? "Mobile Money" : p.paymentMethod === "cash" ? "Cash" : p.paymentMethod}
+                    {isMomo && p.momoProvider ? ` · ${p.momoProvider === "mtn_momo" ? "MTN" : p.momoProvider === "airtel_money" ? "Airtel" : p.momoProvider}` : ""}
+                  </Text>
+                  <Text style={{ color: statusColor, fontSize: 12, fontWeight: "700" }} testID={`m-payment-status-${p.id}`}>{statusLabel}</Text>
+                </View>
+                <Text style={{ color: colors.mutedForeground, fontSize: 12 }}>
+                  {p.currency} {Number(p.amountDue ?? 0).toLocaleString()}{p.retryCount ? ` · retries: ${p.retryCount}` : ""}
+                </Text>
+                {p.status === "failed" && p.failureReason ? (
+                  <Text style={{ color: "#dc2626", fontSize: 12 }}>{p.failureReason}</Text>
+                ) : null}
+                {isMomo && (p.status === "failed" || p.status === "pending_external") && (
+                  <Row>
+                    <Pressable
+                      onPress={() => refreshPay.mutate(p.id)}
+                      disabled={busy}
+                      style={({ pressed }) => [styles.chip, { borderColor: colors.border, backgroundColor: colors.background, opacity: busy ? 0.5 : pressed ? 0.85 : 1 }]}
+                      testID={`m-refresh-payment-${p.id}`}
+                    >
+                      <Text style={{ color: colors.foreground, fontWeight: "600", fontSize: 13 }}>Refresh</Text>
+                    </Pressable>
+                    {p.status === "failed" && (
+                      <Pressable
+                        onPress={() => retryPay.mutate(p.id)}
+                        disabled={busy}
+                        style={({ pressed }) => [styles.chip, { borderColor: colors.primary, backgroundColor: colors.primary, opacity: busy ? 0.5 : pressed ? 0.85 : 1 }]}
+                        testID={`m-retry-payment-${p.id}`}
+                      >
+                        <Text style={{ color: colors.primaryForeground, fontWeight: "600", fontSize: 13 }}>Retry</Text>
+                      </Pressable>
+                    )}
+                  </Row>
+                )}
+              </View>
+            );
+          })}
+        </View>
+      )}
+
+      <Pressable onPress={() => { refetch(); qc.invalidateQueries({ queryKey: ["delivery-payments", id] }); }} hitSlop={10} style={{ alignSelf: "center", padding: 8 }}>
         <Feather name="refresh-cw" size={14} color={colors.mutedForeground} />
       </Pressable>
     </ScrollView>

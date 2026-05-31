@@ -6174,6 +6174,174 @@ export const useInitiatePayment = <
 };
 
 /**
+ * @summary Re-query the gateway for a mobile-money payment's status
+ */
+export const getRefreshPaymentStatusUrl = (id: string) => {
+  return `/api/payments/${id}/refresh-status`;
+};
+
+export const refreshPaymentStatus = async (
+  id: string,
+  options?: RequestInit,
+): Promise<Payment> => {
+  return customFetch<Payment>(getRefreshPaymentStatusUrl(id), {
+    ...options,
+    method: "POST",
+  });
+};
+
+export const getRefreshPaymentStatusMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof refreshPaymentStatus>>,
+    TError,
+    { id: string },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof refreshPaymentStatus>>,
+  TError,
+  { id: string },
+  TContext
+> => {
+  const mutationKey = ["refreshPaymentStatus"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof refreshPaymentStatus>>,
+    { id: string }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return refreshPaymentStatus(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type RefreshPaymentStatusMutationResult = NonNullable<
+  Awaited<ReturnType<typeof refreshPaymentStatus>>
+>;
+
+export type RefreshPaymentStatusMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Re-query the gateway for a mobile-money payment's status
+ */
+export const useRefreshPaymentStatus = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof refreshPaymentStatus>>,
+    TError,
+    { id: string },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof refreshPaymentStatus>>,
+  TError,
+  { id: string },
+  TContext
+> => {
+  return useMutation(getRefreshPaymentStatusMutationOptions(options));
+};
+
+/**
+ * @summary Retry a failed mobile-money disbursement
+ */
+export const getRetryPaymentUrl = (id: string) => {
+  return `/api/payments/${id}/retry`;
+};
+
+export const retryPayment = async (
+  id: string,
+  options?: RequestInit,
+): Promise<Payment> => {
+  return customFetch<Payment>(getRetryPaymentUrl(id), {
+    ...options,
+    method: "POST",
+  });
+};
+
+export const getRetryPaymentMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof retryPayment>>,
+    TError,
+    { id: string },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof retryPayment>>,
+  TError,
+  { id: string },
+  TContext
+> => {
+  const mutationKey = ["retryPayment"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof retryPayment>>,
+    { id: string }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return retryPayment(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type RetryPaymentMutationResult = NonNullable<
+  Awaited<ReturnType<typeof retryPayment>>
+>;
+
+export type RetryPaymentMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Retry a failed mobile-money disbursement
+ */
+export const useRetryPayment = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof retryPayment>>,
+    TError,
+    { id: string },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof retryPayment>>,
+  TError,
+  { id: string },
+  TContext
+> => {
+  return useMutation(getRetryPaymentMutationOptions(options));
+};
+
+/**
  * @summary Payment summary stats and pending totals
  */
 export const getGetPaymentSummaryUrl = () => {

@@ -33,11 +33,14 @@ import orgRegionsRouter from "./org-regions";
 import commoditiesRouter from "./commodities";
 import samplesRouter from "./samples";
 import suppliersRouter from "./suppliers";
+import paymentsWebhooksRouter from "./payments-webhooks";
 
 const router: IRouter = Router();
 
 router.use(healthRouter);
 router.use(meRouter);
+// Public mobile-money provider callbacks — must be reachable WITHOUT auth.
+router.use(paymentsWebhooksRouter);
 
 router.use(requireAuth);
 

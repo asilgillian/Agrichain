@@ -22,8 +22,8 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { useState } from "react";
-import { ArrowLeft, CheckCircle2, Circle, Lock, ShieldAlert, UserCheck } from "lucide-react";
+import { useState, useEffect, useCallback } from "react";
+import { ArrowLeft, CheckCircle2, Circle, Lock, ShieldAlert, UserCheck, RefreshCw, RotateCw } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 const statusLabels: Record<string, string> = {
@@ -104,6 +104,21 @@ export default function DeliveryDetail() {
   const [payMsisdn, setPayMsisdn] = useState("");
   const [paying, setPaying] = useState(false);
 
+  // Payments recorded against this delivery. We poll the gateway-backed status
+  // via refresh-status and allow retrying a failed mobile-money disbursement.
+  const [payments, setPayments] = useState<any[]>([]);
+  const [payActionId, setPayActionId] = useState<string | null>(null);
+
+  const loadPayments = useCallback(async () => {
+    if (!id) return;
+    try {
+      const rows = await customFetch<any[]>(`${API_BASE}/api/payments?deliveryId=${encodeURIComponent(id)}`);
+      setPayments(Array.isArray(rows) ? rows : []);
+    } catch { /* non-fatal: payments panel just stays empty */ }
+  }, [id]);
+
+  useEffect(() => { loadPayments(); }, [loadPayments]);
+
   if (isLoading) return <div className="space-y-4">{[1,2,3].map(i => <Skeleton key={i} className="h-24 w-full" />)}</div>;
   if (!delivery) return <div className="py-16 text-center text-muted-foreground">Delivery not found</div>;
 
@@ -117,7 +132,26 @@ export default function DeliveryDetail() {
     const msg = e?.response?.data?.error ?? e?.message ?? "Failed";
     toast({ title: msg, variant: "destructive" });
   }
-  function ok(t: string) { toast({ title: t }); refetch(); }
+  function ok(t: string) { toast({ title: t }); refetch(); loadPayments(); }
+
+  async function handleRefreshPayment(paymentId: string) {
+    setPayActionId(paymentId);
+    try {
+      await customFetch(`${API_BASE}/api/payments/${paymentId}/refresh-status`, { method: "POST" });
+      await loadPayments();
+      toast({ title: "Status refreshed from gateway" });
+    } catch (e) { fail(e); }
+    finally { setPayActionId(null); }
+  }
+  async function handleRetryPayment(paymentId: string) {
+    setPayActionId(paymentId);
+    try {
+      await customFetch(`${API_BASE}/api/payments/${paymentId}/retry`, { method: "POST" });
+      await loadPayments();
+      toast({ title: "Disbursement retried" });
+    } catch (e) { fail(e); }
+    finally { setPayActionId(null); }
+  }
 
   async function handleSubmitWeight() {
     try {
@@ -331,6 +365,54 @@ export default function DeliveryDetail() {
           )}
         </CardContent>
       </Card>
+
+      {payments.length > 0 && (
+        <Card>
+          <CardHeader><CardTitle className="text-base">Payments</CardTitle></CardHeader>
+          <CardContent className="space-y-3">
+            {payments.map((p) => {
+              const isMomo = p.paymentMethod === "mobile_money";
+              const variant: "default" | "secondary" | "destructive" | "outline" =
+                p.status === "paid" ? "default"
+                  : p.status === "failed" ? "destructive"
+                  : p.status === "pending_external" ? "secondary" : "outline";
+              const label = p.status === "pending_external" ? "Pending — awaiting gateway" : p.status;
+              const busy = payActionId === p.id;
+              return (
+                <div key={p.id} className="rounded-md border px-3 py-2 space-y-1" data-testid={`payment-row-${p.id}`}>
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="text-sm">
+                      <span className="font-medium">{isMomo ? "Mobile Money" : p.paymentMethod === "cash" ? "Cash" : p.paymentMethod}</span>
+                      {isMomo && p.momoProvider && <span className="text-muted-foreground"> · {p.momoProvider === "mtn_momo" ? "MTN MoMo" : p.momoProvider === "airtel_money" ? "Airtel Money" : p.momoProvider}</span>}
+                      {p.msisdn && <span className="text-muted-foreground"> · {p.msisdn}</span>}
+                    </div>
+                    <Badge variant={variant} data-testid={`payment-status-${p.id}`}>{label}</Badge>
+                  </div>
+                  <div className="flex items-center justify-between text-xs text-muted-foreground">
+                    <span>{p.currency} {Number(p.amountDue ?? 0).toLocaleString()}{p.retryCount ? ` · retries: ${p.retryCount}` : ""}</span>
+                    {p.paidAt && <span>Paid {new Date(p.paidAt).toLocaleString()}</span>}
+                  </div>
+                  {p.status === "failed" && p.failureReason && (
+                    <div className="text-xs text-destructive flex items-center gap-1"><ShieldAlert className="h-3 w-3" /> {p.failureReason}</div>
+                  )}
+                  {isMomo && (p.status === "failed" || p.status === "pending_external") && (
+                    <div className="flex gap-2 pt-1">
+                      <Button variant="outline" size="sm" disabled={busy} onClick={() => handleRefreshPayment(p.id)} data-testid={`refresh-payment-${p.id}`}>
+                        <RefreshCw className={`h-3 w-3 mr-1 ${busy ? "animate-spin" : ""}`} /> Refresh
+                      </Button>
+                      {p.status === "failed" && (
+                        <Button variant="default" size="sm" disabled={busy} onClick={() => handleRetryPayment(p.id)} data-testid={`retry-payment-${p.id}`}>
+                          <RotateCw className="h-3 w-3 mr-1" /> Retry
+                        </Button>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </CardContent>
+        </Card>
+      )}
 
       {delivery.rejectionType && (
         <Card className="border-destructive/40">

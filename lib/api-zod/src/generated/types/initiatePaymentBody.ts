@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { InitiatePaymentBodyPaymentMethod } from "./initiatePaymentBodyPaymentMethod";
+import type { InitiatePaymentBodyProvider } from "./initiatePaymentBodyProvider";
 
 export interface InitiatePaymentBody {
   deliveryId: string;
@@ -14,4 +15,8 @@ export interface InitiatePaymentBody {
   amountDue: number;
   paymentMethod: InitiatePaymentBodyPaymentMethod;
   currency: string;
+  /** Required when paymentMethod is mobile_money. */
+  provider?: InitiatePaymentBodyProvider;
+  /** Recipient phone (+256…). Required when paymentMethod is mobile_money. */
+  msisdn?: string;
 }

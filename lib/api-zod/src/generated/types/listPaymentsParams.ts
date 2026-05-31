@@ -9,6 +9,8 @@ import type { ListPaymentsStatus } from "./listPaymentsStatus";
 
 export type ListPaymentsParams = {
   farmerId?: string;
+  supplierId?: string;
+  deliveryId?: string;
   status?: ListPaymentsStatus;
   dateFrom?: Date;
 };
