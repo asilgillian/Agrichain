@@ -5,12 +5,13 @@
  * AgriChain Digital Agriculture Platform API
  * OpenAPI spec version: 0.1.0
  */
+import type { CalendarDate } from "./calendarDate";
 import type { ListSurveySubmissionsStatus } from "./listSurveySubmissionsStatus";
 
 export type ListSurveySubmissionsParams = {
   agentId?: string;
   groupId?: string;
   status?: ListSurveySubmissionsStatus;
-  dateFrom?: Date;
-  dateTo?: Date;
+  dateFrom?: CalendarDate;
+  dateTo?: CalendarDate;
 };

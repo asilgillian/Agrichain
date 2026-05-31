@@ -5,11 +5,12 @@
  * AgriChain Digital Agriculture Platform API
  * OpenAPI spec version: 0.1.0
  */
+import type { CalendarDate } from "./calendarDate";
 
 export type BatchDetailFarmerContributionsItem = {
   farmerId: string;
   farmerName: string;
   grossWeightKg: number;
-  harvestDate: Date;
+  harvestDate: CalendarDate;
   activeStreams: string[];
 };

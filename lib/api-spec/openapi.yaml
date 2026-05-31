@@ -746,13 +746,11 @@ paths:
         - in: query
           name: dateFrom
           schema:
-            type: string
-            format: date
+            $ref: '#/components/schemas/CalendarDate'
         - in: query
           name: dateTo
           schema:
-            type: string
-            format: date
+            $ref: '#/components/schemas/CalendarDate'
       responses:
         "200":
           description: Survey submissions
@@ -976,8 +974,7 @@ paths:
         - in: query
           name: dateFrom
           schema:
-            type: string
-            format: date
+            $ref: '#/components/schemas/CalendarDate'
       responses:
         "200":
           description: Deliveries
@@ -1500,8 +1497,7 @@ paths:
         - in: query
           name: dateFrom
           schema:
-            type: string
-            format: date
+            $ref: '#/components/schemas/CalendarDate'
       responses:
         "200":
           description: Payments
@@ -2141,13 +2137,11 @@ paths:
         - in: query
           name: dateFrom
           schema:
-            type: string
-            format: date
+            $ref: '#/components/schemas/CalendarDate'
         - in: query
           name: dateTo
           schema:
-            type: string
-            format: date
+            $ref: '#/components/schemas/CalendarDate'
         - in: query
           name: page
           schema:
@@ -2631,6 +2625,11 @@ paths:
 
 components:
   schemas:
+    CalendarDate:
+      type: string
+      pattern: '^\d{4}-\d{2}-\d{2}$'
+      description: A calendar date with no time component, formatted as YYYY-MM-DD.
+      example: "2024-01-01"
     LoanCategory:
       type: object
       properties:
@@ -2977,8 +2976,7 @@ components:
         nationalId:
           type: string
         dateOfBirth:
-          type: string
-          format: date
+          $ref: '#/components/schemas/CalendarDate'
         phoneNumber:
           type: string
         sex:
@@ -3059,8 +3057,7 @@ components:
               status:
                 type: string
               expiryDate:
-                type: string
-                format: date
+                $ref: '#/components/schemas/CalendarDate'
             required: [streamName, status]
       required: [farmerId, referenceNumber, fullName, groupName, qrCodeData, certifications]
 
@@ -3089,8 +3086,7 @@ components:
         nationalId:
           type: string
         dateOfBirth:
-          type: string
-          format: date
+          $ref: '#/components/schemas/CalendarDate'
         phoneNumber:
           type: string
         sex:
@@ -3210,8 +3206,7 @@ components:
                   role:
                     type: string
                   startDate:
-                    type: string
-                    format: date
+                    $ref: '#/components/schemas/CalendarDate'
                 required: [farmerId, name, role, startDate]
           required: [members, leaders]
 
@@ -3301,8 +3296,7 @@ components:
           type: object
           description: GeoJSON polygon
         harvestDate:
-          type: string
-          format: date
+          $ref: '#/components/schemas/CalendarDate'
         status:
           type: string
           enum: [active, inactive]
@@ -3323,8 +3317,7 @@ components:
         polygon:
           type: object
         harvestDate:
-          type: string
-          format: date
+          $ref: '#/components/schemas/CalendarDate'
       required: [farmerId, cropType]
 
     # ============================================================
@@ -3362,11 +3355,9 @@ components:
         streamName:
           type: string
         enrolmentDate:
-          type: string
-          format: date
+          $ref: '#/components/schemas/CalendarDate'
         expiryDate:
-          type: string
-          format: date
+          $ref: '#/components/schemas/CalendarDate'
         status:
           type: string
           enum: [active, expired, suspended, pending]
@@ -3380,11 +3371,9 @@ components:
         streamId:
           type: string
         enrolmentDate:
-          type: string
-          format: date
+          $ref: '#/components/schemas/CalendarDate'
         expiryDate:
-          type: string
-          format: date
+          $ref: '#/components/schemas/CalendarDate'
       required: [farmerId, streamId, enrolmentDate]
 
     # ============================================================
@@ -3532,8 +3521,7 @@ components:
         agentName:
           type: string
         scheduledDate:
-          type: string
-          format: date
+          $ref: '#/components/schemas/CalendarDate'
         completedAt:
           type: string
           format: date-time
@@ -3555,8 +3543,7 @@ components:
         agentId:
           type: string
         scheduledDate:
-          type: string
-          format: date
+          $ref: '#/components/schemas/CalendarDate'
         priority:
           type: string
           enum: [low, medium, high, critical]
@@ -3592,8 +3579,7 @@ components:
           type: string
           enum: [open, locked, delivered, received_at_station]
         harvestDate:
-          type: string
-          format: date
+          $ref: '#/components/schemas/CalendarDate'
         createdAt:
           type: string
           format: date-time
@@ -3616,8 +3602,7 @@ components:
                   grossWeightKg:
                     type: number
                   harvestDate:
-                    type: string
-                    format: date
+                    $ref: '#/components/schemas/CalendarDate'
                   activeStreams:
                     type: array
                     items:
@@ -3631,8 +3616,7 @@ components:
         cropType:
           type: string
         harvestDate:
-          type: string
-          format: date
+          $ref: '#/components/schemas/CalendarDate'
       required: [cropType, harvestDate]
 
     # ============================================================
@@ -3817,8 +3801,8 @@ components:
         groupId: { type: string }
         groupName: { type: string }
         commodityType: { type: string }
-        seasonStart: { type: string, format: date }
-        seasonEnd: { type: string, format: date }
+        seasonStart: { $ref: '#/components/schemas/CalendarDate' }
+        seasonEnd: { $ref: '#/components/schemas/CalendarDate' }
         floorPricePerKg: { type: number }
         currency: { type: string }
         notes: { type: string }
@@ -3836,8 +3820,8 @@ components:
           enum: [PRE_SEASON, PER_DELIVERY]
         groupId: { type: string }
         commodityType: { type: string }
-        seasonStart: { type: string, format: date }
-        seasonEnd: { type: string, format: date }
+        seasonStart: { $ref: '#/components/schemas/CalendarDate' }
+        seasonEnd: { $ref: '#/components/schemas/CalendarDate' }
         floorPricePerKg: { type: number }
         currency: { type: string }
         notes: { type: string }
@@ -3860,8 +3844,8 @@ components:
       type: object
       properties:
         floorPricePerKg: { type: number }
-        seasonStart: { type: string, format: date }
-        seasonEnd: { type: string, format: date }
+        seasonStart: { $ref: '#/components/schemas/CalendarDate' }
+        seasonEnd: { $ref: '#/components/schemas/CalendarDate' }
         notes: { type: string }
         status:
           type: string
@@ -4231,8 +4215,7 @@ components:
         type:
           type: string
         scheduledDate:
-          type: string
-          format: date
+          $ref: '#/components/schemas/CalendarDate'
         location:
           type: string
         facilitatorId:
@@ -4257,8 +4240,7 @@ components:
         type:
           type: string
         scheduledDate:
-          type: string
-          format: date
+          $ref: '#/components/schemas/CalendarDate'
         location:
           type: string
         facilitatorId:
@@ -4288,8 +4270,7 @@ components:
         certificationRequired:
           type: string
         deliveryDate:
-          type: string
-          format: date
+          $ref: '#/components/schemas/CalendarDate'
         status:
           type: string
           enum: [draft, confirmed, in_execution, completed, cancelled]
@@ -4316,8 +4297,7 @@ components:
         certificationRequired:
           type: string
         deliveryDate:
-          type: string
-          format: date
+          $ref: '#/components/schemas/CalendarDate'
       required: [contractNumber, buyer, destination, cropType, quantityKg, pricePerKg]
 
     Shipment:
@@ -4336,8 +4316,7 @@ components:
         portOfDestination:
           type: string
         shipmentDate:
-          type: string
-          format: date
+          $ref: '#/components/schemas/CalendarDate'
         totalWeightKg:
           type: number
         status:
@@ -4474,8 +4453,7 @@ components:
         model:
           type: string
         purchaseDate:
-          type: string
-          format: date
+          $ref: '#/components/schemas/CalendarDate'
         purchaseValue:
           type: number
         currentBookValue:
@@ -4490,8 +4468,7 @@ components:
         photoUrl:
           type: string
         maintenanceDueDate:
-          type: string
-          format: date
+          $ref: '#/components/schemas/CalendarDate'
         createdAt:
           type: string
           format: date-time
@@ -4537,8 +4514,7 @@ components:
         model:
           type: string
         purchaseDate:
-          type: string
-          format: date
+          $ref: '#/components/schemas/CalendarDate'
         purchaseValue:
           type: number
         photoUrl:
@@ -4580,8 +4556,7 @@ components:
         activityType:
           type: string
         plannedDate:
-          type: string
-          format: date
+          $ref: '#/components/schemas/CalendarDate'
         destination:
           type: string
         estimatedAmount:
@@ -4611,8 +4586,7 @@ components:
         activityType:
           type: string
         plannedDate:
-          type: string
-          format: date
+          $ref: '#/components/schemas/CalendarDate'
         destination:
           type: string
         estimatedAmount:

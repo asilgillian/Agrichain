@@ -5,6 +5,7 @@
  * AgriChain Digital Agriculture Platform API
  * OpenAPI spec version: 0.1.0
  */
+import type { CalendarDate } from "./calendarDate";
 import type { CreatePlotBodyPolygon } from "./createPlotBodyPolygon";
 
 export interface CreatePlotBody {
@@ -12,5 +13,5 @@ export interface CreatePlotBody {
   name?: string;
   cropType: string;
   polygon?: CreatePlotBodyPolygon;
-  harvestDate?: Date;
+  harvestDate?: CalendarDate;
 }

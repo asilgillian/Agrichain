@@ -5,12 +5,13 @@
  * AgriChain Digital Agriculture Platform API
  * OpenAPI spec version: 0.1.0
  */
+import type { CalendarDate } from "./calendarDate";
 import type { ScheduleVisitBodyPriority } from "./scheduleVisitBodyPriority";
 
 export interface ScheduleVisitBody {
   farmerId: string;
   agentId: string;
-  scheduledDate: Date;
+  scheduledDate: CalendarDate;
   priority: ScheduleVisitBodyPriority;
   notes?: string;
 }

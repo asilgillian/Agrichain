@@ -101,6 +101,10 @@ export const ListFarmersQueryParams = zod.object({
   limit: zod.coerce.number().default(listFarmersQueryLimitDefault),
 });
 
+export const listFarmersResponseDataItemDateOfBirthRegExp = new RegExp(
+  "^\\d{4}-\\d{2}-\\d{2}$",
+);
+
 export const ListFarmersResponse = zod.object({
   data: zod.array(
     zod.object({
@@ -109,7 +113,13 @@ export const ListFarmersResponse = zod.object({
       firstName: zod.string(),
       lastName: zod.string(),
       nationalId: zod.string().optional(),
-      dateOfBirth: zod.coerce.date().optional(),
+      dateOfBirth: zod
+        .string()
+        .regex(listFarmersResponseDataItemDateOfBirthRegExp)
+        .optional()
+        .describe(
+          "A calendar date with no time component, formatted as YYYY-MM-DD.",
+        ),
       phoneNumber: zod.string().optional(),
       sex: zod.enum(["male", "female", "other"]).optional(),
       groupId: zod.string(),
@@ -132,11 +142,21 @@ export const ListFarmersResponse = zod.object({
 /**
  * @summary Register a new farmer
  */
+export const createFarmerBodyDateOfBirthRegExp = new RegExp(
+  "^\\d{4}-\\d{2}-\\d{2}$",
+);
+
 export const CreateFarmerBody = zod.object({
   firstName: zod.string(),
   lastName: zod.string(),
   nationalId: zod.string(),
-  dateOfBirth: zod.coerce.date().optional(),
+  dateOfBirth: zod
+    .string()
+    .regex(createFarmerBodyDateOfBirthRegExp)
+    .optional()
+    .describe(
+      "A calendar date with no time component, formatted as YYYY-MM-DD.",
+    ),
   phoneNumber: zod.string().optional(),
   sex: zod.enum(["male", "female", "other"]).optional(),
   groupId: zod.string(),
@@ -152,6 +172,17 @@ export const GetFarmerParams = zod.object({
   farmerId: zod.coerce.string(),
 });
 
+export const getFarmerResponseOneDateOfBirthRegExp = new RegExp(
+  "^\\d{4}-\\d{2}-\\d{2}$",
+);
+export const getFarmerResponseTwoPlotsItemHarvestDateRegExp = new RegExp(
+  "^\\d{4}-\\d{2}-\\d{2}$",
+);
+export const getFarmerResponseTwoCertificationsItemEnrolmentDateRegExp =
+  new RegExp("^\\d{4}-\\d{2}-\\d{2}$");
+export const getFarmerResponseTwoCertificationsItemExpiryDateRegExp =
+  new RegExp("^\\d{4}-\\d{2}-\\d{2}$");
+
 export const GetFarmerResponse = zod
   .object({
     id: zod.string(),
@@ -159,7 +190,13 @@ export const GetFarmerResponse = zod
     firstName: zod.string(),
     lastName: zod.string(),
     nationalId: zod.string().optional(),
-    dateOfBirth: zod.coerce.date().optional(),
+    dateOfBirth: zod
+      .string()
+      .regex(getFarmerResponseOneDateOfBirthRegExp)
+      .optional()
+      .describe(
+        "A calendar date with no time component, formatted as YYYY-MM-DD.",
+      ),
     phoneNumber: zod.string().optional(),
     sex: zod.enum(["male", "female", "other"]).optional(),
     groupId: zod.string(),
@@ -187,7 +224,13 @@ export const GetFarmerResponse = zod
             .passthrough()
             .optional()
             .describe("GeoJSON polygon"),
-          harvestDate: zod.coerce.date().optional(),
+          harvestDate: zod
+            .string()
+            .regex(getFarmerResponseTwoPlotsItemHarvestDateRegExp)
+            .optional()
+            .describe(
+              "A calendar date with no time component, formatted as YYYY-MM-DD.",
+            ),
           status: zod.enum(["active", "inactive"]),
           createdAt: zod.coerce.date(),
         }),
@@ -198,8 +241,19 @@ export const GetFarmerResponse = zod
           farmerId: zod.string(),
           streamId: zod.string(),
           streamName: zod.string(),
-          enrolmentDate: zod.coerce.date(),
-          expiryDate: zod.coerce.date().optional(),
+          enrolmentDate: zod
+            .string()
+            .regex(getFarmerResponseTwoCertificationsItemEnrolmentDateRegExp)
+            .describe(
+              "A calendar date with no time component, formatted as YYYY-MM-DD.",
+            ),
+          expiryDate: zod
+            .string()
+            .regex(getFarmerResponseTwoCertificationsItemExpiryDateRegExp)
+            .optional()
+            .describe(
+              "A calendar date with no time component, formatted as YYYY-MM-DD.",
+            ),
           status: zod.enum(["active", "expired", "suspended", "pending"]),
         }),
       ),
@@ -240,13 +294,23 @@ export const UpdateFarmerBody = zod.object({
   status: zod.enum(["active", "inactive"]).optional(),
 });
 
+export const updateFarmerResponseDateOfBirthRegExp = new RegExp(
+  "^\\d{4}-\\d{2}-\\d{2}$",
+);
+
 export const UpdateFarmerResponse = zod.object({
   id: zod.string(),
   referenceNumber: zod.string(),
   firstName: zod.string(),
   lastName: zod.string(),
   nationalId: zod.string().optional(),
-  dateOfBirth: zod.coerce.date().optional(),
+  dateOfBirth: zod
+    .string()
+    .regex(updateFarmerResponseDateOfBirthRegExp)
+    .optional()
+    .describe(
+      "A calendar date with no time component, formatted as YYYY-MM-DD.",
+    ),
   phoneNumber: zod.string().optional(),
   sex: zod.enum(["male", "female", "other"]).optional(),
   groupId: zod.string(),
@@ -268,6 +332,9 @@ export const GetFarmerCardParams = zod.object({
   farmerId: zod.coerce.string(),
 });
 
+export const getFarmerCardResponseCertificationsItemExpiryDateRegExp =
+  new RegExp("^\\d{4}-\\d{2}-\\d{2}$");
+
 export const GetFarmerCardResponse = zod.object({
   farmerId: zod.string(),
   referenceNumber: zod.string(),
@@ -280,7 +347,13 @@ export const GetFarmerCardResponse = zod.object({
     zod.object({
       streamName: zod.string(),
       status: zod.string(),
-      expiryDate: zod.coerce.date().optional(),
+      expiryDate: zod
+        .string()
+        .regex(getFarmerCardResponseCertificationsItemExpiryDateRegExp)
+        .optional()
+        .describe(
+          "A calendar date with no time component, formatted as YYYY-MM-DD.",
+        ),
     }),
   ),
 });
@@ -288,6 +361,13 @@ export const GetFarmerCardResponse = zod.object({
 /**
  * @summary List flagged duplicate farmer pairs
  */
+export const listDuplicateFarmersResponseFarmer1DateOfBirthRegExp = new RegExp(
+  "^\\d{4}-\\d{2}-\\d{2}$",
+);
+export const listDuplicateFarmersResponseFarmer2DateOfBirthRegExp = new RegExp(
+  "^\\d{4}-\\d{2}-\\d{2}$",
+);
+
 export const ListDuplicateFarmersResponseItem = zod.object({
   id: zod.string(),
   farmer1: zod.object({
@@ -296,7 +376,13 @@ export const ListDuplicateFarmersResponseItem = zod.object({
     firstName: zod.string(),
     lastName: zod.string(),
     nationalId: zod.string().optional(),
-    dateOfBirth: zod.coerce.date().optional(),
+    dateOfBirth: zod
+      .string()
+      .regex(listDuplicateFarmersResponseFarmer1DateOfBirthRegExp)
+      .optional()
+      .describe(
+        "A calendar date with no time component, formatted as YYYY-MM-DD.",
+      ),
     phoneNumber: zod.string().optional(),
     sex: zod.enum(["male", "female", "other"]).optional(),
     groupId: zod.string(),
@@ -316,7 +402,13 @@ export const ListDuplicateFarmersResponseItem = zod.object({
     firstName: zod.string(),
     lastName: zod.string(),
     nationalId: zod.string().optional(),
-    dateOfBirth: zod.coerce.date().optional(),
+    dateOfBirth: zod
+      .string()
+      .regex(listDuplicateFarmersResponseFarmer2DateOfBirthRegExp)
+      .optional()
+      .describe(
+        "A calendar date with no time component, formatted as YYYY-MM-DD.",
+      ),
     phoneNumber: zod.string().optional(),
     sex: zod.enum(["male", "female", "other"]).optional(),
     groupId: zod.string(),
@@ -349,13 +441,23 @@ export const MergeDuplicateFarmersBody = zod.object({
   masterFarmerId: zod.string(),
 });
 
+export const mergeDuplicateFarmersResponseDateOfBirthRegExp = new RegExp(
+  "^\\d{4}-\\d{2}-\\d{2}$",
+);
+
 export const MergeDuplicateFarmersResponse = zod.object({
   id: zod.string(),
   referenceNumber: zod.string(),
   firstName: zod.string(),
   lastName: zod.string(),
   nationalId: zod.string().optional(),
-  dateOfBirth: zod.coerce.date().optional(),
+  dateOfBirth: zod
+    .string()
+    .regex(mergeDuplicateFarmersResponseDateOfBirthRegExp)
+    .optional()
+    .describe(
+      "A calendar date with no time component, formatted as YYYY-MM-DD.",
+    ),
   phoneNumber: zod.string().optional(),
   sex: zod.enum(["male", "female", "other"]).optional(),
   groupId: zod.string(),
@@ -377,13 +479,23 @@ export const UpgradeFarmerToEntrepreneurParams = zod.object({
   farmerId: zod.coerce.string(),
 });
 
+export const upgradeFarmerToEntrepreneurResponseDateOfBirthRegExp = new RegExp(
+  "^\\d{4}-\\d{2}-\\d{2}$",
+);
+
 export const UpgradeFarmerToEntrepreneurResponse = zod.object({
   id: zod.string(),
   referenceNumber: zod.string(),
   firstName: zod.string(),
   lastName: zod.string(),
   nationalId: zod.string().optional(),
-  dateOfBirth: zod.coerce.date().optional(),
+  dateOfBirth: zod
+    .string()
+    .regex(upgradeFarmerToEntrepreneurResponseDateOfBirthRegExp)
+    .optional()
+    .describe(
+      "A calendar date with no time component, formatted as YYYY-MM-DD.",
+    ),
   phoneNumber: zod.string().optional(),
   sex: zod.enum(["male", "female", "other"]).optional(),
   groupId: zod.string(),
@@ -405,13 +517,23 @@ export const RemoveFarmerEntrepreneurParams = zod.object({
   farmerId: zod.coerce.string(),
 });
 
+export const removeFarmerEntrepreneurResponseDateOfBirthRegExp = new RegExp(
+  "^\\d{4}-\\d{2}-\\d{2}$",
+);
+
 export const RemoveFarmerEntrepreneurResponse = zod.object({
   id: zod.string(),
   referenceNumber: zod.string(),
   firstName: zod.string(),
   lastName: zod.string(),
   nationalId: zod.string().optional(),
-  dateOfBirth: zod.coerce.date().optional(),
+  dateOfBirth: zod
+    .string()
+    .regex(removeFarmerEntrepreneurResponseDateOfBirthRegExp)
+    .optional()
+    .describe(
+      "A calendar date with no time component, formatted as YYYY-MM-DD.",
+    ),
   phoneNumber: zod.string().optional(),
   sex: zod.enum(["male", "female", "other"]).optional(),
   groupId: zod.string(),
@@ -702,6 +824,13 @@ export const GetGroupParams = zod.object({
   groupId: zod.coerce.string(),
 });
 
+export const getGroupResponseTwoMembersItemDateOfBirthRegExp = new RegExp(
+  "^\\d{4}-\\d{2}-\\d{2}$",
+);
+export const getGroupResponseTwoLeadersItemStartDateRegExp = new RegExp(
+  "^\\d{4}-\\d{2}-\\d{2}$",
+);
+
 export const GetGroupResponse = zod
   .object({
     id: zod.string(),
@@ -734,7 +863,13 @@ export const GetGroupResponse = zod
           firstName: zod.string(),
           lastName: zod.string(),
           nationalId: zod.string().optional(),
-          dateOfBirth: zod.coerce.date().optional(),
+          dateOfBirth: zod
+            .string()
+            .regex(getGroupResponseTwoMembersItemDateOfBirthRegExp)
+            .optional()
+            .describe(
+              "A calendar date with no time component, formatted as YYYY-MM-DD.",
+            ),
           phoneNumber: zod.string().optional(),
           sex: zod.enum(["male", "female", "other"]).optional(),
           groupId: zod.string(),
@@ -754,7 +889,12 @@ export const GetGroupResponse = zod
           farmerId: zod.string(),
           name: zod.string(),
           role: zod.string(),
-          startDate: zod.coerce.date(),
+          startDate: zod
+            .string()
+            .regex(getGroupResponseTwoLeadersItemStartDateRegExp)
+            .describe(
+              "A calendar date with no time component, formatted as YYYY-MM-DD.",
+            ),
         }),
       ),
     }),
@@ -849,6 +989,10 @@ export const ListPlotsQueryParams = zod.object({
   farmerId: zod.coerce.string().optional(),
 });
 
+export const listPlotsResponseHarvestDateRegExp = new RegExp(
+  "^\\d{4}-\\d{2}-\\d{2}$",
+);
+
 export const ListPlotsResponseItem = zod.object({
   id: zod.string(),
   farmerId: zod.string(),
@@ -856,7 +1000,13 @@ export const ListPlotsResponseItem = zod.object({
   cropType: zod.string(),
   areaHectares: zod.number(),
   polygon: zod.object({}).passthrough().optional().describe("GeoJSON polygon"),
-  harvestDate: zod.coerce.date().optional(),
+  harvestDate: zod
+    .string()
+    .regex(listPlotsResponseHarvestDateRegExp)
+    .optional()
+    .describe(
+      "A calendar date with no time component, formatted as YYYY-MM-DD.",
+    ),
   status: zod.enum(["active", "inactive"]),
   createdAt: zod.coerce.date(),
 });
@@ -865,12 +1015,22 @@ export const ListPlotsResponse = zod.array(ListPlotsResponseItem);
 /**
  * @summary Create a farm plot
  */
+export const createPlotBodyHarvestDateRegExp = new RegExp(
+  "^\\d{4}-\\d{2}-\\d{2}$",
+);
+
 export const CreatePlotBody = zod.object({
   farmerId: zod.string(),
   name: zod.string().optional(),
   cropType: zod.string(),
   polygon: zod.object({}).passthrough().optional(),
-  harvestDate: zod.coerce.date().optional(),
+  harvestDate: zod
+    .string()
+    .regex(createPlotBodyHarvestDateRegExp)
+    .optional()
+    .describe(
+      "A calendar date with no time component, formatted as YYYY-MM-DD.",
+    ),
 });
 
 /**
@@ -880,6 +1040,10 @@ export const GetPlotParams = zod.object({
   plotId: zod.coerce.string(),
 });
 
+export const getPlotResponseHarvestDateRegExp = new RegExp(
+  "^\\d{4}-\\d{2}-\\d{2}$",
+);
+
 export const GetPlotResponse = zod.object({
   id: zod.string(),
   farmerId: zod.string(),
@@ -887,7 +1051,13 @@ export const GetPlotResponse = zod.object({
   cropType: zod.string(),
   areaHectares: zod.number(),
   polygon: zod.object({}).passthrough().optional().describe("GeoJSON polygon"),
-  harvestDate: zod.coerce.date().optional(),
+  harvestDate: zod
+    .string()
+    .regex(getPlotResponseHarvestDateRegExp)
+    .optional()
+    .describe(
+      "A calendar date with no time component, formatted as YYYY-MM-DD.",
+    ),
   status: zod.enum(["active", "inactive"]),
   createdAt: zod.coerce.date(),
 });
@@ -922,13 +1092,31 @@ export const ListEnrolmentsQueryParams = zod.object({
   status: zod.enum(["active", "expired", "pending"]).optional(),
 });
 
+export const listEnrolmentsResponseEnrolmentDateRegExp = new RegExp(
+  "^\\d{4}-\\d{2}-\\d{2}$",
+);
+export const listEnrolmentsResponseExpiryDateRegExp = new RegExp(
+  "^\\d{4}-\\d{2}-\\d{2}$",
+);
+
 export const ListEnrolmentsResponseItem = zod.object({
   id: zod.string(),
   farmerId: zod.string(),
   streamId: zod.string(),
   streamName: zod.string(),
-  enrolmentDate: zod.coerce.date(),
-  expiryDate: zod.coerce.date().optional(),
+  enrolmentDate: zod
+    .string()
+    .regex(listEnrolmentsResponseEnrolmentDateRegExp)
+    .describe(
+      "A calendar date with no time component, formatted as YYYY-MM-DD.",
+    ),
+  expiryDate: zod
+    .string()
+    .regex(listEnrolmentsResponseExpiryDateRegExp)
+    .optional()
+    .describe(
+      "A calendar date with no time component, formatted as YYYY-MM-DD.",
+    ),
   status: zod.enum(["active", "expired", "suspended", "pending"]),
 });
 export const ListEnrolmentsResponse = zod.array(ListEnrolmentsResponseItem);
@@ -936,11 +1124,29 @@ export const ListEnrolmentsResponse = zod.array(ListEnrolmentsResponseItem);
 /**
  * @summary Enrol farmer in certification stream
  */
+export const createEnrolmentBodyEnrolmentDateRegExp = new RegExp(
+  "^\\d{4}-\\d{2}-\\d{2}$",
+);
+export const createEnrolmentBodyExpiryDateRegExp = new RegExp(
+  "^\\d{4}-\\d{2}-\\d{2}$",
+);
+
 export const CreateEnrolmentBody = zod.object({
   farmerId: zod.string(),
   streamId: zod.string(),
-  enrolmentDate: zod.coerce.date(),
-  expiryDate: zod.coerce.date().optional(),
+  enrolmentDate: zod
+    .string()
+    .regex(createEnrolmentBodyEnrolmentDateRegExp)
+    .describe(
+      "A calendar date with no time component, formatted as YYYY-MM-DD.",
+    ),
+  expiryDate: zod
+    .string()
+    .regex(createEnrolmentBodyExpiryDateRegExp)
+    .optional()
+    .describe(
+      "A calendar date with no time component, formatted as YYYY-MM-DD.",
+    ),
 });
 
 /**
@@ -1005,12 +1211,25 @@ export const CreateSurveyTemplateBody = zod.object({
 /**
  * @summary List submitted surveys (QA dashboard)
  */
+export const listSurveySubmissionsQueryDateFromRegExp = new RegExp(
+  "^\\d{4}-\\d{2}-\\d{2}$",
+);
+export const listSurveySubmissionsQueryDateToRegExp = new RegExp(
+  "^\\d{4}-\\d{2}-\\d{2}$",
+);
+
 export const ListSurveySubmissionsQueryParams = zod.object({
   agentId: zod.coerce.string().optional(),
   groupId: zod.coerce.string().optional(),
   status: zod.enum(["pending", "approved", "rejected", "flagged"]).optional(),
-  dateFrom: zod.date().optional(),
-  dateTo: zod.date().optional(),
+  dateFrom: zod.coerce
+    .string()
+    .regex(listSurveySubmissionsQueryDateFromRegExp)
+    .optional(),
+  dateTo: zod.coerce
+    .string()
+    .regex(listSurveySubmissionsQueryDateToRegExp)
+    .optional(),
 });
 
 export const ListSurveySubmissionsResponseItem = zod.object({
@@ -1081,13 +1300,22 @@ export const ListVisitsQueryParams = zod.object({
   status: zod.enum(["scheduled", "completed", "overdue"]).optional(),
 });
 
+export const listVisitsResponseScheduledDateRegExp = new RegExp(
+  "^\\d{4}-\\d{2}-\\d{2}$",
+);
+
 export const ListVisitsResponseItem = zod.object({
   id: zod.string(),
   farmerId: zod.string(),
   farmerName: zod.string().optional(),
   agentId: zod.string(),
   agentName: zod.string().optional(),
-  scheduledDate: zod.coerce.date(),
+  scheduledDate: zod
+    .string()
+    .regex(listVisitsResponseScheduledDateRegExp)
+    .describe(
+      "A calendar date with no time component, formatted as YYYY-MM-DD.",
+    ),
   completedAt: zod.coerce.date().optional(),
   priority: zod.enum(["low", "medium", "high", "critical"]),
   status: zod.enum(["scheduled", "completed", "overdue", "cancelled"]),
@@ -1098,10 +1326,19 @@ export const ListVisitsResponse = zod.array(ListVisitsResponseItem);
 /**
  * @summary Schedule an agronomic visit
  */
+export const scheduleVisitBodyScheduledDateRegExp = new RegExp(
+  "^\\d{4}-\\d{2}-\\d{2}$",
+);
+
 export const ScheduleVisitBody = zod.object({
   farmerId: zod.string(),
   agentId: zod.string(),
-  scheduledDate: zod.coerce.date(),
+  scheduledDate: zod
+    .string()
+    .regex(scheduleVisitBodyScheduledDateRegExp)
+    .describe(
+      "A calendar date with no time component, formatted as YYYY-MM-DD.",
+    ),
   priority: zod.enum(["low", "medium", "high", "critical"]),
   notes: zod.string().optional(),
 });
@@ -1113,13 +1350,22 @@ export const CompleteVisitParams = zod.object({
   visitId: zod.coerce.string(),
 });
 
+export const completeVisitResponseScheduledDateRegExp = new RegExp(
+  "^\\d{4}-\\d{2}-\\d{2}$",
+);
+
 export const CompleteVisitResponse = zod.object({
   id: zod.string(),
   farmerId: zod.string(),
   farmerName: zod.string().optional(),
   agentId: zod.string(),
   agentName: zod.string().optional(),
-  scheduledDate: zod.coerce.date(),
+  scheduledDate: zod
+    .string()
+    .regex(completeVisitResponseScheduledDateRegExp)
+    .describe(
+      "A calendar date with no time component, formatted as YYYY-MM-DD.",
+    ),
   completedAt: zod.coerce.date().optional(),
   priority: zod.enum(["low", "medium", "high", "critical"]),
   status: zod.enum(["scheduled", "completed", "overdue", "cancelled"]),
@@ -1134,6 +1380,10 @@ export const ListBatchesQueryParams = zod.object({
   status: zod.enum(["open", "locked", "delivered"]).optional(),
 });
 
+export const listBatchesResponseHarvestDateRegExp = new RegExp(
+  "^\\d{4}-\\d{2}-\\d{2}$",
+);
+
 export const ListBatchesResponseItem = zod.object({
   id: zod.string(),
   batchTag: zod.string(),
@@ -1144,7 +1394,13 @@ export const ListBatchesResponseItem = zod.object({
   farmerCount: zod.number(),
   qualifyingStreams: zod.array(zod.string()),
   status: zod.enum(["open", "locked", "delivered", "received_at_station"]),
-  harvestDate: zod.coerce.date().optional(),
+  harvestDate: zod
+    .string()
+    .regex(listBatchesResponseHarvestDateRegExp)
+    .optional()
+    .describe(
+      "A calendar date with no time component, formatted as YYYY-MM-DD.",
+    ),
   createdAt: zod.coerce.date(),
 });
 export const ListBatchesResponse = zod.array(ListBatchesResponseItem);
@@ -1152,9 +1408,18 @@ export const ListBatchesResponse = zod.array(ListBatchesResponseItem);
 /**
  * @summary Create a new commodity batch
  */
+export const createBatchBodyHarvestDateRegExp = new RegExp(
+  "^\\d{4}-\\d{2}-\\d{2}$",
+);
+
 export const CreateBatchBody = zod.object({
   cropType: zod.string(),
-  harvestDate: zod.coerce.date(),
+  harvestDate: zod
+    .string()
+    .regex(createBatchBodyHarvestDateRegExp)
+    .describe(
+      "A calendar date with no time component, formatted as YYYY-MM-DD.",
+    ),
 });
 
 /**
@@ -1163,6 +1428,12 @@ export const CreateBatchBody = zod.object({
 export const GetBatchParams = zod.object({
   batchId: zod.coerce.string(),
 });
+
+export const getBatchResponseOneHarvestDateRegExp = new RegExp(
+  "^\\d{4}-\\d{2}-\\d{2}$",
+);
+export const getBatchResponseTwoFarmerContributionsItemHarvestDateRegExp =
+  new RegExp("^\\d{4}-\\d{2}-\\d{2}$");
 
 export const GetBatchResponse = zod
   .object({
@@ -1175,7 +1446,13 @@ export const GetBatchResponse = zod
     farmerCount: zod.number(),
     qualifyingStreams: zod.array(zod.string()),
     status: zod.enum(["open", "locked", "delivered", "received_at_station"]),
-    harvestDate: zod.coerce.date().optional(),
+    harvestDate: zod
+      .string()
+      .regex(getBatchResponseOneHarvestDateRegExp)
+      .optional()
+      .describe(
+        "A calendar date with no time component, formatted as YYYY-MM-DD.",
+      ),
     createdAt: zod.coerce.date(),
   })
   .and(
@@ -1185,7 +1462,12 @@ export const GetBatchResponse = zod
           farmerId: zod.string(),
           farmerName: zod.string(),
           grossWeightKg: zod.number(),
-          harvestDate: zod.coerce.date(),
+          harvestDate: zod
+            .string()
+            .regex(getBatchResponseTwoFarmerContributionsItemHarvestDateRegExp)
+            .describe(
+              "A calendar date with no time component, formatted as YYYY-MM-DD.",
+            ),
           activeStreams: zod.array(zod.string()),
         }),
       ),
@@ -1199,6 +1481,10 @@ export const LockBatchParams = zod.object({
   batchId: zod.coerce.string(),
 });
 
+export const lockBatchResponseHarvestDateRegExp = new RegExp(
+  "^\\d{4}-\\d{2}-\\d{2}$",
+);
+
 export const LockBatchResponse = zod.object({
   id: zod.string(),
   batchTag: zod.string(),
@@ -1209,13 +1495,23 @@ export const LockBatchResponse = zod.object({
   farmerCount: zod.number(),
   qualifyingStreams: zod.array(zod.string()),
   status: zod.enum(["open", "locked", "delivered", "received_at_station"]),
-  harvestDate: zod.coerce.date().optional(),
+  harvestDate: zod
+    .string()
+    .regex(lockBatchResponseHarvestDateRegExp)
+    .optional()
+    .describe(
+      "A calendar date with no time component, formatted as YYYY-MM-DD.",
+    ),
   createdAt: zod.coerce.date(),
 });
 
 /**
  * @summary List inbound deliveries
  */
+export const listDeliveriesQueryDateFromRegExp = new RegExp(
+  "^\\d{4}-\\d{2}-\\d{2}$",
+);
+
 export const ListDeliveriesQueryParams = zod.object({
   status: zod
     .enum([
@@ -1234,7 +1530,10 @@ export const ListDeliveriesQueryParams = zod.object({
     ])
     .optional(),
   stationId: zod.coerce.string().optional(),
-  dateFrom: zod.date().optional(),
+  dateFrom: zod.coerce
+    .string()
+    .regex(listDeliveriesQueryDateFromRegExp)
+    .optional(),
 });
 
 export const ListDeliveriesResponseItem = zod.object({
@@ -1355,6 +1654,16 @@ export const GetDeliveryParams = zod.object({
   deliveryId: zod.coerce.string(),
 });
 
+export const getDeliveryResponseTwoBatchHarvestDateRegExp = new RegExp(
+  "^\\d{4}-\\d{2}-\\d{2}$",
+);
+export const getDeliveryResponseTwoContractSeasonStartRegExp = new RegExp(
+  "^\\d{4}-\\d{2}-\\d{2}$",
+);
+export const getDeliveryResponseTwoContractSeasonEndRegExp = new RegExp(
+  "^\\d{4}-\\d{2}-\\d{2}$",
+);
+
 export const GetDeliveryResponse = zod
   .object({
     id: zod.string(),
@@ -1462,7 +1771,13 @@ export const GetDeliveryResponse = zod
             "delivered",
             "received_at_station",
           ]),
-          harvestDate: zod.coerce.date().optional(),
+          harvestDate: zod
+            .string()
+            .regex(getDeliveryResponseTwoBatchHarvestDateRegExp)
+            .optional()
+            .describe(
+              "A calendar date with no time component, formatted as YYYY-MM-DD.",
+            ),
           createdAt: zod.coerce.date(),
         })
         .optional(),
@@ -1474,8 +1789,20 @@ export const GetDeliveryResponse = zod
           groupId: zod.string(),
           groupName: zod.string().optional(),
           commodityType: zod.string(),
-          seasonStart: zod.coerce.date().optional(),
-          seasonEnd: zod.coerce.date().optional(),
+          seasonStart: zod
+            .string()
+            .regex(getDeliveryResponseTwoContractSeasonStartRegExp)
+            .optional()
+            .describe(
+              "A calendar date with no time component, formatted as YYYY-MM-DD.",
+            ),
+          seasonEnd: zod
+            .string()
+            .regex(getDeliveryResponseTwoContractSeasonEndRegExp)
+            .optional()
+            .describe(
+              "A calendar date with no time component, formatted as YYYY-MM-DD.",
+            ),
           floorPricePerKg: zod.number().optional(),
           currency: zod.string(),
           notes: zod.string().optional(),
@@ -2338,6 +2665,13 @@ export const ListProcurementContractsQueryParams = zod.object({
   status: zod.enum(["DRAFT", "ACTIVE", "EXPIRED", "SUSPENDED"]).optional(),
 });
 
+export const listProcurementContractsResponseSeasonStartRegExp = new RegExp(
+  "^\\d{4}-\\d{2}-\\d{2}$",
+);
+export const listProcurementContractsResponseSeasonEndRegExp = new RegExp(
+  "^\\d{4}-\\d{2}-\\d{2}$",
+);
+
 export const ListProcurementContractsResponseItem = zod.object({
   id: zod.string(),
   contractNumber: zod.string(),
@@ -2345,8 +2679,20 @@ export const ListProcurementContractsResponseItem = zod.object({
   groupId: zod.string(),
   groupName: zod.string().optional(),
   commodityType: zod.string(),
-  seasonStart: zod.coerce.date().optional(),
-  seasonEnd: zod.coerce.date().optional(),
+  seasonStart: zod
+    .string()
+    .regex(listProcurementContractsResponseSeasonStartRegExp)
+    .optional()
+    .describe(
+      "A calendar date with no time component, formatted as YYYY-MM-DD.",
+    ),
+  seasonEnd: zod
+    .string()
+    .regex(listProcurementContractsResponseSeasonEndRegExp)
+    .optional()
+    .describe(
+      "A calendar date with no time component, formatted as YYYY-MM-DD.",
+    ),
   floorPricePerKg: zod.number().optional(),
   currency: zod.string(),
   notes: zod.string().optional(),
@@ -2360,12 +2706,31 @@ export const ListProcurementContractsResponse = zod.array(
 /**
  * @summary Create a procurement contract
  */
+export const createProcurementContractBodySeasonStartRegExp = new RegExp(
+  "^\\d{4}-\\d{2}-\\d{2}$",
+);
+export const createProcurementContractBodySeasonEndRegExp = new RegExp(
+  "^\\d{4}-\\d{2}-\\d{2}$",
+);
+
 export const CreateProcurementContractBody = zod.object({
   contractType: zod.enum(["PRE_SEASON", "PER_DELIVERY"]),
   groupId: zod.string(),
   commodityType: zod.string(),
-  seasonStart: zod.coerce.date().optional(),
-  seasonEnd: zod.coerce.date().optional(),
+  seasonStart: zod
+    .string()
+    .regex(createProcurementContractBodySeasonStartRegExp)
+    .optional()
+    .describe(
+      "A calendar date with no time component, formatted as YYYY-MM-DD.",
+    ),
+  seasonEnd: zod
+    .string()
+    .regex(createProcurementContractBodySeasonEndRegExp)
+    .optional()
+    .describe(
+      "A calendar date with no time component, formatted as YYYY-MM-DD.",
+    ),
   floorPricePerKg: zod.number().optional(),
   currency: zod.string().optional(),
   notes: zod.string().optional(),
@@ -2379,13 +2744,39 @@ export const UpdateProcurementContractParams = zod.object({
   contractId: zod.coerce.string(),
 });
 
+export const updateProcurementContractBodySeasonStartRegExp = new RegExp(
+  "^\\d{4}-\\d{2}-\\d{2}$",
+);
+export const updateProcurementContractBodySeasonEndRegExp = new RegExp(
+  "^\\d{4}-\\d{2}-\\d{2}$",
+);
+
 export const UpdateProcurementContractBody = zod.object({
   floorPricePerKg: zod.number().optional(),
-  seasonStart: zod.coerce.date().optional(),
-  seasonEnd: zod.coerce.date().optional(),
+  seasonStart: zod
+    .string()
+    .regex(updateProcurementContractBodySeasonStartRegExp)
+    .optional()
+    .describe(
+      "A calendar date with no time component, formatted as YYYY-MM-DD.",
+    ),
+  seasonEnd: zod
+    .string()
+    .regex(updateProcurementContractBodySeasonEndRegExp)
+    .optional()
+    .describe(
+      "A calendar date with no time component, formatted as YYYY-MM-DD.",
+    ),
   notes: zod.string().optional(),
   status: zod.enum(["DRAFT", "ACTIVE", "EXPIRED", "SUSPENDED"]).optional(),
 });
+
+export const updateProcurementContractResponseSeasonStartRegExp = new RegExp(
+  "^\\d{4}-\\d{2}-\\d{2}$",
+);
+export const updateProcurementContractResponseSeasonEndRegExp = new RegExp(
+  "^\\d{4}-\\d{2}-\\d{2}$",
+);
 
 export const UpdateProcurementContractResponse = zod.object({
   id: zod.string(),
@@ -2394,8 +2785,20 @@ export const UpdateProcurementContractResponse = zod.object({
   groupId: zod.string(),
   groupName: zod.string().optional(),
   commodityType: zod.string(),
-  seasonStart: zod.coerce.date().optional(),
-  seasonEnd: zod.coerce.date().optional(),
+  seasonStart: zod
+    .string()
+    .regex(updateProcurementContractResponseSeasonStartRegExp)
+    .optional()
+    .describe(
+      "A calendar date with no time component, formatted as YYYY-MM-DD.",
+    ),
+  seasonEnd: zod
+    .string()
+    .regex(updateProcurementContractResponseSeasonEndRegExp)
+    .optional()
+    .describe(
+      "A calendar date with no time component, formatted as YYYY-MM-DD.",
+    ),
   floorPricePerKg: zod.number().optional(),
   currency: zod.string(),
   notes: zod.string().optional(),
@@ -2814,6 +3217,10 @@ export const GetWarehouseMassBalanceResponse = zod.object({
 /**
  * @summary List farmer payments
  */
+export const listPaymentsQueryDateFromRegExp = new RegExp(
+  "^\\d{4}-\\d{2}-\\d{2}$",
+);
+
 export const ListPaymentsQueryParams = zod.object({
   farmerId: zod.coerce.string().optional(),
   supplierId: zod.coerce.string().optional(),
@@ -2821,7 +3228,10 @@ export const ListPaymentsQueryParams = zod.object({
   status: zod
     .enum(["pending", "processing", "paid", "failed", "pending_external"])
     .optional(),
-  dateFrom: zod.date().optional(),
+  dateFrom: zod.coerce
+    .string()
+    .regex(listPaymentsQueryDateFromRegExp)
+    .optional(),
 });
 
 export const ListPaymentsResponseItem = zod.object({
@@ -3021,11 +3431,20 @@ export const SubmitGapAssessmentBody = zod.object({
 /**
  * @summary List training sessions
  */
+export const listTrainingSessionsResponseScheduledDateRegExp = new RegExp(
+  "^\\d{4}-\\d{2}-\\d{2}$",
+);
+
 export const ListTrainingSessionsResponseItem = zod.object({
   id: zod.string(),
   title: zod.string(),
   type: zod.string(),
-  scheduledDate: zod.coerce.date(),
+  scheduledDate: zod
+    .string()
+    .regex(listTrainingSessionsResponseScheduledDateRegExp)
+    .describe(
+      "A calendar date with no time component, formatted as YYYY-MM-DD.",
+    ),
   location: zod.string().optional(),
   facilitatorId: zod.string(),
   facilitatorName: zod.string().optional(),
@@ -3040,10 +3459,19 @@ export const ListTrainingSessionsResponse = zod.array(
 /**
  * @summary Create a training session
  */
+export const createTrainingSessionBodyScheduledDateRegExp = new RegExp(
+  "^\\d{4}-\\d{2}-\\d{2}$",
+);
+
 export const CreateTrainingSessionBody = zod.object({
   title: zod.string(),
   type: zod.string(),
-  scheduledDate: zod.coerce.date(),
+  scheduledDate: zod
+    .string()
+    .regex(createTrainingSessionBodyScheduledDateRegExp)
+    .describe(
+      "A calendar date with no time component, formatted as YYYY-MM-DD.",
+    ),
   location: zod.string().optional(),
   facilitatorId: zod.string(),
 });
@@ -3051,6 +3479,10 @@ export const CreateTrainingSessionBody = zod.object({
 /**
  * @summary List export contracts
  */
+export const listExportContractsResponseDeliveryDateRegExp = new RegExp(
+  "^\\d{4}-\\d{2}-\\d{2}$",
+);
+
 export const ListExportContractsResponseItem = zod.object({
   id: zod.string(),
   contractNumber: zod.string(),
@@ -3060,7 +3492,13 @@ export const ListExportContractsResponseItem = zod.object({
   quantityKg: zod.number(),
   pricePerKg: zod.number(),
   certificationRequired: zod.string().optional(),
-  deliveryDate: zod.coerce.date().optional(),
+  deliveryDate: zod
+    .string()
+    .regex(listExportContractsResponseDeliveryDateRegExp)
+    .optional()
+    .describe(
+      "A calendar date with no time component, formatted as YYYY-MM-DD.",
+    ),
   status: zod.enum([
     "draft",
     "confirmed",
@@ -3077,6 +3515,10 @@ export const ListExportContractsResponse = zod.array(
 /**
  * @summary Create an export contract
  */
+export const createExportContractBodyDeliveryDateRegExp = new RegExp(
+  "^\\d{4}-\\d{2}-\\d{2}$",
+);
+
 export const CreateExportContractBody = zod.object({
   contractNumber: zod.string(),
   buyer: zod.string(),
@@ -3085,12 +3527,22 @@ export const CreateExportContractBody = zod.object({
   quantityKg: zod.number(),
   pricePerKg: zod.number(),
   certificationRequired: zod.string().optional(),
-  deliveryDate: zod.coerce.date().optional(),
+  deliveryDate: zod
+    .string()
+    .regex(createExportContractBodyDeliveryDateRegExp)
+    .optional()
+    .describe(
+      "A calendar date with no time component, formatted as YYYY-MM-DD.",
+    ),
 });
 
 /**
  * @summary List export shipments
  */
+export const listShipmentsResponseShipmentDateRegExp = new RegExp(
+  "^\\d{4}-\\d{2}-\\d{2}$",
+);
+
 export const ListShipmentsResponseItem = zod.object({
   id: zod.string(),
   contractId: zod.string(),
@@ -3098,7 +3550,13 @@ export const ListShipmentsResponseItem = zod.object({
   vesselName: zod.string().optional(),
   portOfLoading: zod.string().optional(),
   portOfDestination: zod.string().optional(),
-  shipmentDate: zod.coerce.date().optional(),
+  shipmentDate: zod
+    .string()
+    .regex(listShipmentsResponseShipmentDateRegExp)
+    .optional()
+    .describe(
+      "A calendar date with no time component, formatted as YYYY-MM-DD.",
+    ),
   totalWeightKg: zod.number().optional(),
   status: zod.enum(["preparing", "loaded", "in_transit", "delivered"]),
   createdAt: zod.coerce.date(),
@@ -3112,6 +3570,10 @@ export const GetShipmentParams = zod.object({
   shipmentId: zod.coerce.string(),
 });
 
+export const getShipmentResponseOneShipmentDateRegExp = new RegExp(
+  "^\\d{4}-\\d{2}-\\d{2}$",
+);
+
 export const GetShipmentResponse = zod
   .object({
     id: zod.string(),
@@ -3120,7 +3582,13 @@ export const GetShipmentResponse = zod
     vesselName: zod.string().optional(),
     portOfLoading: zod.string().optional(),
     portOfDestination: zod.string().optional(),
-    shipmentDate: zod.coerce.date().optional(),
+    shipmentDate: zod
+      .string()
+      .regex(getShipmentResponseOneShipmentDateRegExp)
+      .optional()
+      .describe(
+        "A calendar date with no time component, formatted as YYYY-MM-DD.",
+      ),
     totalWeightKg: zod.number().optional(),
     status: zod.enum(["preparing", "loaded", "in_transit", "delivered"]),
     createdAt: zod.coerce.date(),
@@ -3372,6 +3840,13 @@ export const ListAssetsQueryParams = zod.object({
   assignedTo: zod.coerce.string().optional(),
 });
 
+export const listAssetsResponsePurchaseDateRegExp = new RegExp(
+  "^\\d{4}-\\d{2}-\\d{2}$",
+);
+export const listAssetsResponseMaintenanceDueDateRegExp = new RegExp(
+  "^\\d{4}-\\d{2}-\\d{2}$",
+);
+
 export const ListAssetsResponseItem = zod.object({
   id: zod.string(),
   assetCode: zod.string(),
@@ -3379,14 +3854,26 @@ export const ListAssetsResponseItem = zod.object({
   serialNumber: zod.string().optional(),
   make: zod.string().optional(),
   model: zod.string().optional(),
-  purchaseDate: zod.coerce.date().optional(),
+  purchaseDate: zod
+    .string()
+    .regex(listAssetsResponsePurchaseDateRegExp)
+    .optional()
+    .describe(
+      "A calendar date with no time component, formatted as YYYY-MM-DD.",
+    ),
   purchaseValue: zod.number().optional(),
   currentBookValue: zod.number().optional(),
   status: zod.enum(["available", "assigned", "under_repair", "written_off"]),
   assignedToUserId: zod.string().optional(),
   assignedToName: zod.string().optional(),
   photoUrl: zod.string().optional(),
-  maintenanceDueDate: zod.coerce.date().optional(),
+  maintenanceDueDate: zod
+    .string()
+    .regex(listAssetsResponseMaintenanceDueDateRegExp)
+    .optional()
+    .describe(
+      "A calendar date with no time component, formatted as YYYY-MM-DD.",
+    ),
   createdAt: zod.coerce.date(),
 });
 export const ListAssetsResponse = zod.array(ListAssetsResponseItem);
@@ -3394,12 +3881,21 @@ export const ListAssetsResponse = zod.array(ListAssetsResponseItem);
 /**
  * @summary Register a new asset
  */
+export const createAssetBodyPurchaseDateRegExp = new RegExp(
+  "^\\d{4}-\\d{2}-\\d{2}$",
+);
+
 export const CreateAssetBody = zod.object({
   type: zod.enum(["device", "vehicle", "scale", "equipment", "other"]),
   serialNumber: zod.string().optional(),
   make: zod.string().optional(),
   model: zod.string().optional(),
-  purchaseDate: zod.coerce.date(),
+  purchaseDate: zod
+    .string()
+    .regex(createAssetBodyPurchaseDateRegExp)
+    .describe(
+      "A calendar date with no time component, formatted as YYYY-MM-DD.",
+    ),
   purchaseValue: zod.number(),
   photoUrl: zod.string().optional(),
 });
@@ -3411,6 +3907,13 @@ export const GetAssetParams = zod.object({
   assetId: zod.coerce.string(),
 });
 
+export const getAssetResponseOnePurchaseDateRegExp = new RegExp(
+  "^\\d{4}-\\d{2}-\\d{2}$",
+);
+export const getAssetResponseOneMaintenanceDueDateRegExp = new RegExp(
+  "^\\d{4}-\\d{2}-\\d{2}$",
+);
+
 export const GetAssetResponse = zod
   .object({
     id: zod.string(),
@@ -3419,14 +3922,26 @@ export const GetAssetResponse = zod
     serialNumber: zod.string().optional(),
     make: zod.string().optional(),
     model: zod.string().optional(),
-    purchaseDate: zod.coerce.date().optional(),
+    purchaseDate: zod
+      .string()
+      .regex(getAssetResponseOnePurchaseDateRegExp)
+      .optional()
+      .describe(
+        "A calendar date with no time component, formatted as YYYY-MM-DD.",
+      ),
     purchaseValue: zod.number().optional(),
     currentBookValue: zod.number().optional(),
     status: zod.enum(["available", "assigned", "under_repair", "written_off"]),
     assignedToUserId: zod.string().optional(),
     assignedToName: zod.string().optional(),
     photoUrl: zod.string().optional(),
-    maintenanceDueDate: zod.coerce.date().optional(),
+    maintenanceDueDate: zod
+      .string()
+      .regex(getAssetResponseOneMaintenanceDueDateRegExp)
+      .optional()
+      .describe(
+        "A calendar date with no time component, formatted as YYYY-MM-DD.",
+      ),
     createdAt: zod.coerce.date(),
   })
   .and(
@@ -3456,6 +3971,13 @@ export const AssignAssetBody = zod.object({
   conditionAtHandover: zod.string(),
 });
 
+export const assignAssetResponsePurchaseDateRegExp = new RegExp(
+  "^\\d{4}-\\d{2}-\\d{2}$",
+);
+export const assignAssetResponseMaintenanceDueDateRegExp = new RegExp(
+  "^\\d{4}-\\d{2}-\\d{2}$",
+);
+
 export const AssignAssetResponse = zod.object({
   id: zod.string(),
   assetCode: zod.string(),
@@ -3463,14 +3985,26 @@ export const AssignAssetResponse = zod.object({
   serialNumber: zod.string().optional(),
   make: zod.string().optional(),
   model: zod.string().optional(),
-  purchaseDate: zod.coerce.date().optional(),
+  purchaseDate: zod
+    .string()
+    .regex(assignAssetResponsePurchaseDateRegExp)
+    .optional()
+    .describe(
+      "A calendar date with no time component, formatted as YYYY-MM-DD.",
+    ),
   purchaseValue: zod.number().optional(),
   currentBookValue: zod.number().optional(),
   status: zod.enum(["available", "assigned", "under_repair", "written_off"]),
   assignedToUserId: zod.string().optional(),
   assignedToName: zod.string().optional(),
   photoUrl: zod.string().optional(),
-  maintenanceDueDate: zod.coerce.date().optional(),
+  maintenanceDueDate: zod
+    .string()
+    .regex(assignAssetResponseMaintenanceDueDateRegExp)
+    .optional()
+    .describe(
+      "A calendar date with no time component, formatted as YYYY-MM-DD.",
+    ),
   createdAt: zod.coerce.date(),
 });
 
@@ -3487,6 +4021,13 @@ export const ReturnAssetBody = zod.object({
   notes: zod.string().optional(),
 });
 
+export const returnAssetResponsePurchaseDateRegExp = new RegExp(
+  "^\\d{4}-\\d{2}-\\d{2}$",
+);
+export const returnAssetResponseMaintenanceDueDateRegExp = new RegExp(
+  "^\\d{4}-\\d{2}-\\d{2}$",
+);
+
 export const ReturnAssetResponse = zod.object({
   id: zod.string(),
   assetCode: zod.string(),
@@ -3494,14 +4035,26 @@ export const ReturnAssetResponse = zod.object({
   serialNumber: zod.string().optional(),
   make: zod.string().optional(),
   model: zod.string().optional(),
-  purchaseDate: zod.coerce.date().optional(),
+  purchaseDate: zod
+    .string()
+    .regex(returnAssetResponsePurchaseDateRegExp)
+    .optional()
+    .describe(
+      "A calendar date with no time component, formatted as YYYY-MM-DD.",
+    ),
   purchaseValue: zod.number().optional(),
   currentBookValue: zod.number().optional(),
   status: zod.enum(["available", "assigned", "under_repair", "written_off"]),
   assignedToUserId: zod.string().optional(),
   assignedToName: zod.string().optional(),
   photoUrl: zod.string().optional(),
-  maintenanceDueDate: zod.coerce.date().optional(),
+  maintenanceDueDate: zod
+    .string()
+    .regex(returnAssetResponseMaintenanceDueDateRegExp)
+    .optional()
+    .describe(
+      "A calendar date with no time component, formatted as YYYY-MM-DD.",
+    ),
   createdAt: zod.coerce.date(),
 });
 
@@ -3515,12 +4068,21 @@ export const ListActivityFundsQueryParams = zod.object({
     .optional(),
 });
 
+export const listActivityFundsResponsePlannedDateRegExp = new RegExp(
+  "^\\d{4}-\\d{2}-\\d{2}$",
+);
+
 export const ListActivityFundsResponseItem = zod.object({
   id: zod.string(),
   agentId: zod.string(),
   agentName: zod.string().optional(),
   activityType: zod.string(),
-  plannedDate: zod.coerce.date(),
+  plannedDate: zod
+    .string()
+    .regex(listActivityFundsResponsePlannedDateRegExp)
+    .describe(
+      "A calendar date with no time component, formatted as YYYY-MM-DD.",
+    ),
   destination: zod.string().optional(),
   estimatedAmount: zod.number(),
   approvedAmount: zod.number().optional(),
@@ -3544,9 +4106,18 @@ export const ListActivityFundsResponse = zod.array(
 /**
  * @summary Submit activity fund request
  */
+export const createActivityFundRequestBodyPlannedDateRegExp = new RegExp(
+  "^\\d{4}-\\d{2}-\\d{2}$",
+);
+
 export const CreateActivityFundRequestBody = zod.object({
   activityType: zod.string(),
-  plannedDate: zod.coerce.date(),
+  plannedDate: zod
+    .string()
+    .regex(createActivityFundRequestBodyPlannedDateRegExp)
+    .describe(
+      "A calendar date with no time component, formatted as YYYY-MM-DD.",
+    ),
   destination: zod.string().optional(),
   estimatedAmount: zod.number(),
   currency: zod.string(),
@@ -3572,12 +4143,21 @@ export const ApproveActivityFundRequestBody = zod.object({
   comment: zod.string(),
 });
 
+export const approveActivityFundRequestResponsePlannedDateRegExp = new RegExp(
+  "^\\d{4}-\\d{2}-\\d{2}$",
+);
+
 export const ApproveActivityFundRequestResponse = zod.object({
   id: zod.string(),
   agentId: zod.string(),
   agentName: zod.string().optional(),
   activityType: zod.string(),
-  plannedDate: zod.coerce.date(),
+  plannedDate: zod
+    .string()
+    .regex(approveActivityFundRequestResponsePlannedDateRegExp)
+    .describe(
+      "A calendar date with no time component, formatted as YYYY-MM-DD.",
+    ),
   destination: zod.string().optional(),
   estimatedAmount: zod.number(),
   approvedAmount: zod.number().optional(),
@@ -3598,6 +4178,12 @@ export const ApproveActivityFundRequestResponse = zod.object({
 /**
  * @summary Query audit log entries
  */
+export const listAuditLogsQueryDateFromRegExp = new RegExp(
+  "^\\d{4}-\\d{2}-\\d{2}$",
+);
+export const listAuditLogsQueryDateToRegExp = new RegExp(
+  "^\\d{4}-\\d{2}-\\d{2}$",
+);
 export const listAuditLogsQueryPageDefault = 1;
 export const listAuditLogsQueryLimitDefault = 50;
 
@@ -3605,8 +4191,11 @@ export const ListAuditLogsQueryParams = zod.object({
   entityType: zod.coerce.string().optional(),
   entityId: zod.coerce.string().optional(),
   actorId: zod.coerce.string().optional(),
-  dateFrom: zod.date().optional(),
-  dateTo: zod.date().optional(),
+  dateFrom: zod.coerce
+    .string()
+    .regex(listAuditLogsQueryDateFromRegExp)
+    .optional(),
+  dateTo: zod.coerce.string().regex(listAuditLogsQueryDateToRegExp).optional(),
   page: zod.coerce.number().default(listAuditLogsQueryPageDefault),
   limit: zod.coerce.number().default(listAuditLogsQueryLimitDefault),
 });

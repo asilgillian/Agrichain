@@ -5,6 +5,7 @@
  * AgriChain Digital Agriculture Platform API
  * OpenAPI spec version: 0.1.0
  */
+import type { CalendarDate } from "./calendarDate";
 import type { CertificationEnrolmentStatus } from "./certificationEnrolmentStatus";
 
 export interface CertificationEnrolment {
@@ -12,7 +13,7 @@ export interface CertificationEnrolment {
   farmerId: string;
   streamId: string;
   streamName: string;
-  enrolmentDate: Date;
-  expiryDate?: Date;
+  enrolmentDate: CalendarDate;
+  expiryDate?: CalendarDate;
   status: CertificationEnrolmentStatus;
 }

@@ -2,7 +2,6 @@ import { Router, type IRouter } from "express";
 import { eq, and, desc } from "drizzle-orm";
 import { db, assetsTable, usersTable } from "@workspace/db";
 import { CreateAssetBody, AssignAssetBody, ReturnAssetBody, ListAssetsQueryParams } from "@workspace/api-zod";
-import { toDbDate } from "../lib/dates";
 
 const router: IRouter = Router();
 
@@ -51,7 +50,6 @@ router.post("/assets", async (req, res): Promise<void> => {
   const [asset] = await db.insert(assetsTable).values({
     ...parsed.data,
     assetCode,
-    purchaseDate: toDbDate(parsed.data.purchaseDate),
     purchaseValue: parsed.data.purchaseValue.toString(),
     currentBookValue: parsed.data.purchaseValue.toString(),
   }).returning();

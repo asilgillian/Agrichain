@@ -7,6 +7,7 @@
  */
 import type { AssetStatus } from "./assetStatus";
 import type { AssetType } from "./assetType";
+import type { CalendarDate } from "./calendarDate";
 
 export interface Asset {
   id: string;
@@ -15,13 +16,13 @@ export interface Asset {
   serialNumber?: string;
   make?: string;
   model?: string;
-  purchaseDate?: Date;
+  purchaseDate?: CalendarDate;
   purchaseValue?: number;
   currentBookValue?: number;
   status: AssetStatus;
   assignedToUserId?: string;
   assignedToName?: string;
   photoUrl?: string;
-  maintenanceDueDate?: Date;
+  maintenanceDueDate?: CalendarDate;
   createdAt: Date;
 }

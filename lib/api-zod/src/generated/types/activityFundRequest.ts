@@ -6,13 +6,14 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { ActivityFundRequestStatus } from "./activityFundRequestStatus";
+import type { CalendarDate } from "./calendarDate";
 
 export interface ActivityFundRequest {
   id: string;
   agentId: string;
   agentName?: string;
   activityType: string;
-  plannedDate: Date;
+  plannedDate: CalendarDate;
   destination?: string;
   estimatedAmount: number;
   approvedAmount?: number;

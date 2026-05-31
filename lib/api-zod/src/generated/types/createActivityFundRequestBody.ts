@@ -5,11 +5,12 @@
  * AgriChain Digital Agriculture Platform API
  * OpenAPI spec version: 0.1.0
  */
+import type { CalendarDate } from "./calendarDate";
 import type { CreateActivityFundRequestBodyLineItemsItem } from "./createActivityFundRequestBodyLineItemsItem";
 
 export interface CreateActivityFundRequestBody {
   activityType: string;
-  plannedDate: Date;
+  plannedDate: CalendarDate;
   destination?: string;
   estimatedAmount: number;
   currency: string;

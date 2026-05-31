@@ -2,7 +2,6 @@ import { Router, type IRouter } from "express";
 import { eq, and, desc } from "drizzle-orm";
 import { db, activityFundsTable, usersTable } from "@workspace/db";
 import { CreateActivityFundRequestBody, ApproveActivityFundRequestBody, ListActivityFundsQueryParams } from "@workspace/api-zod";
-import { toDbDate } from "../lib/dates";
 
 const router: IRouter = Router();
 
@@ -44,7 +43,6 @@ router.post("/activity-funds", async (req, res): Promise<void> => {
   const [fund] = await db.insert(activityFundsTable).values({
     ...parsed.data,
     agentId,
-    plannedDate: toDbDate(parsed.data.plannedDate),
     estimatedAmount: parsed.data.estimatedAmount.toString(),
     lineItems: parsed.data.lineItems ?? [],
   }).returning();

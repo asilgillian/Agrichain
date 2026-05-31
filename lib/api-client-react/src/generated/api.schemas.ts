@@ -5,6 +5,12 @@
  * AgriChain Digital Agriculture Platform API
  * OpenAPI spec version: 0.1.0
  */
+/**
+ * A calendar date with no time component, formatted as YYYY-MM-DD.
+ * @pattern ^\d{4}-\d{2}-\d{2}$
+ */
+export type CalendarDate = string;
+
 export type LoanCategoryInterestType =
   (typeof LoanCategoryInterestType)[keyof typeof LoanCategoryInterestType];
 
@@ -586,7 +592,7 @@ export interface Farmer {
   firstName: string;
   lastName: string;
   nationalId?: string;
-  dateOfBirth?: string;
+  dateOfBirth?: CalendarDate;
   phoneNumber?: string;
   sex?: FarmerSex;
   groupId: string;
@@ -621,7 +627,7 @@ export interface Plot {
   areaHectares: number;
   /** GeoJSON polygon */
   polygon?: PlotPolygon;
-  harvestDate?: string;
+  harvestDate?: CalendarDate;
   status: PlotStatus;
   createdAt: string;
 }
@@ -641,8 +647,8 @@ export interface CertificationEnrolment {
   farmerId: string;
   streamId: string;
   streamName: string;
-  enrolmentDate: string;
-  expiryDate?: string;
+  enrolmentDate: CalendarDate;
+  expiryDate?: CalendarDate;
   status: CertificationEnrolmentStatus;
 }
 
@@ -685,7 +691,7 @@ export type FarmerDetail = Farmer & {
 export type FarmerCardCertificationsItem = {
   streamName: string;
   status: string;
-  expiryDate?: string;
+  expiryDate?: CalendarDate;
 };
 
 export interface FarmerCard {
@@ -719,7 +725,7 @@ export interface CreateFarmerBody {
   firstName: string;
   lastName: string;
   nationalId: string;
-  dateOfBirth?: string;
+  dateOfBirth?: CalendarDate;
   phoneNumber?: string;
   sex?: CreateFarmerBodySex;
   groupId: string;
@@ -789,7 +795,7 @@ export type FarmerGroupDetailLeadersItem = {
   farmerId: string;
   name: string;
   role: string;
-  startDate: string;
+  startDate: CalendarDate;
 };
 
 export type FarmerGroupDetail = FarmerGroup & {
@@ -843,7 +849,7 @@ export interface CreatePlotBody {
   name?: string;
   cropType: string;
   polygon?: CreatePlotBodyPolygon;
-  harvestDate?: string;
+  harvestDate?: CalendarDate;
 }
 
 export type CertificationStreamName =
@@ -869,8 +875,8 @@ export interface CertificationStream {
 export interface CreateEnrolmentBody {
   farmerId: string;
   streamId: string;
-  enrolmentDate: string;
-  expiryDate?: string;
+  enrolmentDate: CalendarDate;
+  expiryDate?: CalendarDate;
 }
 
 export type SurveyTemplateType =
@@ -986,7 +992,7 @@ export interface Visit {
   farmerName?: string;
   agentId: string;
   agentName?: string;
-  scheduledDate: string;
+  scheduledDate: CalendarDate;
   completedAt?: string;
   priority: VisitPriority;
   status: VisitStatus;
@@ -1006,7 +1012,7 @@ export const ScheduleVisitBodyPriority = {
 export interface ScheduleVisitBody {
   farmerId: string;
   agentId: string;
-  scheduledDate: string;
+  scheduledDate: CalendarDate;
   priority: ScheduleVisitBodyPriority;
   notes?: string;
 }
@@ -1030,7 +1036,7 @@ export interface Batch {
   farmerCount: number;
   qualifyingStreams: string[];
   status: BatchStatus;
-  harvestDate?: string;
+  harvestDate?: CalendarDate;
   createdAt: string;
 }
 
@@ -1038,7 +1044,7 @@ export type BatchDetailFarmerContributionsItem = {
   farmerId: string;
   farmerName: string;
   grossWeightKg: number;
-  harvestDate: string;
+  harvestDate: CalendarDate;
   activeStreams: string[];
 };
 
@@ -1048,7 +1054,7 @@ export type BatchDetail = Batch & {
 
 export interface CreateBatchBody {
   cropType: string;
-  harvestDate: string;
+  harvestDate: CalendarDate;
 }
 
 export type DeliveryPricingDeductionsItem = {
@@ -1185,8 +1191,8 @@ export interface ProcurementContract {
   groupId: string;
   groupName?: string;
   commodityType: string;
-  seasonStart?: string;
-  seasonEnd?: string;
+  seasonStart?: CalendarDate;
+  seasonEnd?: CalendarDate;
   floorPricePerKg?: number;
   currency: string;
   notes?: string;
@@ -1303,8 +1309,8 @@ export interface CreateProcurementContractBody {
   contractType: CreateProcurementContractBodyContractType;
   groupId: string;
   commodityType: string;
-  seasonStart?: string;
-  seasonEnd?: string;
+  seasonStart?: CalendarDate;
+  seasonEnd?: CalendarDate;
   floorPricePerKg?: number;
   currency?: string;
   notes?: string;
@@ -1336,8 +1342,8 @@ export const UpdateProcurementContractBodyStatus = {
 
 export interface UpdateProcurementContractBody {
   floorPricePerKg?: number;
-  seasonStart?: string;
-  seasonEnd?: string;
+  seasonStart?: CalendarDate;
+  seasonEnd?: CalendarDate;
   notes?: string;
   status?: UpdateProcurementContractBodyStatus;
 }
@@ -1638,7 +1644,7 @@ export interface TrainingSession {
   id: string;
   title: string;
   type: string;
-  scheduledDate: string;
+  scheduledDate: CalendarDate;
   location?: string;
   facilitatorId: string;
   facilitatorName?: string;
@@ -1650,7 +1656,7 @@ export interface TrainingSession {
 export interface CreateTrainingSessionBody {
   title: string;
   type: string;
-  scheduledDate: string;
+  scheduledDate: CalendarDate;
   location?: string;
   facilitatorId: string;
 }
@@ -1675,7 +1681,7 @@ export interface ExportContract {
   quantityKg: number;
   pricePerKg: number;
   certificationRequired?: string;
-  deliveryDate?: string;
+  deliveryDate?: CalendarDate;
   status: ExportContractStatus;
   createdAt: string;
 }
@@ -1688,7 +1694,7 @@ export interface CreateExportContractBody {
   quantityKg: number;
   pricePerKg: number;
   certificationRequired?: string;
-  deliveryDate?: string;
+  deliveryDate?: CalendarDate;
 }
 
 export type ShipmentStatus =
@@ -1708,7 +1714,7 @@ export interface Shipment {
   vesselName?: string;
   portOfLoading?: string;
   portOfDestination?: string;
-  shipmentDate?: string;
+  shipmentDate?: CalendarDate;
   totalWeightKg?: number;
   status: ShipmentStatus;
   createdAt: string;
@@ -1846,14 +1852,14 @@ export interface Asset {
   serialNumber?: string;
   make?: string;
   model?: string;
-  purchaseDate?: string;
+  purchaseDate?: CalendarDate;
   purchaseValue?: number;
   currentBookValue?: number;
   status: AssetStatus;
   assignedToUserId?: string;
   assignedToName?: string;
   photoUrl?: string;
-  maintenanceDueDate?: string;
+  maintenanceDueDate?: CalendarDate;
   createdAt: string;
 }
 
@@ -1886,7 +1892,7 @@ export interface CreateAssetBody {
   serialNumber?: string;
   make?: string;
   model?: string;
-  purchaseDate: string;
+  purchaseDate: CalendarDate;
   purchaseValue: number;
   photoUrl?: string;
 }
@@ -1918,7 +1924,7 @@ export interface ActivityFundRequest {
   agentId: string;
   agentName?: string;
   activityType: string;
-  plannedDate: string;
+  plannedDate: CalendarDate;
   destination?: string;
   estimatedAmount: number;
   approvedAmount?: number;
@@ -1937,7 +1943,7 @@ export type CreateActivityFundRequestBodyLineItemsItem = {
 
 export interface CreateActivityFundRequestBody {
   activityType: string;
-  plannedDate: string;
+  plannedDate: CalendarDate;
   destination?: string;
   estimatedAmount: number;
   currency: string;
@@ -2111,8 +2117,8 @@ export type ListSurveySubmissionsParams = {
   agentId?: string;
   groupId?: string;
   status?: ListSurveySubmissionsStatus;
-  dateFrom?: string;
-  dateTo?: string;
+  dateFrom?: CalendarDate;
+  dateTo?: CalendarDate;
 };
 
 export type ListSurveySubmissionsStatus =
@@ -2156,7 +2162,7 @@ export const ListBatchesStatus = {
 export type ListDeliveriesParams = {
   status?: ListDeliveriesStatus;
   stationId?: string;
-  dateFrom?: string;
+  dateFrom?: CalendarDate;
 };
 
 export type ListDeliveriesStatus =
@@ -2218,7 +2224,7 @@ export type ListPaymentsParams = {
   supplierId?: string;
   deliveryId?: string;
   status?: ListPaymentsStatus;
-  dateFrom?: string;
+  dateFrom?: CalendarDate;
 };
 
 export type ListPaymentsStatus =
@@ -2308,8 +2314,8 @@ export type ListAuditLogsParams = {
   entityType?: string;
   entityId?: string;
   actorId?: string;
-  dateFrom?: string;
-  dateTo?: string;
+  dateFrom?: CalendarDate;
+  dateTo?: CalendarDate;
   page?: number;
   limit?: number;
 };

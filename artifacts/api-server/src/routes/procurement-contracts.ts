@@ -65,8 +65,8 @@ router.post("/procurement/contracts", requirePermission("procurement.contracts.w
         contractType: data.contractType,
         groupId: data.groupId,
         commodityType: data.commodityType,
-        seasonStart: data.seasonStart ? (data.seasonStart instanceof Date ? data.seasonStart.toISOString().slice(0, 10) : data.seasonStart) : null,
-        seasonEnd: data.seasonEnd ? (data.seasonEnd instanceof Date ? data.seasonEnd.toISOString().slice(0, 10) : data.seasonEnd) : null,
+        seasonStart: data.seasonStart ?? null,
+        seasonEnd: data.seasonEnd ?? null,
         floorPricePerKg: data.floorPricePerKg != null ? data.floorPricePerKg.toString() : null,
         currency: data.currency ?? "UGX",
         targetVolumeKg: typeof req.body?.targetVolumeKg === "number" && req.body.targetVolumeKg > 0 ? String(req.body.targetVolumeKg) : null,
@@ -106,8 +106,8 @@ router.patch("/procurement/contracts/:contractId", requirePermission("procuremen
     const n = rawTarget == null ? null : Number(rawTarget);
     updates.targetVolumeKg = n != null && Number.isFinite(n) && n > 0 ? String(n) : null;
   }
-  if (d.seasonStart !== undefined) updates.seasonStart = d.seasonStart instanceof Date ? d.seasonStart.toISOString().slice(0, 10) : d.seasonStart;
-  if (d.seasonEnd !== undefined) updates.seasonEnd = d.seasonEnd instanceof Date ? d.seasonEnd.toISOString().slice(0, 10) : d.seasonEnd;
+  if (d.seasonStart !== undefined) updates.seasonStart = d.seasonStart;
+  if (d.seasonEnd !== undefined) updates.seasonEnd = d.seasonEnd;
   if (d.notes !== undefined) updates.notes = d.notes;
   if (d.status !== undefined) updates.status = d.status;
   const [existing] = await db.select().from(procurementContractsTable).where(eq(procurementContractsTable.id, contractId as string));

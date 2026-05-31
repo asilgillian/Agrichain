@@ -5,10 +5,11 @@
  * AgriChain Digital Agriculture Platform API
  * OpenAPI spec version: 0.1.0
  */
+import type { CalendarDate } from "./calendarDate";
 
 export interface CreateEnrolmentBody {
   farmerId: string;
   streamId: string;
-  enrolmentDate: Date;
-  expiryDate?: Date;
+  enrolmentDate: CalendarDate;
+  expiryDate?: CalendarDate;
 }

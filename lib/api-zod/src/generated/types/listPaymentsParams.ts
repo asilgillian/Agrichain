@@ -5,6 +5,7 @@
  * AgriChain Digital Agriculture Platform API
  * OpenAPI spec version: 0.1.0
  */
+import type { CalendarDate } from "./calendarDate";
 import type { ListPaymentsStatus } from "./listPaymentsStatus";
 
 export type ListPaymentsParams = {
@@ -12,5 +13,5 @@ export type ListPaymentsParams = {
   supplierId?: string;
   deliveryId?: string;
   status?: ListPaymentsStatus;
-  dateFrom?: Date;
+  dateFrom?: CalendarDate;
 };

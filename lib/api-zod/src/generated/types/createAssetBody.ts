@@ -5,6 +5,7 @@
  * AgriChain Digital Agriculture Platform API
  * OpenAPI spec version: 0.1.0
  */
+import type { CalendarDate } from "./calendarDate";
 import type { CreateAssetBodyType } from "./createAssetBodyType";
 
 export interface CreateAssetBody {
@@ -12,7 +13,7 @@ export interface CreateAssetBody {
   serialNumber?: string;
   make?: string;
   model?: string;
-  purchaseDate: Date;
+  purchaseDate: CalendarDate;
   purchaseValue: number;
   photoUrl?: string;
 }

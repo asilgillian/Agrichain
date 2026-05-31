@@ -5,6 +5,7 @@
  * AgriChain Digital Agriculture Platform API
  * OpenAPI spec version: 0.1.0
  */
+import type { CalendarDate } from "./calendarDate";
 import type { ShipmentStatus } from "./shipmentStatus";
 
 export interface Shipment {
@@ -14,7 +15,7 @@ export interface Shipment {
   vesselName?: string;
   portOfLoading?: string;
   portOfDestination?: string;
-  shipmentDate?: Date;
+  shipmentDate?: CalendarDate;
   totalWeightKg?: number;
   status: ShipmentStatus;
   createdAt: Date;

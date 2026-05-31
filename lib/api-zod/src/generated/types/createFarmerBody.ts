@@ -5,13 +5,14 @@
  * AgriChain Digital Agriculture Platform API
  * OpenAPI spec version: 0.1.0
  */
+import type { CalendarDate } from "./calendarDate";
 import type { CreateFarmerBodySex } from "./createFarmerBodySex";
 
 export interface CreateFarmerBody {
   firstName: string;
   lastName: string;
   nationalId: string;
-  dateOfBirth?: Date;
+  dateOfBirth?: CalendarDate;
   phoneNumber?: string;
   sex?: CreateFarmerBodySex;
   groupId: string;

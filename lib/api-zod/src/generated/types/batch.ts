@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { BatchStatus } from "./batchStatus";
+import type { CalendarDate } from "./calendarDate";
 
 export interface Batch {
   id: string;
@@ -17,6 +18,6 @@ export interface Batch {
   farmerCount: number;
   qualifyingStreams: string[];
   status: BatchStatus;
-  harvestDate?: Date;
+  harvestDate?: CalendarDate;
   createdAt: Date;
 }

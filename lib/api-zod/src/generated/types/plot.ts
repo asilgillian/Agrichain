@@ -5,6 +5,7 @@
  * AgriChain Digital Agriculture Platform API
  * OpenAPI spec version: 0.1.0
  */
+import type { CalendarDate } from "./calendarDate";
 import type { PlotPolygon } from "./plotPolygon";
 import type { PlotStatus } from "./plotStatus";
 
@@ -16,7 +17,7 @@ export interface Plot {
   areaHectares: number;
   /** GeoJSON polygon */
   polygon?: PlotPolygon;
-  harvestDate?: Date;
+  harvestDate?: CalendarDate;
   status: PlotStatus;
   createdAt: Date;
 }

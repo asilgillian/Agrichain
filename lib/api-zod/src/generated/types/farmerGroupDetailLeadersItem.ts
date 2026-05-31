@@ -5,10 +5,11 @@
  * AgriChain Digital Agriculture Platform API
  * OpenAPI spec version: 0.1.0
  */
+import type { CalendarDate } from "./calendarDate";
 
 export type FarmerGroupDetailLeadersItem = {
   farmerId: string;
   name: string;
   role: string;
-  startDate: Date;
+  startDate: CalendarDate;
 };

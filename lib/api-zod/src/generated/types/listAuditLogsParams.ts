@@ -5,13 +5,14 @@
  * AgriChain Digital Agriculture Platform API
  * OpenAPI spec version: 0.1.0
  */
+import type { CalendarDate } from "./calendarDate";
 
 export type ListAuditLogsParams = {
   entityType?: string;
   entityId?: string;
   actorId?: string;
-  dateFrom?: Date;
-  dateTo?: Date;
+  dateFrom?: CalendarDate;
+  dateTo?: CalendarDate;
   page?: number;
   limit?: number;
 };

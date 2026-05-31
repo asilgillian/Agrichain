@@ -5,9 +5,10 @@
  * AgriChain Digital Agriculture Platform API
  * OpenAPI spec version: 0.1.0
  */
+import type { CalendarDate } from "./calendarDate";
 
 export type FarmerCardCertificationsItem = {
   streamName: string;
   status: string;
-  expiryDate?: Date;
+  expiryDate?: CalendarDate;
 };

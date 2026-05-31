@@ -5,10 +5,11 @@
  * AgriChain Digital Agriculture Platform API
  * OpenAPI spec version: 0.1.0
  */
+import type { CalendarDate } from "./calendarDate";
 import type { ListDeliveriesStatus } from "./listDeliveriesStatus";
 
 export type ListDeliveriesParams = {
   status?: ListDeliveriesStatus;
   stationId?: string;
-  dateFrom?: Date;
+  dateFrom?: CalendarDate;
 };

@@ -5,9 +5,9 @@
  * AgriChain Digital Agriculture Platform API
  * OpenAPI spec version: 0.1.0
  */
-import type { CalendarDate } from "./calendarDate";
 
-export interface CreateBatchBody {
-  cropType: string;
-  harvestDate: CalendarDate;
-}
+/**
+ * A calendar date with no time component, formatted as YYYY-MM-DD.
+ * @pattern ^\d{4}-\d{2}-\d{2}$
+ */
+export type CalendarDate = string;

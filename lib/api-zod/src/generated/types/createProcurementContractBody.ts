@@ -5,6 +5,7 @@
  * AgriChain Digital Agriculture Platform API
  * OpenAPI spec version: 0.1.0
  */
+import type { CalendarDate } from "./calendarDate";
 import type { CreateProcurementContractBodyContractType } from "./createProcurementContractBodyContractType";
 import type { CreateProcurementContractBodyStatus } from "./createProcurementContractBodyStatus";
 
@@ -12,8 +13,8 @@ export interface CreateProcurementContractBody {
   contractType: CreateProcurementContractBodyContractType;
   groupId: string;
   commodityType: string;
-  seasonStart?: Date;
-  seasonEnd?: Date;
+  seasonStart?: CalendarDate;
+  seasonEnd?: CalendarDate;
   floorPricePerKg?: number;
   currency?: string;
   notes?: string;

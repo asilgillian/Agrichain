@@ -5,12 +5,13 @@
  * AgriChain Digital Agriculture Platform API
  * OpenAPI spec version: 0.1.0
  */
+import type { CalendarDate } from "./calendarDate";
 import type { UpdateProcurementContractBodyStatus } from "./updateProcurementContractBodyStatus";
 
 export interface UpdateProcurementContractBody {
   floorPricePerKg?: number;
-  seasonStart?: Date;
-  seasonEnd?: Date;
+  seasonStart?: CalendarDate;
+  seasonEnd?: CalendarDate;
   notes?: string;
   status?: UpdateProcurementContractBodyStatus;
 }

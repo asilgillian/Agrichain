@@ -5,6 +5,7 @@
  * AgriChain Digital Agriculture Platform API
  * OpenAPI spec version: 0.1.0
  */
+import type { CalendarDate } from "./calendarDate";
 
 export interface CreateExportContractBody {
   contractNumber: string;
@@ -14,5 +15,5 @@ export interface CreateExportContractBody {
   quantityKg: number;
   pricePerKg: number;
   certificationRequired?: string;
-  deliveryDate?: Date;
+  deliveryDate?: CalendarDate;
 }

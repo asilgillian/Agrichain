@@ -4,7 +4,6 @@ import { db, plotsTable, farmersTable, groupsTable, regionsTable } from "@worksp
 import { CreatePlotBody, ListPlotsQueryParams } from "@workspace/api-zod";
 import { validatePlotGeometry, findOverlaps, polygonAreaHectares, type PlotGeometry, type PolygonGeometry } from "../lib/plot-validation";
 import { requirePermission } from "../middlewares/auth";
-import { toDbDate } from "../lib/dates";
 
 const router: IRouter = Router();
 
@@ -58,7 +57,7 @@ router.post("/plots", requirePermission("plots.gps_map"), async (req, res): Prom
       return;
     }
   }
-  const [plot] = await db.insert(plotsTable).values({ ...parsed.data, polygon: geometry as any, areaHectares: areaHectares.toString(), harvestDate: toDbDate(parsed.data.harvestDate) }).returning();
+  const [plot] = await db.insert(plotsTable).values({ ...parsed.data, polygon: geometry as any, areaHectares: areaHectares.toString() }).returning();
   res.status(201).json({ ...plot, areaHectares: parseFloat(plot.areaHectares ?? "0") });
 });
 

@@ -5,13 +5,14 @@
  * AgriChain Digital Agriculture Platform API
  * OpenAPI spec version: 0.1.0
  */
+import type { CalendarDate } from "./calendarDate";
 import type { TrainingSessionStatus } from "./trainingSessionStatus";
 
 export interface TrainingSession {
   id: string;
   title: string;
   type: string;
-  scheduledDate: Date;
+  scheduledDate: CalendarDate;
   location?: string;
   facilitatorId: string;
   facilitatorName?: string;
