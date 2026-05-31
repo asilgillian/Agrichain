@@ -17,5 +17,7 @@ Drizzle `date("col")` columns are mode-string (they want a `YYYY-MM-DD` **string
 
 **How to apply:** Convert at the insert/update boundary with `toDbDate(...)` from `artifacts/api-server/src/lib/dates.ts` (overloaded: required→`string`, optional/nullable→`string | null`). Any new route inserting into a `date` column must wrap that field, e.g. `enrolmentDate: toDbDate(parsed.data.enrolmentDate)`.
 
-## mockup-sandbox typecheck failure is unrelated / pre-existing
-`pnpm run typecheck` fails inside `artifacts/mockup-sandbox` (calendar.tsx / spinner.tsx) due to TWO `@types/react` versions resolving (19.1.17 vs catalog 19.2.14 → "Two different types with this name exist"). This is a design-artifact dependency-dedup issue, not an api-server problem; api-server + all libs typecheck clean independently.
+## mockup-sandbox @types/react dedup (RESOLVED)
+Historically `pnpm run typecheck` failed inside `artifacts/mockup-sandbox` (calendar.tsx / spinner.tsx) because TWO `@types/react` versions resolved into its tree ("Two different types with this name exist"). This is now fixed: the workspace catalog pins `@types/react: ^19.2.0` and mockup-sandbox consumes `catalog:`, so its whole tree resolves a single `19.2.14`. The `19.1.17` copy that still exists in the store is the EXPO/React-Native/Clerk mobile world (agri-mobile) only — it is isolated and does NOT leak into the web/preview artifacts.
+
+**How to apply:** Do not force a global single-version override for `@types/react`; the mobile (expo) and web worlds legitimately resolve different patch versions. Just keep web artifacts on `catalog:`. If the dup error reappears in a web artifact, check that it still uses `catalog:` for `@types/react`/`@types/react-dom` rather than a hardcoded version.
