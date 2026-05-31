@@ -192,6 +192,30 @@ describe("POST /payments — mobile_money branch", () => {
     expect(applyAutoDeductionsForFarmerPayment).not.toHaveBeenCalled();
   });
 
+  it("accepts a leading-zero local msisdn (07XXXXXXXX)", async () => {
+    momo.isProviderLive.mockReturnValue(false);
+    momo.isMomoEnabled.mockReturnValue(false);
+    const deliveryId = await makeApprovedDelivery({ farmerId });
+
+    const localMsisdn = "0772123456";
+    const { status, body } = await jsonRequest(`${server.baseUrl}/payments`, {
+      method: "POST",
+      body: {
+        deliveryId,
+        amountDue: 1,
+        paymentMethod: "mobile_money",
+        currency: "UGX",
+        provider: "mtn_momo",
+        msisdn: localMsisdn,
+      },
+    });
+    expect(status).toBe(201);
+    createdPaymentIds.push(body.id);
+    expect(body.status).toBe("pending_external");
+    expect(body.momoProvider).toBe("mtn_momo");
+    expect(body.msisdn).toBe(localMsisdn);
+  });
+
   it("rejects mobile_money without a valid provider/msisdn", async () => {
     momo.isProviderLive.mockReturnValue(false);
     const deliveryId = await makeApprovedDelivery({ farmerId });

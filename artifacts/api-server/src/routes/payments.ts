@@ -38,7 +38,7 @@ function statusFieldsFor(norm: "pending" | "success" | "failed", failureReason?:
 // after the leading 7. We don't pretend to validate carrier ranges.
 function isValidUgMsisdn(s: string): boolean {
   const digits = s.replace(/\D/g, "");
-  return /^(256)?7\d{8}$/.test(digits);
+  return /^(256|0)?7\d{8}$/.test(digits);
 }
 
 // A payment now belongs to either a farmer or a supplier. Resolve a human
