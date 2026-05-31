@@ -41,6 +41,17 @@ function isValidUgMsisdn(s: string): boolean {
   return /^(256|0)?7\d{8}$/.test(digits);
 }
 
+// Collapse any accepted input format to a single canonical international form
+// (e.g. 256772123456). `0772123456`, `+256772123456`, and bare `772123456` all
+// map to the same stored value so the same person never appears under multiple
+// phone strings. Assumes the input already passed isValidUgMsisdn.
+function normalizeUgMsisdn(s: string): string {
+  let digits = s.replace(/\D/g, "");
+  if (digits.startsWith("256")) digits = digits.slice(3);
+  else if (digits.startsWith("0")) digits = digits.slice(1);
+  return `256${digits}`;
+}
+
 // A payment now belongs to either a farmer or a supplier. Resolve a human
 // label for whichever one is set so the UI has a consistent "who got paid".
 async function resolvePayeeName(farmerId: string | null, supplierId: string | null): Promise<string> {
@@ -182,13 +193,16 @@ router.post("/payments", requirePermission("payments.write"), async (req: Authed
   const rawProvider = typeof req.body?.provider === "string" ? req.body.provider : "";
   const provider = rawProvider === "mtn_momo" || rawProvider === "airtel_money" ? rawProvider : null;
   const rawMsisdn = typeof req.body?.msisdn === "string" ? req.body.msisdn.trim() : "";
-  const msisdn = rawMsisdn ? rawMsisdn : null;
+  let msisdn = rawMsisdn ? rawMsisdn : null;
 
   if (method === "mobile_money") {
     if (!provider) { res.status(400).json({ error: "provider must be 'mtn_momo' or 'airtel_money'" }); return; }
     if (!msisdn || !isValidUgMsisdn(msisdn)) {
       res.status(400).json({ error: "msisdn must be a valid Ugandan number (+256 7XX XXX XXX)" }); return;
     }
+    // Persist (and hand to the gateway) a single canonical form regardless of
+    // how the agent typed it.
+    msisdn = normalizeUgMsisdn(msisdn);
   }
 
   // CASH path: deduct from the calling agent's float in a single tx. The

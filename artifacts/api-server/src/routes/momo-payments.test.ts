@@ -46,6 +46,8 @@ type TestServer = Awaited<ReturnType<typeof startTestServer>>;
 // Live dev Postgres → randomized fixtures + cleanup (children before parents).
 const tag = `__test_${Date.now()}_${Math.floor(Math.random() * 1e6)}`;
 const MSISDN = "+256772123456";
+// All accepted input formats normalize to this canonical international form.
+const CANONICAL_MSISDN = "256772123456";
 let server: TestServer;
 let farmerId: string;
 let supplierId: string;
@@ -159,10 +161,11 @@ describe("POST /payments — mobile_money branch", () => {
     createdPaymentIds.push(body.id);
     expect(body.status).toBe("pending_external");
     expect(body.momoProvider).toBe("mtn_momo");
-    expect(body.msisdn).toBe(MSISDN);
+    // Stored in canonical international form regardless of input format.
+    expect(body.msisdn).toBe(CANONICAL_MSISDN);
     expect(body.amountPaid).toBeNull();
     // No live gateway → stubbed reference, no disbursement attempt.
-    expect(body.paymentReference).toBe(`STUB:mtn_momo:${MSISDN}`);
+    expect(body.paymentReference).toBe(`STUB:mtn_momo:${CANONICAL_MSISDN}`);
     expect(momo.initiateDisbursement).not.toHaveBeenCalled();
   });
 
@@ -213,7 +216,40 @@ describe("POST /payments — mobile_money branch", () => {
     createdPaymentIds.push(body.id);
     expect(body.status).toBe("pending_external");
     expect(body.momoProvider).toBe("mtn_momo");
-    expect(body.msisdn).toBe(localMsisdn);
+    // Leading-zero local input is normalized to the canonical international form.
+    expect(body.msisdn).toBe(CANONICAL_MSISDN);
+  });
+
+  it("normalizes every accepted input format to the same canonical stored number", async () => {
+    momo.isProviderLive.mockReturnValue(false);
+    momo.isMomoEnabled.mockReturnValue(false);
+
+    // The same subscriber typed three different ways.
+    const inputs = ["0772123456", "+256772123456", "772123456"];
+    const storedNumbers: string[] = [];
+    for (const input of inputs) {
+      const deliveryId = await makeApprovedDelivery({ farmerId });
+      const { status, body } = await jsonRequest(`${server.baseUrl}/payments`, {
+        method: "POST",
+        body: {
+          deliveryId,
+          amountDue: 1,
+          paymentMethod: "mobile_money",
+          currency: "UGX",
+          provider: "mtn_momo",
+          msisdn: input,
+        },
+      });
+      expect(status).toBe(201);
+      createdPaymentIds.push(body.id);
+      storedNumbers.push(body.msisdn);
+    }
+
+    // Every input collapses to one canonical value.
+    for (const stored of storedNumbers) {
+      expect(stored).toBe(CANONICAL_MSISDN);
+    }
+    expect(new Set(storedNumbers).size).toBe(1);
   });
 
   it("rejects mobile_money without a valid provider/msisdn", async () => {
