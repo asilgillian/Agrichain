@@ -149,6 +149,10 @@ router.get("/farmers", async (req: AuthedRequest, res): Promise<void> => {
     .split(",")
     .map((s) => s.trim())
     .filter((s) => allowedStages.has(s)) as Array<"pre_registered" | "partially_registered" | "fully_registered">;
+  // entrepreneur filter: read directly off req.query ("true"/"false"); not in the
+  // codegen'd query schema. Anything else leaves the result unfiltered.
+  const entrepreneurRaw = typeof req.query.entrepreneur === "string" ? req.query.entrepreneur : "";
+  const entrepreneurFilter = entrepreneurRaw === "true" ? true : entrepreneurRaw === "false" ? false : undefined;
   const offset = (page - 1) * limit;
 
   const conditions: any[] = [];
@@ -169,6 +173,9 @@ router.get("/farmers", async (req: AuthedRequest, res): Promise<void> => {
     conditions.push(eq(farmersTable.registrationStage, stageList[0]));
   } else if (stageList.length > 1) {
     conditions.push(inArray(farmersTable.registrationStage, stageList));
+  }
+  if (entrepreneurFilter !== undefined) {
+    conditions.push(eq(farmersTable.isEntrepreneur, entrepreneurFilter));
   }
 
   // Per-user assignment scoping: if the requester has `groups.assigned_only`

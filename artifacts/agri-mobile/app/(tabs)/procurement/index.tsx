@@ -115,6 +115,15 @@ export default function ProcurementHomeScreen() {
         <Text style={[styles.supplierLinkText, { color: colors.primary }]}>Register a third-party supplier</Text>
       </Pressable>
 
+      <Pressable
+        onPress={() => router.push("/procurement/entrepreneurs")}
+        style={({ pressed }) => [styles.supplierLink, { opacity: pressed ? 0.6 : 1 }]}
+        testID="manage-entrepreneurs-cta"
+      >
+        <Feather name="award" size={14} color={colors.primary} />
+        <Text style={[styles.supplierLinkText, { color: colors.primary }]}>Manage farmer-entrepreneurs</Text>
+      </Pressable>
+
       {loading ? (
         <View style={{ paddingVertical: 40, alignItems: "center" }}><ActivityIndicator color={colors.primary} /></View>
       ) : (

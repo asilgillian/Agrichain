@@ -49,6 +49,9 @@ export default function SupplierRegisterScreen() {
         phoneNumber: phoneNumber.trim() || null,
         village: village.trim() || null,
         paymentMethod,
+        // Field-registered suppliers are immediately transactable so the agent can
+        // capture a delivery from them on the spot (capture only lists active sellers).
+        status: "active",
       };
       if (sellerType === "business") {
         body.businessName = businessName.trim();

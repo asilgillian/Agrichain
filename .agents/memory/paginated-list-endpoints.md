@@ -1,18 +1,16 @@
 ---
-name: Paginated list endpoints
-description: Which agri-web/api list endpoints return a pagination envelope vs a bare array, so clients consume the right shape.
+name: List endpoint response shapes are inconsistent
+description: This API mixes pagination-envelope and bare-array list responses; verify per endpoint before consuming.
 ---
 
-`GET /api/farmers` returns a pagination envelope `{ data, total, page, limit }`,
-not a bare `Farmer[]`. Any client (web TanStack Query, mobile) that does
-`(hits ?? []).slice(...)` directly on the response silently breaks the picker —
-the value is an object, not an array.
+This API is NOT consistent about list response shape: some endpoints return a
+pagination envelope `{ data, total, page, limit }`, others return a bare array.
 
-**Why:** A capture-delivery farmer picker was added treating the response as an
-array; results never rendered. By contrast `GET /api/suppliers` DOES return a
-bare array, which masked the inconsistency during review.
+**Why:** Wiring a list endpoint into a picker/table while assuming the wrong
+shape fails silently — `(resp ?? []).map(...)` on an envelope object renders
+nothing, with no type error when the call is hand-rolled (not via codegen).
 
-**How to apply:** In queryFn, await and return `.data` for farmers
-(`(await fetch<{ data: Farmer[] }>(...)).data`). Before wiring any list endpoint
-into a picker, check whether it wraps results in `{data,...}` or returns an array
-— the repo is inconsistent between the two.
+**How to apply:** Before consuming any list endpoint, check the OpenAPI spec /
+route handler for whether it wraps results in `{data,...}` or returns an array,
+and unwrap accordingly. When in doubt, prefer the codegen'd hook whose type
+encodes the shape rather than a hand-rolled fetch.

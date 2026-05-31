@@ -64,6 +64,7 @@ export default function FarmersList() {
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
   const [stageFilter, setStageFilter] = useState<"all" | "pre_registered" | "fully_registered">("all");
+  const [entrepreneurFilter, setEntrepreneurFilter] = useState<"all" | "true" | "false">("all");
   const [openFull, setOpenFull] = useState(false);
   const [openPre, setOpenPre] = useState(false);
   const [fullForm, setFullForm] = useState(emptyFullForm);
@@ -82,6 +83,7 @@ export default function FarmersList() {
     p.set("limit", String(limit));
     if (search) p.set("search", search);
     if (stageFilter !== "all") p.set("registrationStage", stageFilter);
+    if (entrepreneurFilter !== "all") p.set("entrepreneur", entrepreneurFilter);
     return p.toString();
   })();
   const { data, isLoading } = useQuery<FarmersResponse>({
@@ -280,6 +282,16 @@ export default function FarmersList() {
               <SelectItem value="all">All registration stages</SelectItem>
               <SelectItem value="pre_registered">Pre-registered only</SelectItem>
               <SelectItem value="fully_registered">Fully registered only</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select value={entrepreneurFilter} onValueChange={(v: any) => { setEntrepreneurFilter(v); setPage(1); }}>
+            <SelectTrigger className="w-full sm:w-[220px] bg-background" data-testid="entrepreneur-filter">
+              <SelectValue placeholder="All farmers" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All farmers</SelectItem>
+              <SelectItem value="true">Entrepreneurs only</SelectItem>
+              <SelectItem value="false">Non-entrepreneurs only</SelectItem>
             </SelectContent>
           </Select>
         </div>

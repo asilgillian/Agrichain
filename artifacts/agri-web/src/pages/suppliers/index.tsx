@@ -40,6 +40,7 @@ const emptyForm = {
   momoMsisdn: "",
   bankName: "",
   bankAccountNumber: "",
+  status: "active" as "pending" | "active" | "inactive",
   notes: "",
 };
 
@@ -118,6 +119,7 @@ export default function SuppliersList() {
       momoMsisdn: s.momoMsisdn ?? "",
       bankName: s.bankName ?? "",
       bankAccountNumber: s.bankAccountNumber ?? "",
+      status: (s.status ?? "active") as FormState["status"],
       notes: s.notes ?? "",
     });
     setOpen(true);
@@ -138,6 +140,7 @@ export default function SuppliersList() {
       village: form.village.trim() || null,
       address: form.address.trim() || null,
       paymentMethod: form.paymentMethod,
+      status: form.status,
       notes: form.notes.trim() || null,
     };
     if (form.sellerType === "business") {
@@ -268,6 +271,18 @@ export default function SuppliersList() {
                     <div><Label>Account number</Label><Input value={form.bankAccountNumber} onChange={e => setForm({ ...form, bankAccountNumber: e.target.value })} data-testid="supplier-bank-account" /></div>
                   </div>
                 )}
+
+                <div>
+                  <Label>Status</Label>
+                  <Select value={form.status} onValueChange={(v: FormState["status"]) => setForm({ ...form, status: v })}>
+                    <SelectTrigger data-testid="supplier-status"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="active">Active (can sell)</SelectItem>
+                      <SelectItem value="pending">Pending review</SelectItem>
+                      <SelectItem value="inactive">Inactive</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
 
                 <div><Label>Notes</Label><Input value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} data-testid="supplier-notes" /></div>
               </div>
