@@ -1,0 +1,1 @@
+- [api-server testing](api-server-testing.md) — vitest runs against the LIVE dev Postgres; DB tests must use randomized fixture names + afterAll cleanup; fileParallelism off.

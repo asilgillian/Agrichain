@@ -10,6 +10,12 @@ import {
   auditLogsTable,
 } from "@workspace/db";
 import { checkFarmerStageForTxn } from "../lib/transaction-access";
+import {
+  resolveEffectiveRates,
+  computeInputPrincipal,
+  computeTotalRepayable,
+  validateInputProductFields,
+} from "../lib/loan-pricing";
 import { requirePermission, type AuthedRequest } from "../middlewares/auth";
 import { eq, desc, and, sql, inArray, lt } from "drizzle-orm";
 import { z } from "zod/v4";
@@ -202,14 +208,17 @@ router.post("/loans", requirePermission("loans.write"), async (req, res): Promis
   let principal: number;
   let quantity: number | null = null;
   if (product.productType === "INPUT") {
-    if (product.unitPrice == null || Number(product.unitPrice) <= 0) {
-      res.status(409).json({ error: "Input product is missing a unit price. Edit the product in Loans → Catalog." }); return;
+    // Guard against malformed/legacy product rows (e.g. blank unit after a
+    // migration) before minting a loan against them.
+    const cfgErr = validateInputProductFields({ productType: "INPUT", unitPrice: product.unitPrice, unit: product.unit });
+    if (cfgErr) {
+      res.status(409).json({ error: `Input product is misconfigured (${cfgErr}). Edit the product in Loans → Catalog.` }); return;
     }
     if (d.quantity == null || d.quantity <= 0) {
       res.status(400).json({ error: "quantity is required for INPUT products" }); return;
     }
     quantity = d.quantity;
-    principal = Number((Number(product.unitPrice) * quantity).toFixed(2));
+    principal = computeInputPrincipal(product.unitPrice!, quantity);
   } else {
     if (d.principalAmount == null) {
       res.status(400).json({ error: "principalAmount is required for CASH products" }); return;
@@ -228,25 +237,20 @@ router.post("/loans", requirePermission("loans.write"), async (req, res): Promis
     if (denial) { res.status(denial.status).json(denial.body); return; }
   }
 
-  // Effective rates: product override (non-null) wins; otherwise inherit from category.
-  const effectiveInterestType = product.interestType ?? category.interestType;
-  const productInterest = product.interestRate != null ? Number(product.interestRate) : Number(category.interestRate);
-  const productPenalty = product.penaltyRate != null ? Number(product.penaltyRate) : Number(category.penaltyRate);
-  const productGrace = product.gracePeriodDays != null ? product.gracePeriodDays : category.gracePeriodDays;
-  // Apply finance-officer overrides on top, only if the product permits.
-  const interestRate = (product.allowFinanceOverride && d.interestRatePctOverride != null)
-    ? d.interestRatePctOverride : productInterest;
-  const penaltyRate = (product.allowFinanceOverride && d.penaltyRatePctOverride != null)
-    ? d.penaltyRatePctOverride : productPenalty;
-  const gracePeriod = (product.allowFinanceOverride && d.gracePeriodDaysOverride != null)
-    ? d.gracePeriodDaysOverride : productGrace;
+  // Effective rates: product override (non-null) wins over the category default,
+  // then a finance-officer override wins over that when the product permits it.
+  const { interestType: effectiveInterestType, interestRate, penaltyRate, gracePeriodDays: gracePeriod } =
+    resolveEffectiveRates(product, category, {
+      allowFinanceOverride: product.allowFinanceOverride,
+      interestRatePctOverride: d.interestRatePctOverride ?? null,
+      penaltyRatePctOverride: d.penaltyRatePctOverride ?? null,
+      gracePeriodDaysOverride: d.gracePeriodDaysOverride ?? null,
+    });
 
   const seq = await db.select({ count: sql<number>`count(*)::int` }).from(loansTable);
   const loanNumber = `LN${new Date().getFullYear()}${String((seq[0]?.count ?? 0) + 1).padStart(4, "0")}`;
   // Flat-interest default; reducing-balance schedules belong to Phase 3 amortization work.
-  const totalRepayable = effectiveInterestType === "none"
-    ? principal
-    : Number((principal * (1 + interestRate / 100)).toFixed(2));
+  const totalRepayable = computeTotalRepayable(principal, effectiveInterestType, interestRate);
 
   const [loan] = await db.insert(loansTable).values({
     loanNumber,

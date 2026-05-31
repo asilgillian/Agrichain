@@ -8,6 +8,8 @@ import {
 import { requirePermission } from "../middlewares/auth";
 import { asc, desc, eq, sql } from "drizzle-orm";
 import { z } from "zod/v4";
+import { validateInputProductFields } from "../lib/loan-pricing";
+import { patchLoanProductWithInvariant, LoanProductInvariantError } from "../lib/loan-product-patch";
 
 const router = Router();
 
@@ -171,14 +173,8 @@ router.post("/loan-products", requirePermission("loans.write"), async (req, res)
   const productType = d.productType ?? "CASH";
   // INPUT products must carry both price-per-unit AND a unit label — the
   // operator picks quantity at issuance, server computes principal.
-  if (productType === "INPUT") {
-    if (!d.unitPrice || d.unitPrice <= 0) {
-      res.status(400).json({ error: "INPUT products require a unitPrice greater than zero" }); return;
-    }
-    if (!d.unit || !d.unit.trim()) {
-      res.status(400).json({ error: "INPUT products require a unit label (e.g. \"50kg bag\", \"litre\")" }); return;
-    }
-  }
+  const fieldErr = validateInputProductFields({ productType, unitPrice: d.unitPrice ?? null, unit: d.unit ?? null });
+  if (fieldErr) { res.status(400).json({ error: fieldErr }); return; }
   try {
     const [row] = await db.insert(loanProductsTable).values({
       loanCategoryId: d.loanCategoryId,
@@ -236,39 +232,17 @@ router.patch("/loan-products/:id", requirePermission("loans.write"), async (req,
   if (d.seasonBased !== undefined) update.seasonBased = d.seasonBased;
   if (d.isActive !== undefined) update.isActive = d.isActive;
   // Lock-read + invariant-check + write in one tx so two concurrent patches
-  // can't end up with productType='INPUT' AND unitPrice/unit=null. Without
-  // FOR UPDATE, request A could read CASH/null, request B could flip type to
-  // INPUT and add price+unit, then request A's write lands and wipes them.
+  // can't end up with productType='INPUT' AND unitPrice/unit=null.
   try {
-    const row = await db.transaction(async (tx) => {
-      const locked = await tx.execute(sql`
-        SELECT product_type, unit_price, unit FROM loan_products WHERE id = ${id} FOR UPDATE
-      `);
-      const current = (locked.rows ?? locked)[0] as any;
-      if (!current) return null;
-      // Revalidate when type, price, or unit are in play.
-      if (d.productType !== undefined || d.unitPrice !== undefined || d.unit !== undefined) {
-        const effectiveType = d.productType ?? current.product_type;
-        const effectiveUnitPrice = d.unitPrice !== undefined
-          ? d.unitPrice
-          : (current.unit_price != null ? Number(current.unit_price) : null);
-        const effectiveUnit = d.unit !== undefined ? d.unit : current.unit;
-        if (effectiveType === "INPUT") {
-          if (effectiveUnitPrice == null || effectiveUnitPrice <= 0) {
-            throw Object.assign(new Error("INPUT products require a unitPrice greater than zero"), { status: 400 });
-          }
-          if (!effectiveUnit || !String(effectiveUnit).trim()) {
-            throw Object.assign(new Error("INPUT products require a unit label"), { status: 400 });
-          }
-        }
-      }
-      const [r] = await tx.update(loanProductsTable).set(update).where(eq(loanProductsTable.id, id)).returning();
-      return r ?? null;
+    const row = await patchLoanProductWithInvariant(id, update, {
+      productType: d.productType,
+      unitPrice: d.unitPrice,
+      unit: d.unit,
     });
     if (!row) { res.status(404).json({ error: "Loan product not found" }); return; }
     res.json(row);
   } catch (e: any) {
-    if (e?.status) { res.status(e.status).json({ error: e.message }); return; }
+    if (e instanceof LoanProductInvariantError) { res.status(e.status).json({ error: e.message }); return; }
     if (String(e?.message ?? "").includes("loan_products_category_name_uniq")) {
       res.status(409).json({ error: "A loan product with that name already exists in this category" }); return;
     }
