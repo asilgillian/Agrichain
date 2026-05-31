@@ -14,7 +14,12 @@ import type { DeliveryStatus } from "./deliveryStatus";
 export interface Delivery {
   id: string;
   lotTag: string;
-  batchId: string;
+  deliveryNumber?: string;
+  farmerId?: string | null;
+  supplierId?: string | null;
+  cropType?: string;
+  capturedWeightKg?: string;
+  batchId?: string | null;
   batchTag?: string;
   stationId?: string;
   truckPlate?: string;

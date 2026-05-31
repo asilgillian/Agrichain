@@ -56,6 +56,7 @@ type FarmerRow = {
   status: string;
   photoUrl: string | null;
   registrationStage: "pre_registered" | "fully_registered";
+  isEntrepreneur?: boolean;
 };
 type FarmersResponse = { data: FarmerRow[]; total: number; page: number; limit: number };
 
@@ -338,7 +339,12 @@ export default function FarmersList() {
                       )}
                     </TableCell>
                     <TableCell>
-                      <Badge variant={farmer.status === 'active' ? 'default' : farmer.status === 'pending' ? 'secondary' : 'destructive'}>{farmer.status}</Badge>
+                      <div className="flex items-center gap-1.5">
+                        <Badge variant={farmer.status === 'active' ? 'default' : farmer.status === 'pending' ? 'secondary' : 'destructive'}>{farmer.status}</Badge>
+                        {farmer.isEntrepreneur ? (
+                          <Badge variant="outline" className="border-emerald-500 text-emerald-700 dark:text-emerald-300" data-testid={`entrepreneur-badge-${farmer.id}`}>Entrepreneur</Badge>
+                        ) : null}
+                      </div>
                     </TableCell>
                     <TableCell className="text-right">
                       <Button variant="ghost" size="sm" asChild>

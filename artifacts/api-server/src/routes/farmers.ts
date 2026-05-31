@@ -692,6 +692,59 @@ router.patch("/farmers/:farmerId", async (req: AuthedRequest, res): Promise<void
   res.json(result);
 });
 
+// ---------- Entrepreneur flag ----------
+// Upgrade/downgrade an EXISTING farmer's entrepreneur status. Entrepreneurs
+// are eligible for entrepreneurs-only loan products (e.g. bulking loans).
+router.post("/farmers/:farmerId/entrepreneur", requirePermission("farmers.register"), async (req: AuthedRequest, res): Promise<void> => {
+  const { farmerId } = req.params;
+  const denied = await checkFarmerAccess(farmerId as string, req.authedUser);
+  if (denied) { res.status(denied.status).json({ error: denied.error }); return; }
+  const [existing] = await db.select().from(farmersTable).where(eq(farmersTable.id, farmerId as string));
+  if (!existing) { res.status(404).json({ error: "Farmer not found" }); return; }
+  if (existing.registrationStage === "pre_registered") {
+    res.status(409).json({ error: "Only registered farmers can be marked as entrepreneurs" });
+    return;
+  }
+  const [farmer] = await db.update(farmersTable)
+    .set({ isEntrepreneur: true, entrepreneurSince: existing.entrepreneurSince ?? new Date(), updatedAt: new Date() })
+    .where(eq(farmersTable.id, farmerId as string))
+    .returning();
+  await db.insert(auditLogsTable).values({
+    entityType: "farmer",
+    entityId: farmerId as string,
+    action: "farmer.entrepreneur.upgrade",
+    actorId: req.authedUser?.id ?? "system",
+    actorName: req.authedUser?.email ?? "system",
+    actorRole: req.authedUser?.role ?? "system",
+    before: { isEntrepreneur: existing.isEntrepreneur },
+    after: { isEntrepreneur: true },
+  });
+  res.json(await buildFarmerResponse(farmer));
+});
+
+router.delete("/farmers/:farmerId/entrepreneur", requirePermission("farmers.register"), async (req: AuthedRequest, res): Promise<void> => {
+  const { farmerId } = req.params;
+  const denied = await checkFarmerAccess(farmerId as string, req.authedUser);
+  if (denied) { res.status(denied.status).json({ error: denied.error }); return; }
+  const [existing] = await db.select().from(farmersTable).where(eq(farmersTable.id, farmerId as string));
+  if (!existing) { res.status(404).json({ error: "Farmer not found" }); return; }
+  const [farmer] = await db.update(farmersTable)
+    .set({ isEntrepreneur: false, entrepreneurSince: null, updatedAt: new Date() })
+    .where(eq(farmersTable.id, farmerId as string))
+    .returning();
+  await db.insert(auditLogsTable).values({
+    entityType: "farmer",
+    entityId: farmerId as string,
+    action: "farmer.entrepreneur.remove",
+    actorId: req.authedUser?.id ?? "system",
+    actorName: req.authedUser?.email ?? "system",
+    actorRole: req.authedUser?.role ?? "system",
+    before: { isEntrepreneur: existing.isEntrepreneur },
+    after: { isEntrepreneur: false },
+  });
+  res.json(await buildFarmerResponse(farmer));
+});
+
 router.get("/farmers/:farmerId/card", async (req: AuthedRequest, res): Promise<void> => {
   const { farmerId } = req.params;
   const denied = await checkFarmerAccess(farmerId as string, req.authedUser);

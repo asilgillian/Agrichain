@@ -296,6 +296,136 @@ paths:
               schema:
                 $ref: "#/components/schemas/Farmer"
 
+  /farmers/{farmerId}/entrepreneur:
+    post:
+      operationId: upgradeFarmerToEntrepreneur
+      tags: [farmers]
+      summary: Flag an existing farmer as an entrepreneur (bulking agent)
+      parameters:
+        - in: path
+          name: farmerId
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Updated farmer
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Farmer"
+    delete:
+      operationId: removeFarmerEntrepreneur
+      tags: [farmers]
+      summary: Remove the entrepreneur flag from a farmer
+      parameters:
+        - in: path
+          name: farmerId
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Updated farmer
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Farmer"
+
+  # ============================================================
+  # SUPPLIERS (third-party sellers)
+  # ============================================================
+  /suppliers:
+    get:
+      operationId: listSuppliers
+      tags: [suppliers]
+      summary: List third-party suppliers
+      parameters:
+        - in: query
+          name: search
+          schema:
+            type: string
+        - in: query
+          name: sellerType
+          schema:
+            type: string
+            enum: [business, individual]
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum: [pending, active, inactive]
+      responses:
+        "200":
+          description: Supplier list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Supplier"
+    post:
+      operationId: createSupplier
+      tags: [suppliers]
+      summary: Register a new third-party supplier
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SupplierInput"
+      responses:
+        "201":
+          description: Supplier created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Supplier"
+
+  /suppliers/{supplierId}:
+    get:
+      operationId: getSupplier
+      tags: [suppliers]
+      summary: Get supplier by ID
+      parameters:
+        - in: path
+          name: supplierId
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Supplier detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Supplier"
+        "404":
+          description: Not found
+    patch:
+      operationId: updateSupplier
+      tags: [suppliers]
+      summary: Update supplier details
+      parameters:
+        - in: path
+          name: supplierId
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SupplierUpdate"
+      responses:
+        "200":
+          description: Updated supplier
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Supplier"
+
   # ============================================================
   # GROUPS
   # ============================================================
@@ -2503,12 +2633,13 @@ components:
         allowPartialRepayment: { type: boolean }
         allowFinanceOverride: { type: boolean }
         seasonBased: { type: boolean }
+        entrepreneursOnly: { type: boolean }
         isActive: { type: boolean }
         createdAt: { type: string, format: date-time }
         updatedAt: { type: string, format: date-time }
       required:
         [id, loanCategoryId, name, productType, maxRestructures, repaymentMethod, recoveryPriority,
-         allowPartialRepayment, allowFinanceOverride, seasonBased, isActive,
+         allowPartialRepayment, allowFinanceOverride, seasonBased, entrepreneursOnly, isActive,
          createdAt, updatedAt]
 
     LoanProductInput:
@@ -2531,6 +2662,7 @@ components:
         allowPartialRepayment: { type: boolean }
         allowFinanceOverride: { type: boolean }
         seasonBased: { type: boolean }
+        entrepreneursOnly: { type: boolean }
         isActive: { type: boolean }
       required: [loanCategoryId, name]
 
@@ -2599,6 +2731,7 @@ components:
         allowPartialRepayment: { type: boolean }
         allowFinanceOverride: { type: boolean }
         seasonBased: { type: boolean }
+        entrepreneursOnly: { type: boolean }
         isActive: { type: boolean }
 
     LoanProductItemUpdate:
@@ -2705,6 +2838,85 @@ components:
     # ============================================================
     # FARMER
     # ============================================================
+    Supplier:
+      type: object
+      properties:
+        id: { type: string }
+        referenceNumber: { type: string }
+        sellerType: { type: string, enum: [business, individual] }
+        businessName: { type: string, nullable: true }
+        businessRegNo: { type: string, nullable: true }
+        firstName: { type: string, nullable: true }
+        lastName: { type: string, nullable: true }
+        nationalId: { type: string, nullable: true }
+        phoneNumber: { type: string, nullable: true }
+        email: { type: string, nullable: true }
+        regionId: { type: string, nullable: true }
+        village: { type: string, nullable: true }
+        address: { type: string, nullable: true }
+        paymentMethod: { type: string, nullable: true, enum: [cash, mobile_money, bank_transfer] }
+        momoProvider: { type: string, nullable: true, enum: [mtn_momo, airtel_money] }
+        momoMsisdn: { type: string, nullable: true }
+        bankName: { type: string, nullable: true }
+        bankAccountNumber: { type: string, nullable: true }
+        status: { type: string, enum: [pending, active, inactive] }
+        loanEligible: { type: boolean }
+        notes: { type: string, nullable: true }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+      required: [id, referenceNumber, sellerType, status, loanEligible, createdAt, updatedAt]
+
+    SupplierInput:
+      type: object
+      description: >
+        Provide business fields (businessName + businessRegNo) when
+        sellerType=business, or individual fields (firstName + nationalId) when
+        sellerType=individual.
+      properties:
+        sellerType: { type: string, enum: [business, individual] }
+        businessName: { type: string, nullable: true, maxLength: 200 }
+        businessRegNo: { type: string, nullable: true, maxLength: 100 }
+        firstName: { type: string, nullable: true, maxLength: 120 }
+        lastName: { type: string, nullable: true, maxLength: 120 }
+        nationalId: { type: string, nullable: true, maxLength: 60 }
+        phoneNumber: { type: string, nullable: true, maxLength: 30 }
+        email: { type: string, nullable: true, maxLength: 200 }
+        regionId: { type: string, format: uuid, nullable: true }
+        village: { type: string, nullable: true, maxLength: 160 }
+        address: { type: string, nullable: true, maxLength: 400 }
+        paymentMethod: { type: string, nullable: true, enum: [cash, mobile_money, bank_transfer] }
+        momoProvider: { type: string, nullable: true, enum: [mtn_momo, airtel_money] }
+        momoMsisdn: { type: string, nullable: true, maxLength: 20 }
+        bankName: { type: string, nullable: true, maxLength: 160 }
+        bankAccountNumber: { type: string, nullable: true, maxLength: 60 }
+        status: { type: string, nullable: true, enum: [pending, active, inactive] }
+        loanEligible: { type: boolean, nullable: true }
+        notes: { type: string, nullable: true, maxLength: 2000 }
+      required: [sellerType]
+
+    SupplierUpdate:
+      type: object
+      properties:
+        sellerType: { type: string, enum: [business, individual] }
+        businessName: { type: string, nullable: true, maxLength: 200 }
+        businessRegNo: { type: string, nullable: true, maxLength: 100 }
+        firstName: { type: string, nullable: true, maxLength: 120 }
+        lastName: { type: string, nullable: true, maxLength: 120 }
+        nationalId: { type: string, nullable: true, maxLength: 60 }
+        phoneNumber: { type: string, nullable: true, maxLength: 30 }
+        email: { type: string, nullable: true, maxLength: 200 }
+        regionId: { type: string, format: uuid, nullable: true }
+        village: { type: string, nullable: true, maxLength: 160 }
+        address: { type: string, nullable: true, maxLength: 400 }
+        paymentMethod: { type: string, nullable: true, enum: [cash, mobile_money, bank_transfer] }
+        momoProvider: { type: string, nullable: true, enum: [mtn_momo, airtel_money] }
+        momoMsisdn: { type: string, nullable: true, maxLength: 20 }
+        bankName: { type: string, nullable: true, maxLength: 160 }
+        bankAccountNumber: { type: string, nullable: true, maxLength: 60 }
+        status: { type: string, nullable: true, enum: [pending, active, inactive] }
+        loanEligible: { type: boolean, nullable: true }
+        notes: { type: string, nullable: true, maxLength: 2000 }
+
     Farmer:
       type: object
       properties:
@@ -2739,6 +2951,12 @@ components:
           enum: [active, inactive, pending]
         photoUrl:
           type: string
+        isEntrepreneur:
+          type: boolean
+        entrepreneurSince:
+          type: string
+          format: date-time
+          nullable: true
         createdAt:
           type: string
           format: date-time
@@ -3379,7 +3597,12 @@ components:
       properties:
         id: { type: string }
         lotTag: { type: string }
-        batchId: { type: string }
+        deliveryNumber: { type: string }
+        farmerId: { type: string, nullable: true }
+        supplierId: { type: string, nullable: true }
+        cropType: { type: string }
+        capturedWeightKg: { type: string }
+        batchId: { type: string, nullable: true }
         batchTag: { type: string }
         stationId: { type: string }
         truckPlate: { type: string }
@@ -3449,7 +3672,7 @@ components:
         rejectionAt: { type: string, format: date-time }
         preOffloadSampleTaken: { type: boolean }
         createdAt: { type: string, format: date-time }
-      required: [id, lotTag, batchId, status, createdAt]
+      required: [id, lotTag, status, createdAt]
 
     DeliveryDetail:
       allOf:
@@ -3467,13 +3690,21 @@ components:
 
     CreateDeliveryBody:
       type: object
+      description: >
+        Per-seller drop-off capture. Provide EXACTLY ONE of farmerId or
+        supplierId plus cropType and weightKg. Legacy batchTag/stationId fields
+        are retained for older callers but unused by the delivery-first flow.
       properties:
+        farmerId: { type: string, format: uuid, nullable: true }
+        supplierId: { type: string, format: uuid, nullable: true }
+        cropType: { type: string }
+        weightKg: { type: number, minimum: 0 }
         batchTag: { type: string }
         stationId: { type: string }
         truckPlate: { type: string }
         driverName: { type: string }
         preOffloadSampleTaken: { type: boolean }
-      required: [batchTag, stationId]
+      required: [cropType, weightKg]
 
     SubmitWeightBody:
       type: object
@@ -3804,6 +4035,10 @@ components:
           type: string
         farmerId:
           type: string
+          nullable: true
+        supplierId:
+          type: string
+          nullable: true
         amountDue:
           type: number
         paymentMethod:
@@ -3811,7 +4046,7 @@ components:
           enum: [mobile_money, bank_transfer, cash]
         currency:
           type: string
-      required: [deliveryId, farmerId, amountDue, paymentMethod, currency]
+      required: [deliveryId, amountDue, paymentMethod, currency]
 
     PaymentSummary:
       type: object

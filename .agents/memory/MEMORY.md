@@ -1,1 +1,2 @@
 - [api-server testing](api-server-testing.md) — vitest runs against the LIVE dev Postgres; DB tests must use randomized fixture names + afterAll cleanup; fileParallelism off.
+- [Paginated list endpoints](paginated-list-endpoints.md) — GET /api/farmers returns {data,total,page,limit}, NOT a bare array; consume response.data in clients.

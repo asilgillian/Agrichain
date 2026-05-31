@@ -30,6 +30,13 @@ export const farmersTable = pgTable("farmers", {
   registrationDate: date("registration_date"),
   approvedAt: timestamp("approved_at", { withTimezone: true }),
   approvedById: uuid("approved_by_id"),
+  // ----- Entrepreneur upgrade -----
+  // An existing farmer can be upgraded to a "farmer entrepreneur" (a coffee-
+  // bulking agent), which makes them eligible for entrepreneur-only bulking
+  // loans. This is a status on top of the existing farmer record — they keep
+  // their plots, group, and history. Default off for back-compat.
+  isEntrepreneur: boolean("is_entrepreneur").notNull().default(false),
+  entrepreneurSince: timestamp("entrepreneur_since", { withTimezone: true }),
   // ----- Farm activities + livelihood (captured at full registration; nullable for back-compat) -----
   // otherActivities is a Postgres text[] of free chips (Livestock, Fishing, Beekeeping, ...).
   // text[] is preferred over jsonb here because (a) values are short scalars, (b) it lets us

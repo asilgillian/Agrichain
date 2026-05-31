@@ -4,6 +4,7 @@ import {
   db,
   paymentsTable,
   farmersTable,
+  suppliersTable,
   agentCashFloatsTable,
   cashFloatTransactionsTable,
   deliveriesTable,
@@ -26,6 +27,23 @@ function isValidUgMsisdn(s: string): boolean {
   return /^(256)?7\d{8}$/.test(digits);
 }
 
+// A payment now belongs to either a farmer or a supplier. Resolve a human
+// label for whichever one is set so the UI has a consistent "who got paid".
+async function resolvePayeeName(farmerId: string | null, supplierId: string | null): Promise<string> {
+  if (farmerId) {
+    const [farmer] = await db.select().from(farmersTable).where(eq(farmersTable.id, farmerId));
+    return farmer ? `${farmer.firstName} ${farmer.lastName}` : "Unknown";
+  }
+  if (supplierId) {
+    const [supplier] = await db.select().from(suppliersTable).where(eq(suppliersTable.id, supplierId));
+    if (!supplier) return "Unknown";
+    return supplier.sellerType === "business"
+      ? (supplier.businessName ?? "Supplier")
+      : `${supplier.firstName ?? ""} ${supplier.lastName ?? ""}`.trim() || "Supplier";
+  }
+  return "Unknown";
+}
+
 router.get("/payments", requirePermission("payments.read"), async (req, res): Promise<void> => {
   const parsed = ListPaymentsQueryParams.safeParse(req.query);
   if (!parsed.success) {
@@ -33,8 +51,10 @@ router.get("/payments", requirePermission("payments.read"), async (req, res): Pr
     return;
   }
   const { farmerId, status } = parsed.data;
+  const supplierIdFilter = typeof req.query.supplierId === "string" ? req.query.supplierId : null;
   const conditions: any[] = [];
   if (farmerId) conditions.push(eq(paymentsTable.farmerId, farmerId));
+  if (supplierIdFilter) conditions.push(eq(paymentsTable.supplierId, supplierIdFilter));
   if (status) conditions.push(eq(paymentsTable.status, status));
 
   const payments = conditions.length > 0
@@ -42,10 +62,11 @@ router.get("/payments", requirePermission("payments.read"), async (req, res): Pr
     : await db.select().from(paymentsTable).orderBy(desc(paymentsTable.createdAt));
 
   const enriched = await Promise.all(payments.map(async (p) => {
-    const [farmer] = await db.select().from(farmersTable).where(eq(farmersTable.id, p.farmerId));
+    const payeeName = await resolvePayeeName(p.farmerId, p.supplierId);
     return {
       ...p,
-      farmerName: farmer ? `${farmer.firstName} ${farmer.lastName}` : "Unknown",
+      payeeName,
+      farmerName: payeeName,
       amountDue: parseFloat(p.amountDue ?? "0"),
       amountPaid: p.amountPaid ? parseFloat(p.amountPaid) : null,
       lotTag: null,
@@ -61,14 +82,11 @@ router.post("/payments", requirePermission("payments.write"), async (req: Authed
     return;
   }
   const data = parsed.data;
-  // Admin-controlled gate: farmer must meet the registration-stage rule for "payment".
-  const denial = await checkFarmerStageForTxn(data.farmerId, "payment");
-  if (denial) { res.status(denial.status).json(denial.body); return; }
 
   // === Server-side payment integrity ===
-  // The client may NOT dictate the amount, the farmer-delivery linkage, or pay
-  // the same delivery+farmer twice. Everything authoritative here comes from
-  // the delivery + its batch.
+  // The client may NOT dictate the amount, the seller-delivery linkage, or pay
+  // the same delivery+seller twice. Everything authoritative here comes from
+  // the delivery itself — including WHO is being paid (farmer vs supplier).
   if (!data.deliveryId) { res.status(400).json({ error: "deliveryId is required" }); return; }
   const [delivery] = await db.select().from(deliveriesTable).where(eq(deliveriesTable.id, data.deliveryId));
   if (!delivery) { res.status(404).json({ error: "Delivery not found" }); return; }
@@ -78,23 +96,42 @@ router.post("/payments", requirePermission("payments.write"), async (req: Authed
   if (delivery.totalValue == null) {
     res.status(409).json({ error: "Delivery has no totalValue — pricing not finalized" }); return;
   }
-  // Delivery-first model: every delivery has exactly one farmer. The caller
-  // MUST address the same farmer the delivery was captured for — the legacy
-  // multi-contributor split is gone.
-  const deliveryFarmerId = (delivery.farmerId ?? "").toLowerCase();
-  const requestedFarmerId = data.farmerId.toLowerCase();
-  if (!deliveryFarmerId || deliveryFarmerId !== requestedFarmerId) {
-    res.status(403).json({ error: "Farmer does not match the delivery's farmer" }); return;
+
+  // The delivery references exactly one seller (DB CHECK). Resolve it here and
+  // pay that party — never trust the client's idea of who to pay.
+  const deliveryFarmerId = delivery.farmerId ? delivery.farmerId.toLowerCase() : null;
+  const deliverySupplierId = delivery.supplierId ? delivery.supplierId.toLowerCase() : null;
+  const isSupplierPayment = deliverySupplierId !== null;
+
+  if (isSupplierPayment) {
+    // If the caller passed a supplierId it must match the delivery's supplier.
+    if (data.supplierId && data.supplierId.toLowerCase() !== deliverySupplierId) {
+      res.status(403).json({ error: "Supplier does not match the delivery's supplier" }); return;
+    }
+  } else {
+    // Farmer payment. Admin-controlled stage gate applies to farmers only.
+    if (!deliveryFarmerId) {
+      res.status(409).json({ error: "Delivery has no seller" }); return;
+    }
+    const denial = await checkFarmerStageForTxn(deliveryFarmerId, "payment");
+    if (denial) { res.status(denial.status).json(denial.body); return; }
+    // If the caller passed a farmerId it must match the delivery's farmer.
+    if (data.farmerId && data.farmerId.toLowerCase() !== deliveryFarmerId) {
+      res.status(403).json({ error: "Farmer does not match the delivery's farmer" }); return;
+    }
   }
-  // Idempotency: never create a second active payment for the same (delivery, farmer).
+
+  // Idempotency: never create a second active payment for the same (delivery, seller).
   // "Active" = anything except `failed`/`cancelled`.
   const existing = await db.select().from(paymentsTable).where(and(
     eq(paymentsTable.deliveryId, data.deliveryId),
-    eq(paymentsTable.farmerId, data.farmerId),
+    isSupplierPayment
+      ? eq(paymentsTable.supplierId, deliverySupplierId!)
+      : eq(paymentsTable.farmerId, deliveryFarmerId!),
     inArray(paymentsTable.status, ["paid", "pending", "pending_external"]),
   ));
   if (existing.length > 0) {
-    res.status(409).json({ error: "Payment already exists for this delivery and farmer", paymentId: existing[0].id });
+    res.status(409).json({ error: "Payment already exists for this delivery and seller", paymentId: existing[0].id });
     return;
   }
   // Authoritative amount: the full delivery total. One farmer per delivery
@@ -163,7 +200,8 @@ router.post("/payments", requirePermission("payments.write"), async (req: Authed
         // what the farmer was owed for the delivery, even if part of it was
         // auto-applied to outstanding loans rather than handed over in cash).
         const [payment] = await tx.insert(paymentsTable).values({
-          farmerId: data.farmerId,
+          farmerId: isSupplierPayment ? null : deliveryFarmerId,
+          supplierId: isSupplierPayment ? deliverySupplierId : null,
           deliveryId: data.deliveryId,
           amountDue: amt.toString(),
           amountPaid: amt.toString(),
@@ -175,15 +213,18 @@ router.post("/payments", requirePermission("payments.write"), async (req: Authed
 
         // Phase 2b: auto-apply this payout against the farmer's open auto_deduct loans
         // (in product.recoveryPriority order). The net actually handed over in cash =
-        // gross minus deductions.
-        const deductions = await applyAutoDeductionsForFarmerPayment(tx, {
-          farmerId: data.farmerId,
-          grossAmount: amt,
-          sourcePaymentId: payment.id,
-          sourceDeliveryId: data.deliveryId ?? null,
-          paymentDate: new Date().toISOString().slice(0, 10),
-          collectedById: agentId,
-        });
+        // gross minus deductions. Suppliers have no loan account, so we skip
+        // deductions entirely and hand over the full gross.
+        const deductions = isSupplierPayment
+          ? { netToFarmer: amt, totalDeducted: 0, lines: [] as { loanNumber: string; amount: number }[] }
+          : await applyAutoDeductionsForFarmerPayment(tx, {
+              farmerId: deliveryFarmerId!,
+              grossAmount: amt,
+              sourcePaymentId: payment.id,
+              sourceDeliveryId: data.deliveryId ?? null,
+              paymentDate: new Date().toISOString().slice(0, 10),
+              collectedById: agentId,
+            });
         const netCashHandedOver = deductions.netToFarmer;
 
         // ATOMIC conditional decrement against the NET handed over (not the gross).
@@ -236,11 +277,12 @@ router.post("/payments", requirePermission("payments.write"), async (req: Authed
         return { ...payment, _deductions: deductions };
       });
 
-      const [farmer] = await db.select().from(farmersTable).where(eq(farmersTable.id, result.farmerId));
       const { _deductions, ...paymentOnly } = result as any;
+      const payeeName = await resolvePayeeName(paymentOnly.farmerId, paymentOnly.supplierId);
       res.status(201).json({
         ...paymentOnly,
-        farmerName: farmer ? `${farmer.firstName} ${farmer.lastName}` : "Unknown",
+        payeeName,
+        farmerName: payeeName,
         amountDue: parseFloat(paymentOnly.amountDue),
         amountPaid: paymentOnly.amountPaid ? parseFloat(paymentOnly.amountPaid) : null,
         lotTag: null,
@@ -276,7 +318,8 @@ router.post("/payments", requirePermission("payments.write"), async (req: Authed
   let payment;
   try {
     [payment] = await db.insert(paymentsTable).values({
-      farmerId: data.farmerId,
+      farmerId: isSupplierPayment ? null : deliveryFarmerId,
+      supplierId: isSupplierPayment ? deliverySupplierId : null,
       deliveryId: data.deliveryId,
       amountDue: data.amountDue.toString(),
       currency: data.currency,
@@ -287,15 +330,15 @@ router.post("/payments", requirePermission("payments.write"), async (req: Authed
     }).returning();
   } catch (e: any) {
     if (e?.code === "23505") {
-      res.status(409).json({ error: "Payment already exists for this delivery and farmer" });
+      res.status(409).json({ error: "Payment already exists for this delivery and seller" });
       return;
     }
     throw e;
   }
-  const [farmer] = await db.select().from(farmersTable).where(eq(farmersTable.id, payment.farmerId));
   res.status(201).json({
     ...payment,
-    farmerName: farmer ? `${farmer.firstName} ${farmer.lastName}` : "Unknown",
+    payeeName: await resolvePayeeName(payment.farmerId, payment.supplierId),
+    farmerName: await resolvePayeeName(payment.farmerId, payment.supplierId),
     amountDue: parseFloat(payment.amountDue),
     amountPaid: null,
     lotTag: null,

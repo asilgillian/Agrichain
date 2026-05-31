@@ -6,9 +6,18 @@
  * OpenAPI spec version: 0.1.0
  */
 
+/**
+ * Per-seller drop-off capture. Provide EXACTLY ONE of farmerId or supplierId plus cropType and weightKg. Legacy batchTag/stationId fields are retained for older callers but unused by the delivery-first flow.
+
+ */
 export interface CreateDeliveryBody {
-  batchTag: string;
-  stationId: string;
+  farmerId?: string | null;
+  supplierId?: string | null;
+  cropType: string;
+  /** @minimum 0 */
+  weightKg: number;
+  batchTag?: string;
+  stationId?: string;
   truckPlate?: string;
   driverName?: string;
   preOffloadSampleTaken?: boolean;

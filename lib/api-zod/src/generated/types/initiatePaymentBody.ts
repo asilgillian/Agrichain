@@ -9,7 +9,8 @@ import type { InitiatePaymentBodyPaymentMethod } from "./initiatePaymentBodyPaym
 
 export interface InitiatePaymentBody {
   deliveryId: string;
-  farmerId: string;
+  farmerId?: string | null;
+  supplierId?: string | null;
   amountDue: number;
   paymentMethod: InitiatePaymentBodyPaymentMethod;
   currency: string;

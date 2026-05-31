@@ -58,6 +58,11 @@ type CapturedDelivery = {
 
 type Farmer = { id: string; firstName: string; lastName: string; nationalId?: string | null };
 type Commodity = { id: string; name: string; status?: string };
+type SupplierHit = { id: string; sellerType: "business" | "individual"; businessName?: string | null; firstName?: string | null; lastName?: string | null; referenceNumber: string };
+
+function supplierLabel(s: SupplierHit): string {
+  return s.sellerType === "business" ? (s.businessName ?? s.referenceNumber) : [s.firstName, s.lastName].filter(Boolean).join(" ") || s.referenceNumber;
+}
 
 export default function ProcurementHub() {
   const { data: deliveries, isLoading, refetch } = useListDeliveries({});
@@ -73,14 +78,24 @@ export default function ProcurementHub() {
 
   // ============ NEW: Capture delivery dialog =============================
   const [captureOpen, setCaptureOpen] = useState(false);
-  const [capForm, setCapForm] = useState<{ farmerId: string; cropType: string; weightKg: string }>({ farmerId: "", cropType: "", weightKg: "" });
+  const [capForm, setCapForm] = useState<{ cropType: string; weightKg: string }>({ cropType: "", weightKg: "" });
+  // A delivery references exactly one seller: a farmer OR a third-party supplier.
+  const [sellerMode, setSellerMode] = useState<"farmer" | "supplier">("farmer");
   const [farmerSearch, setFarmerSearch] = useState("");
   const [pickedFarmer, setPickedFarmer] = useState<Farmer | null>(null);
+  const [supplierSearch, setSupplierSearch] = useState("");
+  const [pickedSupplier, setPickedSupplier] = useState<SupplierHit | null>(null);
 
   const { data: farmerHits } = useQuery<Farmer[]>({
     queryKey: ["/api/farmers", farmerSearch],
-    enabled: farmerSearch.trim().length >= 2,
-    queryFn: () => customFetch<Farmer[]>(`/api/farmers?search=${encodeURIComponent(farmerSearch.trim())}&limit=10`),
+    enabled: sellerMode === "farmer" && farmerSearch.trim().length >= 2,
+    queryFn: async () => (await customFetch<{ data: Farmer[] }>(`/api/farmers?search=${encodeURIComponent(farmerSearch.trim())}&limit=10`)).data,
+  });
+
+  const { data: supplierHits } = useQuery<SupplierHit[]>({
+    queryKey: ["/api/suppliers", supplierSearch],
+    enabled: sellerMode === "supplier" && supplierSearch.trim().length >= 2,
+    queryFn: () => customFetch<SupplierHit[]>(`/api/suppliers?search=${encodeURIComponent(supplierSearch.trim())}&status=active`),
   });
 
   const { data: commodities } = useQuery<Commodity[]>({
@@ -88,8 +103,17 @@ export default function ProcurementHub() {
     queryFn: () => customFetch<Commodity[]>("/api/commodities?status=active"),
   });
 
+  function resetCapture() {
+    setCapForm({ cropType: "", weightKg: "" });
+    setPickedFarmer(null);
+    setFarmerSearch("");
+    setPickedSupplier(null);
+    setSupplierSearch("");
+    setSellerMode("farmer");
+  }
+
   const captureMut = useMutation({
-    mutationFn: (body: { farmerId: string; cropType: string; weightKg: number }) =>
+    mutationFn: (body: { farmerId?: string; supplierId?: string; cropType: string; weightKg: number }) =>
       customFetch<{ id: string; deliveryNumber: string }>("/api/procurement/deliveries", { method: "POST", body: JSON.stringify(body) }),
     onSuccess: (d) => {
       qc.invalidateQueries({ queryKey: ["/api/procurement/deliveries"] });
@@ -97,20 +121,23 @@ export default function ProcurementHub() {
       refetch();
       toast({ title: "Delivery captured", description: d.deliveryNumber });
       setCaptureOpen(false);
-      setCapForm({ farmerId: "", cropType: "", weightKg: "" });
-      setPickedFarmer(null);
-      setFarmerSearch("");
+      resetCapture();
     },
     onError: (e: any) => toast({ title: "Could not capture delivery", description: e.message, variant: "destructive" }),
   });
 
   function submitCapture() {
     const w = Number(capForm.weightKg);
-    if (!pickedFarmer || !capForm.cropType || !Number.isFinite(w) || w <= 0) {
-      toast({ title: "Farmer, crop, and weight (> 0) are required", variant: "destructive" });
+    const hasSeller = sellerMode === "farmer" ? !!pickedFarmer : !!pickedSupplier;
+    if (!hasSeller || !capForm.cropType || !Number.isFinite(w) || w <= 0) {
+      toast({ title: "Seller, crop, and weight (> 0) are required", variant: "destructive" });
       return;
     }
-    captureMut.mutate({ farmerId: pickedFarmer.id, cropType: capForm.cropType, weightKg: w });
+    captureMut.mutate({
+      ...(sellerMode === "farmer" ? { farmerId: pickedFarmer!.id } : { supplierId: pickedSupplier!.id }),
+      cropType: capForm.cropType,
+      weightKg: w,
+    });
   }
 
   // ============ NEW: Group into batch dialog =============================
@@ -215,46 +242,89 @@ export default function ProcurementHub() {
           </Dialog>
 
           {/* Capture delivery */}
-          <Dialog open={captureOpen} onOpenChange={(v) => { setCaptureOpen(v); if (!v) { setPickedFarmer(null); setFarmerSearch(""); setCapForm({ farmerId: "", cropType: "", weightKg: "" }); } }}>
+          <Dialog open={captureOpen} onOpenChange={(v) => { setCaptureOpen(v); if (!v) resetCapture(); }}>
             <DialogTrigger asChild>
               <Button className="gap-2" data-testid="new-delivery-btn"><Plus className="h-4 w-4" /> Capture delivery</Button>
             </DialogTrigger>
             <DialogContent>
               <DialogHeader>
                 <DialogTitle>Capture delivery</DialogTitle>
-                <DialogDescription>One farmer's drop-off. The delivery number is generated automatically and the row starts in "captured" status — group it into a batch to advance to weight/QC.</DialogDescription>
+                <DialogDescription>One seller's drop-off — a farmer or a third-party supplier. The delivery number is generated automatically and the row starts in "captured" status — group it into a batch to advance to weight/QC.</DialogDescription>
               </DialogHeader>
               <div className="space-y-3">
                 <div>
-                  <Label>Farmer *</Label>
-                  {pickedFarmer ? (
-                    <div className="flex items-center gap-2 p-2 rounded bg-accent">
-                      <span className="flex-1 text-sm">{pickedFarmer.firstName} {pickedFarmer.lastName}</span>
-                      <Button size="sm" variant="ghost" onClick={() => setPickedFarmer(null)}>Change</Button>
-                    </div>
-                  ) : (
-                    <>
-                      <Input
-                        value={farmerSearch}
-                        onChange={e => setFarmerSearch(e.target.value)}
-                        placeholder="Search by name or national ID"
-                        data-testid="capture-farmer-search"
-                      />
-                      {(farmerHits ?? []).slice(0, 6).map(f => (
-                        <button
-                          key={f.id}
-                          type="button"
-                          onClick={() => setPickedFarmer(f)}
-                          className="w-full text-left p-2 mt-1 border rounded hover:bg-accent text-sm"
-                          data-testid={`capture-farmer-hit-${f.id}`}
-                        >
-                          <span className="font-medium">{f.firstName} {f.lastName}</span>
-                          {f.nationalId ? <span className="text-xs text-muted-foreground ml-2">NID {f.nationalId}</span> : null}
-                        </button>
-                      ))}
-                    </>
-                  )}
+                  <Label>Seller type *</Label>
+                  <Select value={sellerMode} onValueChange={(v: "farmer" | "supplier") => { setSellerMode(v); setPickedFarmer(null); setPickedSupplier(null); }}>
+                    <SelectTrigger data-testid="capture-seller-mode"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="farmer">Farmer</SelectItem>
+                      <SelectItem value="supplier">Third-party supplier</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
+                {sellerMode === "farmer" ? (
+                  <div>
+                    <Label>Farmer *</Label>
+                    {pickedFarmer ? (
+                      <div className="flex items-center gap-2 p-2 rounded bg-accent">
+                        <span className="flex-1 text-sm">{pickedFarmer.firstName} {pickedFarmer.lastName}</span>
+                        <Button size="sm" variant="ghost" onClick={() => setPickedFarmer(null)}>Change</Button>
+                      </div>
+                    ) : (
+                      <>
+                        <Input
+                          value={farmerSearch}
+                          onChange={e => setFarmerSearch(e.target.value)}
+                          placeholder="Search by name or national ID"
+                          data-testid="capture-farmer-search"
+                        />
+                        {(farmerHits ?? []).slice(0, 6).map(f => (
+                          <button
+                            key={f.id}
+                            type="button"
+                            onClick={() => setPickedFarmer(f)}
+                            className="w-full text-left p-2 mt-1 border rounded hover:bg-accent text-sm"
+                            data-testid={`capture-farmer-hit-${f.id}`}
+                          >
+                            <span className="font-medium">{f.firstName} {f.lastName}</span>
+                            {f.nationalId ? <span className="text-xs text-muted-foreground ml-2">NID {f.nationalId}</span> : null}
+                          </button>
+                        ))}
+                      </>
+                    )}
+                  </div>
+                ) : (
+                  <div>
+                    <Label>Supplier *</Label>
+                    {pickedSupplier ? (
+                      <div className="flex items-center gap-2 p-2 rounded bg-accent">
+                        <span className="flex-1 text-sm">{supplierLabel(pickedSupplier)}</span>
+                        <Button size="sm" variant="ghost" onClick={() => setPickedSupplier(null)}>Change</Button>
+                      </div>
+                    ) : (
+                      <>
+                        <Input
+                          value={supplierSearch}
+                          onChange={e => setSupplierSearch(e.target.value)}
+                          placeholder="Search by name or reference"
+                          data-testid="capture-supplier-search"
+                        />
+                        {(supplierHits ?? []).slice(0, 6).map(s => (
+                          <button
+                            key={s.id}
+                            type="button"
+                            onClick={() => setPickedSupplier(s)}
+                            className="w-full text-left p-2 mt-1 border rounded hover:bg-accent text-sm"
+                            data-testid={`capture-supplier-hit-${s.id}`}
+                          >
+                            <span className="font-medium">{supplierLabel(s)}</span>
+                            <span className="text-xs text-muted-foreground ml-2">{s.referenceNumber}</span>
+                          </button>
+                        ))}
+                      </>
+                    )}
+                  </div>
+                )}
                 <div>
                   <Label>Crop *</Label>
                   <Select value={capForm.cropType} onValueChange={v => setCapForm({ ...capForm, cropType: v })}>

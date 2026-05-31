@@ -53,6 +53,10 @@ export const loanProductsTable = pgTable("loan_products", {
   allowPartialRepayment: boolean("allow_partial_repayment").notNull().default(true),
   allowFinanceOverride: boolean("allow_finance_override").notNull().default(true),
   seasonBased: boolean("season_based").notNull().default(false),
+  // When true, this product may only be issued to farmers flagged as
+  // entrepreneurs (farmers.isEntrepreneur). Default off — existing products
+  // remain available to all farmers.
+  entrepreneursOnly: boolean("entrepreneurs_only").notNull().default(false),
   isActive: boolean("is_active").notNull().default(true),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),

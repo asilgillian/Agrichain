@@ -5,7 +5,12 @@ import { z } from "zod/v4";
 
 export const paymentsTable = pgTable("payments", {
   id: uuid("id").primaryKey().defaultRandom(),
-  farmerId: uuid("farmer_id").notNull(),
+  // Polymorphic payee: a payment settles a delivery that belongs to either a
+  // farmer (farmerId) or a third-party supplier (supplierId). Exactly one is
+  // set, mirroring the delivery's seller. Both are nullable at the column level;
+  // the application layer derives which from the delivery being paid.
+  farmerId: uuid("farmer_id"),
+  supplierId: uuid("supplier_id"),
   deliveryId: uuid("delivery_id").notNull(),
   amountDue: numeric("amount_due", { precision: 14, scale: 2 }).notNull(),
   amountPaid: numeric("amount_paid", { precision: 14, scale: 2 }),
@@ -28,6 +33,11 @@ export const paymentsTable = pgTable("payments", {
   // but this index is the race-safe last word.
   activePerDeliveryFarmer: uniqueIndex("payments_active_delivery_farmer_uniq")
     .on(t.deliveryId, t.farmerId)
+    .where(sql`${t.status} in ('paid','pending','pending_external')`),
+  // Same guard for supplier payouts: at most one ACTIVE payment per
+  // (delivery, supplier).
+  activePerDeliverySupplier: uniqueIndex("payments_active_delivery_supplier_uniq")
+    .on(t.deliveryId, t.supplierId)
     .where(sql`${t.status} in ('paid','pending','pending_external')`),
 }));
 

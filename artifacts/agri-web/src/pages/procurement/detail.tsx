@@ -109,6 +109,9 @@ export default function DeliveryDetail() {
 
   const status = delivery.status;
   const isTerminal = ["approved", "rejected_commodity", "suspended"].includes(status);
+  // sellerName/sellerType are on the API response but not yet typed (codegen drift).
+  const sellerName = (delivery as any)?.sellerName as string | undefined;
+  const sellerType = (delivery as any)?.sellerType as "farmer" | "supplier" | undefined;
 
   function fail(e: any) {
     const msg = e?.response?.data?.error ?? e?.message ?? "Failed";
@@ -150,16 +153,17 @@ export default function DeliveryDetail() {
     } catch (e) { fail(e); }
   }
   async function handlePay() {
-    // farmerId is on the API response but not yet typed in DeliveryDetail (codegen drift).
+    // farmerId/supplierId are on the API response but not yet typed in DeliveryDetail (codegen drift).
     const farmerId = (delivery as any)?.farmerId as string | undefined;
-    if (!farmerId || !delivery?.totalValue) {
-      toast({ title: "Delivery missing farmer or total value", variant: "destructive" });
+    const supplierId = (delivery as any)?.supplierId as string | undefined;
+    if ((!farmerId && !supplierId) || !delivery?.totalValue) {
+      toast({ title: "Delivery missing seller or total value", variant: "destructive" });
       return;
     }
     setPaying(true);
     try {
       const body: Record<string, unknown> = {
-        farmerId,
+        ...(farmerId ? { farmerId } : { supplierId }),
         deliveryId: delivery.id,
         amountDue: Number(delivery.totalValue),
         currency: "UGX",
@@ -188,6 +192,12 @@ export default function DeliveryDetail() {
         <div className="flex-1">
           <h1 className="text-3xl font-bold tracking-tight font-mono" data-testid="delivery-lot-tag">{delivery.lotTag}</h1>
           <p className="text-muted-foreground mt-1">
+            {sellerName ? (
+              <>Seller: <span className="font-medium" data-testid="delivery-seller-name">{sellerName}</span>
+                <span className="text-xs ml-1">({sellerType === "supplier" ? "Third-party supplier" : "Farmer"})</span>
+                {" · "}
+              </>
+            ) : null}
             {delivery.workflow ? (
               <>Workflow: <span className="font-medium">{delivery.workflow.name}</span>
                 {delivery.currentStage ? <> · Now at <span className="font-medium" data-testid="current-stage-name">{delivery.currentStage.displayName}</span></> : null}
@@ -198,7 +208,7 @@ export default function DeliveryDetail() {
         <Badge variant={statusVariants[status] ?? "secondary"} data-testid="delivery-status">{statusLabels[status] ?? status}</Badge>
         {status === "approved" && delivery.totalValue != null && (
           <Button variant="default" size="sm" onClick={() => setPayOpen(true)} data-testid="pay-farmer-btn">
-            Pay Farmer · UGX {Number(delivery.totalValue).toLocaleString()}
+            Pay {sellerType === "supplier" ? "Supplier" : "Farmer"} · UGX {Number(delivery.totalValue).toLocaleString()}
           </Button>
         )}
         {(status === "partial_rejection" || status === "rejected_escalate") && (

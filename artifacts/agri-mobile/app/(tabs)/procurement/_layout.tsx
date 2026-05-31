@@ -14,6 +14,7 @@ export default function ProcurementLayout() {
     >
       <Stack.Screen name="index" options={{ title: "Procurement" }} />
       <Stack.Screen name="deliveries/new" options={{ title: "Capture delivery" }} />
+      <Stack.Screen name="suppliers/new" options={{ title: "New supplier" }} />
       <Stack.Screen name="batches/new" options={{ title: "New batch" }} />
       <Stack.Screen name="batch/[id]" options={{ title: "Batch" }} />
       <Stack.Screen name="delivery/[id]" options={{ title: "Delivery" }} />

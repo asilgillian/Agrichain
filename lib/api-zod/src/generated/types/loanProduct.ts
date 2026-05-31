@@ -28,6 +28,7 @@ export interface LoanProduct {
   allowPartialRepayment: boolean;
   allowFinanceOverride: boolean;
   seasonBased: boolean;
+  entrepreneursOnly: boolean;
   isActive: boolean;
   createdAt: Date;
   updatedAt: Date;

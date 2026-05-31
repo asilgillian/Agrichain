@@ -470,6 +470,7 @@ function ProductDialog({
         allowPartialRepayment: editing.allowPartialRepayment,
         allowFinanceOverride: editing.allowFinanceOverride,
         seasonBased: editing.seasonBased,
+        entrepreneursOnly: editing.entrepreneursOnly ?? false,
         isActive: editing.isActive,
       }
     : {
@@ -490,6 +491,7 @@ function ProductDialog({
         allowPartialRepayment: true,
         allowFinanceOverride: true,
         seasonBased: false,
+        entrepreneursOnly: false,
         isActive: true,
       };
 
@@ -650,6 +652,7 @@ function ProductDialog({
           <ToggleRow label="Allow partial repayment" value={form.allowPartialRepayment ?? true} onChange={(v) => set("allowPartialRepayment", v)} testId="switch-partial" />
           <ToggleRow label="Allow finance override" value={form.allowFinanceOverride ?? true} onChange={(v) => set("allowFinanceOverride", v)} testId="switch-override" />
           <ToggleRow label="Season-based" value={form.seasonBased ?? false} onChange={(v) => set("seasonBased", v)} testId="switch-season" />
+          <ToggleRow label="Entrepreneurs only" value={form.entrepreneursOnly ?? false} onChange={(v) => set("entrepreneursOnly", v)} testId="switch-entrepreneurs-only" />
           <ToggleRow label="Active" value={form.isActive ?? true} onChange={(v) => set("isActive", v)} testId="switch-product-active" />
         </div>
 

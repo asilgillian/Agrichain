@@ -17,6 +17,7 @@ import FarmerDuplicates from "@/pages/farmers/duplicates";
 import FarmerPreregisterPage from "@/pages/farmers/preregister";
 import GroupsList from "@/pages/groups/index";
 import GroupDetail from "@/pages/groups/detail";
+import SuppliersList from "@/pages/suppliers/index";
 import ProcurementHub from "@/pages/procurement/index";
 import DeliveryDetail from "@/pages/procurement/detail";
 import ProcurementContracts from "@/pages/procurement/contracts";
@@ -150,6 +151,7 @@ function ProtectedRoutes() {
             <Route path="/farmers" component={FarmersList} />
             <Route path="/groups/:id" component={GroupDetail} />
             <Route path="/groups" component={GroupsList} />
+            <Route path="/suppliers" component={SuppliersList} />
             <Route path="/procurement/contracts" component={ProcurementContracts} />
             <Route path="/procurement/workflows" component={ProcurementWorkflows} />
             <Route path="/procurement/workflows/:id" component={ProcurementWorkflowDetail} />

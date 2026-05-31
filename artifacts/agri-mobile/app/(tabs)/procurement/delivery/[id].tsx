@@ -19,6 +19,9 @@ type Delivery = {
   totalValue: number | null;
   pricePerKg: number | null;
   farmerId: string | null;
+  supplierId: string | null;
+  sellerName: string | null;
+  sellerType: "farmer" | "supplier" | null;
   weightApproved: boolean;
   qcApproved: boolean;
 };
@@ -75,9 +78,9 @@ export default function DeliveryDetailScreen() {
   const [msisdn, setMsisdn] = useState("");
   const payMut = useMutation({
     mutationFn: () => {
-      if (!d?.farmerId || d?.totalValue == null) throw new Error("Missing farmer or amount");
+      if ((!d?.farmerId && !d?.supplierId) || d?.totalValue == null) throw new Error("Missing seller or amount");
       const body: Record<string, unknown> = {
-        farmerId: d.farmerId,
+        ...(d.farmerId ? { farmerId: d.farmerId } : { supplierId: d.supplierId }),
         deliveryId: d.id,
         amountDue: Number(d.totalValue),
         currency: "UGX",
@@ -106,6 +109,9 @@ export default function DeliveryDetailScreen() {
 
       <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
         <Text style={[styles.cardTitle, { color: colors.foreground }]}>Summary</Text>
+        {d.sellerName ? (
+          <Stat label={d.sellerType === "supplier" ? "Supplier" : "Farmer"} value={d.sellerName} colors={colors} />
+        ) : null}
         <Stat label="Gross" value={d.grossWeightKg != null ? `${Number(d.grossWeightKg).toLocaleString()} kg` : "—"} colors={colors} />
         <Stat label="Tare" value={d.tareWeightKg != null ? `${Number(d.tareWeightKg).toLocaleString()} kg` : "—"} colors={colors} />
         <Stat label="Net" value={d.netWeightKg != null ? `${Number(d.netWeightKg).toLocaleString()} kg` : "—"} colors={colors} bold />
@@ -149,9 +155,9 @@ export default function DeliveryDetailScreen() {
         </View>
       )}
 
-      {d.status === "approved" && d.totalValue != null && d.farmerId && (
+      {d.status === "approved" && d.totalValue != null && (d.farmerId || d.supplierId) && (
         <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <Text style={[styles.cardTitle, { color: colors.foreground }]}>Pay farmer</Text>
+          <Text style={[styles.cardTitle, { color: colors.foreground }]}>Pay {d.sellerType === "supplier" ? "supplier" : "farmer"}</Text>
           <Text style={[styles.cardSub, { color: colors.mutedForeground }]}>Amount: UGX {Number(d.totalValue).toLocaleString()}</Text>
           <Row>
             <Chip label="Cash" active={payMethod === "cash"} disabled={!has("payments.disburse.cash")} onPress={() => setPayMethod("cash")} colors={colors} />

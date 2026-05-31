@@ -32,6 +32,7 @@ import regionsRouter from "./regions";
 import orgRegionsRouter from "./org-regions";
 import commoditiesRouter from "./commodities";
 import samplesRouter from "./samples";
+import suppliersRouter from "./suppliers";
 
 const router: IRouter = Router();
 
@@ -67,6 +68,7 @@ router.use(adminRouter);
 router.use(regionsRouter);
 router.use(orgRegionsRouter);
 router.use(commoditiesRouter);
+router.use(suppliersRouter);
 router.use(registrationTemplatesRouter);
 router.use(transactionAccessRouter);
 router.use(samplesRouter);

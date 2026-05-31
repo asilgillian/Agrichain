@@ -65,6 +65,7 @@ const operationsItems: NavItem[] = [
   { title: "Dashboard", icon: LayoutDashboard, href: "/" },
   { title: "Farmers", icon: Users, href: "/farmers", requiredAny: ["farmers.read", "farmers.preregister", "farmers.register"] },
   { title: "Groups", icon: UsersRound, href: "/groups", requiredAny: ["groups.read"] },
+  { title: "Suppliers", icon: Building2, href: "/suppliers", requiredAny: ["suppliers.read"] },
   { title: "Commodities", icon: Leaf, href: "/commodities", requiredAny: ["commodities.read"] },
   { title: "Processes", icon: Cog, href: "/processes", requiredAny: ["procurement.read"] },
   { title: "Samples", icon: TestTube, href: "/samples", requiredAny: ["procurement.qc.submit", "procurement.read"] },

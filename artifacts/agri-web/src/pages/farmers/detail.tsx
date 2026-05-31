@@ -26,6 +26,8 @@ type FarmerDetailResponse = {
   referenceNumber: string;
   status: string;
   registrationStage: "pre_registered" | "fully_registered";
+  isEntrepreneur?: boolean;
+  entrepreneurSince?: string | null;
   preRegisteredAt: string | null;
   fullyRegisteredAt: string | null;
   phoneNumber: string | null;
@@ -114,6 +116,18 @@ export default function FarmerDetail() {
     onError: (e: any) => toast({ title: "Plot creation failed", description: e.message, variant: "destructive" }),
   });
 
+  const entrepreneurMut = useMutation({
+    mutationFn: (upgrade: boolean) =>
+      fetch(`${API_BASE}/api/farmers/${id}/entrepreneur`, { method: upgrade ? "POST" : "DELETE", headers: { "Content-Type": "application/json" } })
+        .then(async r => { if (!r.ok) throw new Error((await r.json()).error ?? "Failed"); return r.json(); }),
+    onSuccess: (_d, upgrade) => {
+      qc.invalidateQueries({ queryKey: ["/api/farmers"] });
+      qc.invalidateQueries({ queryKey: ["/api/farmers", id] });
+      toast({ title: upgrade ? "Marked as entrepreneur" : "Entrepreneur status removed" });
+    },
+    onError: (e: any) => toast({ title: "Failed", description: e.message, variant: "destructive" }),
+  });
+
   const submitComplete = () => {
     if (!completeForm.nationalId.trim()) {
       toast({ title: "National ID required", description: "A national ID is required for full registration.", variant: "destructive" });
@@ -197,10 +211,24 @@ export default function FarmerDetail() {
               ) : (
                 <Badge variant="secondary" data-testid="detail-stage-badge">Fully registered</Badge>
               )}
+              {farmer.isEntrepreneur ? (
+                <Badge variant="outline" className="border-emerald-500 text-emerald-700 dark:text-emerald-300" data-testid="detail-entrepreneur-badge">Entrepreneur</Badge>
+              ) : null}
             </div>
           </div>
         </div>
         <div className="flex gap-2">
+          {canComplete && !isPreRegistered ? (
+            farmer.isEntrepreneur ? (
+              <Button variant="outline" onClick={() => entrepreneurMut.mutate(false)} disabled={entrepreneurMut.isPending} data-testid="remove-entrepreneur-btn">
+                Remove entrepreneur
+              </Button>
+            ) : (
+              <Button variant="outline" onClick={() => entrepreneurMut.mutate(true)} disabled={entrepreneurMut.isPending} data-testid="mark-entrepreneur-btn">
+                Mark as entrepreneur
+              </Button>
+            )
+          ) : null}
           <Button variant="outline">Edit Profile</Button>
           <Button>Log Visit</Button>
         </div>

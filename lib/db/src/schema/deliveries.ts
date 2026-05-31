@@ -1,4 +1,5 @@
-import { pgTable, text, uuid, timestamp, numeric, boolean, jsonb, integer } from "drizzle-orm/pg-core";
+import { pgTable, text, uuid, timestamp, numeric, boolean, jsonb, integer, check } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -8,11 +9,14 @@ export const deliveriesTable = pgTable("deliveries", {
   // Human-readable system-generated delivery number issued at capture time
   // (e.g. DLV-20260513-0007). Used by the field UI and printed receipts.
   deliveryNumber: text("delivery_number").notNull().unique(),
-  // Per-farmer drop-off model: every delivery now belongs to exactly one
-  // farmer and carries an explicit cropType chosen from the master commodity
-  // catalog. `batchId` is nullable — a delivery starts life "captured" and is
-  // attached to a batch later (only with other same-crop deliveries).
-  farmerId: uuid("farmer_id").notNull(),
+  // Polymorphic seller model: every delivery belongs to exactly one seller —
+  // either a farmer (farmerId) OR a third-party supplier (supplierId), enforced
+  // by the `delivery_seller_exactly_one` CHECK below. It carries an explicit
+  // cropType chosen from the master commodity catalog. `batchId` is nullable —
+  // a delivery starts life "captured" and is attached to a batch later (only
+  // with other same-crop deliveries).
+  farmerId: uuid("farmer_id"),
+  supplierId: uuid("supplier_id"),
   cropType: text("crop_type").notNull(),
   // Captured weight at intake (kg). Stays distinct from grossWeightKg /
   // netWeightKg, which are recorded later by the station scale.
@@ -87,7 +91,14 @@ export const deliveriesTable = pgTable("deliveries", {
 
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
-});
+}, (t) => [
+  // A delivery must reference EXACTLY ONE seller: a farmer or a third-party
+  // supplier, never both, never neither. Enforced at the database level.
+  check(
+    "delivery_seller_exactly_one",
+    sql`((${t.farmerId} IS NOT NULL)::int + (${t.supplierId} IS NOT NULL)::int) = 1`,
+  ),
+]);
 
 export const insertDeliverySchema = createInsertSchema(deliveriesTable).omit({ id: true, lotTag: true, createdAt: true, updatedAt: true });
 export type InsertDelivery = z.infer<typeof insertDeliverySchema>;

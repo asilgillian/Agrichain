@@ -8,6 +8,8 @@ import {
   procurementContractsTable,
   procurementWorkflowsTable,
   usersTable,
+  suppliersTable,
+  farmersTable,
 } from "@workspace/db";
 import { resolveWorkflowForDelivery, getWorkflowStages, DEFAULT_STAGE_PERMISSION } from "./procurement-workflows";
 import { checkFarmerStageForTxn } from "../lib/transaction-access";
@@ -212,9 +214,11 @@ router.get("/procurement/deliveries", requirePermission("procurement.read"), asy
   // ListDeliveriesQueryParams yet, so we read them straight off req.query.
   const cropType = typeof req.query.cropType === "string" ? req.query.cropType : null;
   const farmerId = typeof req.query.farmerId === "string" && UUID_RE.test(req.query.farmerId) ? req.query.farmerId : null;
+  const supplierId = typeof req.query.supplierId === "string" && UUID_RE.test(req.query.supplierId) ? req.query.supplierId : null;
   const agentId = typeof req.query.agentId === "string" && UUID_RE.test(req.query.agentId) ? req.query.agentId : null;
   if (cropType) conditions.push(eq(deliveriesTable.cropType, cropType));
   if (farmerId) conditions.push(eq(deliveriesTable.farmerId, farmerId));
+  if (supplierId) conditions.push(eq(deliveriesTable.supplierId, supplierId));
   if (agentId) conditions.push(eq(deliveriesTable.capturedById, agentId));
   if (req.query.unbatched === "true") {
     conditions.push(eq(deliveriesTable.status, "captured"));
@@ -241,17 +245,38 @@ router.post("/procurement/deliveries", requirePermission("procurement.write"), a
   const userId = req.authedUser?.id;
   if (!userId) { res.status(401).json({ error: "Unauthorized" }); return; }
   const rawFarmerId = typeof req.body?.farmerId === "string" ? req.body.farmerId : "";
+  const rawSupplierId = typeof req.body?.supplierId === "string" ? req.body.supplierId : "";
   const cropType = typeof req.body?.cropType === "string" ? req.body.cropType.trim() : "";
   const weightKg = Number(req.body?.weightKg);
-  if (!UUID_RE.test(rawFarmerId)) { res.status(400).json({ error: "farmerId must be a UUID" }); return; }
+  const hasFarmer = rawFarmerId !== "";
+  const hasSupplier = rawSupplierId !== "";
+  // Exactly one seller — mirrors the DB CHECK delivery_seller_exactly_one.
+  if (hasFarmer === hasSupplier) {
+    res.status(400).json({ error: "Provide exactly one of farmerId or supplierId" });
+    return;
+  }
+  if (hasFarmer && !UUID_RE.test(rawFarmerId)) { res.status(400).json({ error: "farmerId must be a UUID" }); return; }
+  if (hasSupplier && !UUID_RE.test(rawSupplierId)) { res.status(400).json({ error: "supplierId must be a UUID" }); return; }
   if (!cropType) { res.status(400).json({ error: "cropType is required" }); return; }
   if (!Number.isFinite(weightKg) || weightKg <= 0) { res.status(400).json({ error: "weightKg must be a positive number" }); return; }
-  const farmerId = rawFarmerId.toLowerCase();
 
-  // Admin-controlled gate: farmer must meet the registration-stage rule for
-  // "delivery" before we'll record one for them.
-  const denial = await checkFarmerStageForTxn(farmerId, "delivery");
-  if (denial) { res.status(denial.status).json(denial.body); return; }
+  const farmerId = hasFarmer ? rawFarmerId.toLowerCase() : null;
+  const supplierId = hasSupplier ? rawSupplierId.toLowerCase() : null;
+
+  if (farmerId) {
+    // Admin-controlled gate: farmer must meet the registration-stage rule for
+    // "delivery" before we'll record one for them.
+    const denial = await checkFarmerStageForTxn(farmerId, "delivery");
+    if (denial) { res.status(denial.status).json(denial.body); return; }
+  } else if (supplierId) {
+    // Suppliers must exist and be active before they can sell.
+    const [supplier] = await db.select().from(suppliersTable).where(eq(suppliersTable.id, supplierId));
+    if (!supplier) { res.status(404).json({ error: "Supplier not found" }); return; }
+    if (supplier.status !== "active") {
+      res.status(403).json({ error: "Supplier is not active", code: "SUPPLIER_NOT_ACTIVE" });
+      return;
+    }
+  }
 
   const lotTag = generateLotTag();
   const deliveryNumber = generateDeliveryNumber();
@@ -260,6 +285,7 @@ router.post("/procurement/deliveries", requirePermission("procurement.write"), a
       lotTag,
       deliveryNumber,
       farmerId,
+      supplierId,
       cropType,
       capturedWeightKg: String(weightKg),
       capturedById: userId,
@@ -275,7 +301,7 @@ router.post("/procurement/deliveries", requirePermission("procurement.write"), a
       actorId: userId,
       actorName: req.authedUser?.email ?? "system",
       actorRole: req.authedUser?.role ?? "system",
-      after: { lotTag, deliveryNumber, farmerId, cropType, weightKg },
+      after: { lotTag, deliveryNumber, farmerId, supplierId, cropType, weightKg },
     });
     return delivery;
   });
@@ -314,8 +340,23 @@ router.get("/procurement/deliveries/:deliveryId", requirePermission("procurement
       currentStage = activeStageAtOrAfter(stages, delivery.currentStageOrder ?? 0);
     }
   }
+  // Resolve the seller (a delivery references exactly one farmer OR supplier).
+  let sellerType: "farmer" | "supplier" | null = null;
+  let sellerName: string | null = null;
+  if (delivery.farmerId) {
+    const [f] = await db.select().from(farmersTable).where(eq(farmersTable.id, delivery.farmerId));
+    if (f) { sellerType = "farmer"; sellerName = [f.firstName, f.lastName].filter(Boolean).join(" ") || null; }
+  } else if (delivery.supplierId) {
+    const [s] = await db.select().from(suppliersTable).where(eq(suppliersTable.id, delivery.supplierId));
+    if (s) {
+      sellerType = "supplier";
+      sellerName = s.sellerType === "business" ? (s.businessName ?? null) : ([s.firstName, s.lastName].filter(Boolean).join(" ") || null);
+    }
+  }
   res.json({
     ...shapeDelivery(delivery, names),
+    sellerType,
+    sellerName,
     batch: batch ? { ...batch, totalWeightKg: parseFloat(batch.totalWeightKg ?? "0") } : null,
     contract: contract ? { ...contract, floorPricePerKg: num(contract.floorPricePerKg) } : null,
     workflow,

@@ -99,6 +99,7 @@ export interface LoanProduct {
   allowPartialRepayment: boolean;
   allowFinanceOverride: boolean;
   seasonBased: boolean;
+  entrepreneursOnly: boolean;
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
@@ -161,6 +162,7 @@ export interface LoanProductInput {
   allowPartialRepayment?: boolean;
   allowFinanceOverride?: boolean;
   seasonBased?: boolean;
+  entrepreneursOnly?: boolean;
   isActive?: boolean;
 }
 
@@ -276,6 +278,7 @@ export interface LoanProductUpdate {
   allowPartialRepayment?: boolean;
   allowFinanceOverride?: boolean;
   seasonBased?: boolean;
+  entrepreneursOnly?: boolean;
   isActive?: boolean;
 }
 
@@ -351,6 +354,216 @@ export interface ProcurementStats {
   totalValueThisMonth: number;
 }
 
+export type SupplierSellerType =
+  (typeof SupplierSellerType)[keyof typeof SupplierSellerType];
+
+export const SupplierSellerType = {
+  business: "business",
+  individual: "individual",
+} as const;
+
+export type SupplierPaymentMethod =
+  | (typeof SupplierPaymentMethod)[keyof typeof SupplierPaymentMethod]
+  | null;
+
+export const SupplierPaymentMethod = {
+  cash: "cash",
+  mobile_money: "mobile_money",
+  bank_transfer: "bank_transfer",
+} as const;
+
+export type SupplierMomoProvider =
+  | (typeof SupplierMomoProvider)[keyof typeof SupplierMomoProvider]
+  | null;
+
+export const SupplierMomoProvider = {
+  mtn_momo: "mtn_momo",
+  airtel_money: "airtel_money",
+} as const;
+
+export type SupplierStatus =
+  (typeof SupplierStatus)[keyof typeof SupplierStatus];
+
+export const SupplierStatus = {
+  pending: "pending",
+  active: "active",
+  inactive: "inactive",
+} as const;
+
+export interface Supplier {
+  id: string;
+  referenceNumber: string;
+  sellerType: SupplierSellerType;
+  businessName?: string | null;
+  businessRegNo?: string | null;
+  firstName?: string | null;
+  lastName?: string | null;
+  nationalId?: string | null;
+  phoneNumber?: string | null;
+  email?: string | null;
+  regionId?: string | null;
+  village?: string | null;
+  address?: string | null;
+  paymentMethod?: SupplierPaymentMethod;
+  momoProvider?: SupplierMomoProvider;
+  momoMsisdn?: string | null;
+  bankName?: string | null;
+  bankAccountNumber?: string | null;
+  status: SupplierStatus;
+  loanEligible: boolean;
+  notes?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type SupplierInputSellerType =
+  (typeof SupplierInputSellerType)[keyof typeof SupplierInputSellerType];
+
+export const SupplierInputSellerType = {
+  business: "business",
+  individual: "individual",
+} as const;
+
+export type SupplierInputPaymentMethod =
+  | (typeof SupplierInputPaymentMethod)[keyof typeof SupplierInputPaymentMethod]
+  | null;
+
+export const SupplierInputPaymentMethod = {
+  cash: "cash",
+  mobile_money: "mobile_money",
+  bank_transfer: "bank_transfer",
+} as const;
+
+export type SupplierInputMomoProvider =
+  | (typeof SupplierInputMomoProvider)[keyof typeof SupplierInputMomoProvider]
+  | null;
+
+export const SupplierInputMomoProvider = {
+  mtn_momo: "mtn_momo",
+  airtel_money: "airtel_money",
+} as const;
+
+export type SupplierInputStatus =
+  | (typeof SupplierInputStatus)[keyof typeof SupplierInputStatus]
+  | null;
+
+export const SupplierInputStatus = {
+  pending: "pending",
+  active: "active",
+  inactive: "inactive",
+} as const;
+
+/**
+ * Provide business fields (businessName + businessRegNo) when sellerType=business, or individual fields (firstName + nationalId) when sellerType=individual.
+
+ */
+export interface SupplierInput {
+  sellerType: SupplierInputSellerType;
+  /** @maxLength 200 */
+  businessName?: string | null;
+  /** @maxLength 100 */
+  businessRegNo?: string | null;
+  /** @maxLength 120 */
+  firstName?: string | null;
+  /** @maxLength 120 */
+  lastName?: string | null;
+  /** @maxLength 60 */
+  nationalId?: string | null;
+  /** @maxLength 30 */
+  phoneNumber?: string | null;
+  /** @maxLength 200 */
+  email?: string | null;
+  regionId?: string | null;
+  /** @maxLength 160 */
+  village?: string | null;
+  /** @maxLength 400 */
+  address?: string | null;
+  paymentMethod?: SupplierInputPaymentMethod;
+  momoProvider?: SupplierInputMomoProvider;
+  /** @maxLength 20 */
+  momoMsisdn?: string | null;
+  /** @maxLength 160 */
+  bankName?: string | null;
+  /** @maxLength 60 */
+  bankAccountNumber?: string | null;
+  status?: SupplierInputStatus;
+  loanEligible?: boolean | null;
+  /** @maxLength 2000 */
+  notes?: string | null;
+}
+
+export type SupplierUpdateSellerType =
+  (typeof SupplierUpdateSellerType)[keyof typeof SupplierUpdateSellerType];
+
+export const SupplierUpdateSellerType = {
+  business: "business",
+  individual: "individual",
+} as const;
+
+export type SupplierUpdatePaymentMethod =
+  | (typeof SupplierUpdatePaymentMethod)[keyof typeof SupplierUpdatePaymentMethod]
+  | null;
+
+export const SupplierUpdatePaymentMethod = {
+  cash: "cash",
+  mobile_money: "mobile_money",
+  bank_transfer: "bank_transfer",
+} as const;
+
+export type SupplierUpdateMomoProvider =
+  | (typeof SupplierUpdateMomoProvider)[keyof typeof SupplierUpdateMomoProvider]
+  | null;
+
+export const SupplierUpdateMomoProvider = {
+  mtn_momo: "mtn_momo",
+  airtel_money: "airtel_money",
+} as const;
+
+export type SupplierUpdateStatus =
+  | (typeof SupplierUpdateStatus)[keyof typeof SupplierUpdateStatus]
+  | null;
+
+export const SupplierUpdateStatus = {
+  pending: "pending",
+  active: "active",
+  inactive: "inactive",
+} as const;
+
+export interface SupplierUpdate {
+  sellerType?: SupplierUpdateSellerType;
+  /** @maxLength 200 */
+  businessName?: string | null;
+  /** @maxLength 100 */
+  businessRegNo?: string | null;
+  /** @maxLength 120 */
+  firstName?: string | null;
+  /** @maxLength 120 */
+  lastName?: string | null;
+  /** @maxLength 60 */
+  nationalId?: string | null;
+  /** @maxLength 30 */
+  phoneNumber?: string | null;
+  /** @maxLength 200 */
+  email?: string | null;
+  regionId?: string | null;
+  /** @maxLength 160 */
+  village?: string | null;
+  /** @maxLength 400 */
+  address?: string | null;
+  paymentMethod?: SupplierUpdatePaymentMethod;
+  momoProvider?: SupplierUpdateMomoProvider;
+  /** @maxLength 20 */
+  momoMsisdn?: string | null;
+  /** @maxLength 160 */
+  bankName?: string | null;
+  /** @maxLength 60 */
+  bankAccountNumber?: string | null;
+  status?: SupplierUpdateStatus;
+  loanEligible?: boolean | null;
+  /** @maxLength 2000 */
+  notes?: string | null;
+}
+
 export type FarmerSex = (typeof FarmerSex)[keyof typeof FarmerSex];
 
 export const FarmerSex = {
@@ -382,6 +595,8 @@ export interface Farmer {
   village?: string;
   status: FarmerStatus;
   photoUrl?: string;
+  isEntrepreneur?: boolean;
+  entrepreneurSince?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -890,7 +1105,12 @@ export const DeliveryRejectionStage = {
 export interface Delivery {
   id: string;
   lotTag: string;
-  batchId: string;
+  deliveryNumber?: string;
+  farmerId?: string | null;
+  supplierId?: string | null;
+  cropType?: string;
+  capturedWeightKg?: string;
+  batchId?: string | null;
   batchTag?: string;
   stationId?: string;
   truckPlate?: string;
@@ -998,9 +1218,18 @@ export type DeliveryDetail = Delivery & {
   auditTrail?: AuditLogEntry[];
 };
 
+/**
+ * Per-seller drop-off capture. Provide EXACTLY ONE of farmerId or supplierId plus cropType and weightKg. Legacy batchTag/stationId fields are retained for older callers but unused by the delivery-first flow.
+
+ */
 export interface CreateDeliveryBody {
-  batchTag: string;
-  stationId: string;
+  farmerId?: string | null;
+  supplierId?: string | null;
+  cropType: string;
+  /** @minimum 0 */
+  weightKg: number;
+  batchTag?: string;
+  stationId?: string;
   truckPlate?: string;
   driverName?: string;
   preOffloadSampleTaken?: boolean;
@@ -1298,7 +1527,8 @@ export const InitiatePaymentBodyPaymentMethod = {
 
 export interface InitiatePaymentBody {
   deliveryId: string;
-  farmerId: string;
+  farmerId?: string | null;
+  supplierId?: string | null;
   amountDue: number;
   paymentMethod: InitiatePaymentBodyPaymentMethod;
   currency: string;
@@ -1789,6 +2019,29 @@ export const ListFarmersStatus = {
   active: "active",
   inactive: "inactive",
   pending: "pending",
+} as const;
+
+export type ListSuppliersParams = {
+  search?: string;
+  sellerType?: ListSuppliersSellerType;
+  status?: ListSuppliersStatus;
+};
+
+export type ListSuppliersSellerType =
+  (typeof ListSuppliersSellerType)[keyof typeof ListSuppliersSellerType];
+
+export const ListSuppliersSellerType = {
+  business: "business",
+  individual: "individual",
+} as const;
+
+export type ListSuppliersStatus =
+  (typeof ListSuppliersStatus)[keyof typeof ListSuppliersStatus];
+
+export const ListSuppliersStatus = {
+  pending: "pending",
+  active: "active",
+  inactive: "inactive",
 } as const;
 
 export type ListGroupsParams = {

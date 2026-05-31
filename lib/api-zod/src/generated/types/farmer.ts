@@ -23,6 +23,8 @@ export interface Farmer {
   village?: string;
   status: FarmerStatus;
   photoUrl?: string;
+  isEntrepreneur?: boolean;
+  entrepreneurSince?: Date | null;
   createdAt: Date;
   updatedAt: Date;
 }

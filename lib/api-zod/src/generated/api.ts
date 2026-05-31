@@ -118,6 +118,8 @@ export const ListFarmersResponse = zod.object({
       village: zod.string().optional(),
       status: zod.enum(["active", "inactive", "pending"]),
       photoUrl: zod.string().optional(),
+      isEntrepreneur: zod.boolean().optional(),
+      entrepreneurSince: zod.coerce.date().nullish(),
       createdAt: zod.coerce.date(),
       updatedAt: zod.coerce.date(),
     }),
@@ -166,6 +168,8 @@ export const GetFarmerResponse = zod
     village: zod.string().optional(),
     status: zod.enum(["active", "inactive", "pending"]),
     photoUrl: zod.string().optional(),
+    isEntrepreneur: zod.boolean().optional(),
+    entrepreneurSince: zod.coerce.date().nullish(),
     createdAt: zod.coerce.date(),
     updatedAt: zod.coerce.date(),
   })
@@ -251,6 +255,8 @@ export const UpdateFarmerResponse = zod.object({
   village: zod.string().optional(),
   status: zod.enum(["active", "inactive", "pending"]),
   photoUrl: zod.string().optional(),
+  isEntrepreneur: zod.boolean().optional(),
+  entrepreneurSince: zod.coerce.date().nullish(),
   createdAt: zod.coerce.date(),
   updatedAt: zod.coerce.date(),
 });
@@ -299,6 +305,8 @@ export const ListDuplicateFarmersResponseItem = zod.object({
     village: zod.string().optional(),
     status: zod.enum(["active", "inactive", "pending"]),
     photoUrl: zod.string().optional(),
+    isEntrepreneur: zod.boolean().optional(),
+    entrepreneurSince: zod.coerce.date().nullish(),
     createdAt: zod.coerce.date(),
     updatedAt: zod.coerce.date(),
   }),
@@ -317,6 +325,8 @@ export const ListDuplicateFarmersResponseItem = zod.object({
     village: zod.string().optional(),
     status: zod.enum(["active", "inactive", "pending"]),
     photoUrl: zod.string().optional(),
+    isEntrepreneur: zod.boolean().optional(),
+    entrepreneurSince: zod.coerce.date().nullish(),
     createdAt: zod.coerce.date(),
     updatedAt: zod.coerce.date(),
   }),
@@ -354,6 +364,280 @@ export const MergeDuplicateFarmersResponse = zod.object({
   village: zod.string().optional(),
   status: zod.enum(["active", "inactive", "pending"]),
   photoUrl: zod.string().optional(),
+  isEntrepreneur: zod.boolean().optional(),
+  entrepreneurSince: zod.coerce.date().nullish(),
+  createdAt: zod.coerce.date(),
+  updatedAt: zod.coerce.date(),
+});
+
+/**
+ * @summary Flag an existing farmer as an entrepreneur (bulking agent)
+ */
+export const UpgradeFarmerToEntrepreneurParams = zod.object({
+  farmerId: zod.coerce.string(),
+});
+
+export const UpgradeFarmerToEntrepreneurResponse = zod.object({
+  id: zod.string(),
+  referenceNumber: zod.string(),
+  firstName: zod.string(),
+  lastName: zod.string(),
+  nationalId: zod.string().optional(),
+  dateOfBirth: zod.coerce.date().optional(),
+  phoneNumber: zod.string().optional(),
+  sex: zod.enum(["male", "female", "other"]).optional(),
+  groupId: zod.string(),
+  groupName: zod.string().optional(),
+  regionId: zod.string(),
+  village: zod.string().optional(),
+  status: zod.enum(["active", "inactive", "pending"]),
+  photoUrl: zod.string().optional(),
+  isEntrepreneur: zod.boolean().optional(),
+  entrepreneurSince: zod.coerce.date().nullish(),
+  createdAt: zod.coerce.date(),
+  updatedAt: zod.coerce.date(),
+});
+
+/**
+ * @summary Remove the entrepreneur flag from a farmer
+ */
+export const RemoveFarmerEntrepreneurParams = zod.object({
+  farmerId: zod.coerce.string(),
+});
+
+export const RemoveFarmerEntrepreneurResponse = zod.object({
+  id: zod.string(),
+  referenceNumber: zod.string(),
+  firstName: zod.string(),
+  lastName: zod.string(),
+  nationalId: zod.string().optional(),
+  dateOfBirth: zod.coerce.date().optional(),
+  phoneNumber: zod.string().optional(),
+  sex: zod.enum(["male", "female", "other"]).optional(),
+  groupId: zod.string(),
+  groupName: zod.string().optional(),
+  regionId: zod.string(),
+  village: zod.string().optional(),
+  status: zod.enum(["active", "inactive", "pending"]),
+  photoUrl: zod.string().optional(),
+  isEntrepreneur: zod.boolean().optional(),
+  entrepreneurSince: zod.coerce.date().nullish(),
+  createdAt: zod.coerce.date(),
+  updatedAt: zod.coerce.date(),
+});
+
+/**
+ * @summary List third-party suppliers
+ */
+export const ListSuppliersQueryParams = zod.object({
+  search: zod.coerce.string().optional(),
+  sellerType: zod.enum(["business", "individual"]).optional(),
+  status: zod.enum(["pending", "active", "inactive"]).optional(),
+});
+
+export const ListSuppliersResponseItem = zod.object({
+  id: zod.string(),
+  referenceNumber: zod.string(),
+  sellerType: zod.enum(["business", "individual"]),
+  businessName: zod.string().nullish(),
+  businessRegNo: zod.string().nullish(),
+  firstName: zod.string().nullish(),
+  lastName: zod.string().nullish(),
+  nationalId: zod.string().nullish(),
+  phoneNumber: zod.string().nullish(),
+  email: zod.string().nullish(),
+  regionId: zod.string().nullish(),
+  village: zod.string().nullish(),
+  address: zod.string().nullish(),
+  paymentMethod: zod.enum(["cash", "mobile_money", "bank_transfer"]).nullish(),
+  momoProvider: zod.enum(["mtn_momo", "airtel_money"]).nullish(),
+  momoMsisdn: zod.string().nullish(),
+  bankName: zod.string().nullish(),
+  bankAccountNumber: zod.string().nullish(),
+  status: zod.enum(["pending", "active", "inactive"]),
+  loanEligible: zod.boolean(),
+  notes: zod.string().nullish(),
+  createdAt: zod.coerce.date(),
+  updatedAt: zod.coerce.date(),
+});
+export const ListSuppliersResponse = zod.array(ListSuppliersResponseItem);
+
+/**
+ * @summary Register a new third-party supplier
+ */
+export const createSupplierBodyBusinessNameMax = 200;
+
+export const createSupplierBodyBusinessRegNoMax = 100;
+
+export const createSupplierBodyFirstNameMax = 120;
+
+export const createSupplierBodyLastNameMax = 120;
+
+export const createSupplierBodyNationalIdMax = 60;
+
+export const createSupplierBodyPhoneNumberMax = 30;
+
+export const createSupplierBodyEmailMax = 200;
+
+export const createSupplierBodyVillageMax = 160;
+
+export const createSupplierBodyAddressMax = 400;
+
+export const createSupplierBodyMomoMsisdnMax = 20;
+
+export const createSupplierBodyBankNameMax = 160;
+
+export const createSupplierBodyBankAccountNumberMax = 60;
+
+export const createSupplierBodyNotesMax = 2000;
+
+export const CreateSupplierBody = zod
+  .object({
+    sellerType: zod.enum(["business", "individual"]),
+    businessName: zod.string().max(createSupplierBodyBusinessNameMax).nullish(),
+    businessRegNo: zod
+      .string()
+      .max(createSupplierBodyBusinessRegNoMax)
+      .nullish(),
+    firstName: zod.string().max(createSupplierBodyFirstNameMax).nullish(),
+    lastName: zod.string().max(createSupplierBodyLastNameMax).nullish(),
+    nationalId: zod.string().max(createSupplierBodyNationalIdMax).nullish(),
+    phoneNumber: zod.string().max(createSupplierBodyPhoneNumberMax).nullish(),
+    email: zod.string().max(createSupplierBodyEmailMax).nullish(),
+    regionId: zod.string().uuid().nullish(),
+    village: zod.string().max(createSupplierBodyVillageMax).nullish(),
+    address: zod.string().max(createSupplierBodyAddressMax).nullish(),
+    paymentMethod: zod
+      .enum(["cash", "mobile_money", "bank_transfer"])
+      .nullish(),
+    momoProvider: zod.enum(["mtn_momo", "airtel_money"]).nullish(),
+    momoMsisdn: zod.string().max(createSupplierBodyMomoMsisdnMax).nullish(),
+    bankName: zod.string().max(createSupplierBodyBankNameMax).nullish(),
+    bankAccountNumber: zod
+      .string()
+      .max(createSupplierBodyBankAccountNumberMax)
+      .nullish(),
+    status: zod.enum(["pending", "active", "inactive"]).nullish(),
+    loanEligible: zod.boolean().nullish(),
+    notes: zod.string().max(createSupplierBodyNotesMax).nullish(),
+  })
+  .describe(
+    "Provide business fields (businessName + businessRegNo) when sellerType=business, or individual fields (firstName + nationalId) when sellerType=individual.\n",
+  );
+
+/**
+ * @summary Get supplier by ID
+ */
+export const GetSupplierParams = zod.object({
+  supplierId: zod.coerce.string(),
+});
+
+export const GetSupplierResponse = zod.object({
+  id: zod.string(),
+  referenceNumber: zod.string(),
+  sellerType: zod.enum(["business", "individual"]),
+  businessName: zod.string().nullish(),
+  businessRegNo: zod.string().nullish(),
+  firstName: zod.string().nullish(),
+  lastName: zod.string().nullish(),
+  nationalId: zod.string().nullish(),
+  phoneNumber: zod.string().nullish(),
+  email: zod.string().nullish(),
+  regionId: zod.string().nullish(),
+  village: zod.string().nullish(),
+  address: zod.string().nullish(),
+  paymentMethod: zod.enum(["cash", "mobile_money", "bank_transfer"]).nullish(),
+  momoProvider: zod.enum(["mtn_momo", "airtel_money"]).nullish(),
+  momoMsisdn: zod.string().nullish(),
+  bankName: zod.string().nullish(),
+  bankAccountNumber: zod.string().nullish(),
+  status: zod.enum(["pending", "active", "inactive"]),
+  loanEligible: zod.boolean(),
+  notes: zod.string().nullish(),
+  createdAt: zod.coerce.date(),
+  updatedAt: zod.coerce.date(),
+});
+
+/**
+ * @summary Update supplier details
+ */
+export const UpdateSupplierParams = zod.object({
+  supplierId: zod.coerce.string(),
+});
+
+export const updateSupplierBodyBusinessNameMax = 200;
+
+export const updateSupplierBodyBusinessRegNoMax = 100;
+
+export const updateSupplierBodyFirstNameMax = 120;
+
+export const updateSupplierBodyLastNameMax = 120;
+
+export const updateSupplierBodyNationalIdMax = 60;
+
+export const updateSupplierBodyPhoneNumberMax = 30;
+
+export const updateSupplierBodyEmailMax = 200;
+
+export const updateSupplierBodyVillageMax = 160;
+
+export const updateSupplierBodyAddressMax = 400;
+
+export const updateSupplierBodyMomoMsisdnMax = 20;
+
+export const updateSupplierBodyBankNameMax = 160;
+
+export const updateSupplierBodyBankAccountNumberMax = 60;
+
+export const updateSupplierBodyNotesMax = 2000;
+
+export const UpdateSupplierBody = zod.object({
+  sellerType: zod.enum(["business", "individual"]).optional(),
+  businessName: zod.string().max(updateSupplierBodyBusinessNameMax).nullish(),
+  businessRegNo: zod.string().max(updateSupplierBodyBusinessRegNoMax).nullish(),
+  firstName: zod.string().max(updateSupplierBodyFirstNameMax).nullish(),
+  lastName: zod.string().max(updateSupplierBodyLastNameMax).nullish(),
+  nationalId: zod.string().max(updateSupplierBodyNationalIdMax).nullish(),
+  phoneNumber: zod.string().max(updateSupplierBodyPhoneNumberMax).nullish(),
+  email: zod.string().max(updateSupplierBodyEmailMax).nullish(),
+  regionId: zod.string().uuid().nullish(),
+  village: zod.string().max(updateSupplierBodyVillageMax).nullish(),
+  address: zod.string().max(updateSupplierBodyAddressMax).nullish(),
+  paymentMethod: zod.enum(["cash", "mobile_money", "bank_transfer"]).nullish(),
+  momoProvider: zod.enum(["mtn_momo", "airtel_money"]).nullish(),
+  momoMsisdn: zod.string().max(updateSupplierBodyMomoMsisdnMax).nullish(),
+  bankName: zod.string().max(updateSupplierBodyBankNameMax).nullish(),
+  bankAccountNumber: zod
+    .string()
+    .max(updateSupplierBodyBankAccountNumberMax)
+    .nullish(),
+  status: zod.enum(["pending", "active", "inactive"]).nullish(),
+  loanEligible: zod.boolean().nullish(),
+  notes: zod.string().max(updateSupplierBodyNotesMax).nullish(),
+});
+
+export const UpdateSupplierResponse = zod.object({
+  id: zod.string(),
+  referenceNumber: zod.string(),
+  sellerType: zod.enum(["business", "individual"]),
+  businessName: zod.string().nullish(),
+  businessRegNo: zod.string().nullish(),
+  firstName: zod.string().nullish(),
+  lastName: zod.string().nullish(),
+  nationalId: zod.string().nullish(),
+  phoneNumber: zod.string().nullish(),
+  email: zod.string().nullish(),
+  regionId: zod.string().nullish(),
+  village: zod.string().nullish(),
+  address: zod.string().nullish(),
+  paymentMethod: zod.enum(["cash", "mobile_money", "bank_transfer"]).nullish(),
+  momoProvider: zod.enum(["mtn_momo", "airtel_money"]).nullish(),
+  momoMsisdn: zod.string().nullish(),
+  bankName: zod.string().nullish(),
+  bankAccountNumber: zod.string().nullish(),
+  status: zod.enum(["pending", "active", "inactive"]),
+  loanEligible: zod.boolean(),
+  notes: zod.string().nullish(),
   createdAt: zod.coerce.date(),
   updatedAt: zod.coerce.date(),
 });
@@ -459,6 +743,8 @@ export const GetGroupResponse = zod
           village: zod.string().optional(),
           status: zod.enum(["active", "inactive", "pending"]),
           photoUrl: zod.string().optional(),
+          isEntrepreneur: zod.boolean().optional(),
+          entrepreneurSince: zod.coerce.date().nullish(),
           createdAt: zod.coerce.date(),
           updatedAt: zod.coerce.date(),
         }),
@@ -954,7 +1240,12 @@ export const ListDeliveriesQueryParams = zod.object({
 export const ListDeliveriesResponseItem = zod.object({
   id: zod.string(),
   lotTag: zod.string(),
-  batchId: zod.string(),
+  deliveryNumber: zod.string().optional(),
+  farmerId: zod.string().nullish(),
+  supplierId: zod.string().nullish(),
+  cropType: zod.string().optional(),
+  capturedWeightKg: zod.string().optional(),
+  batchId: zod.string().nullish(),
   batchTag: zod.string().optional(),
   stationId: zod.string().optional(),
   truckPlate: zod.string().optional(),
@@ -1039,13 +1330,23 @@ export const ListDeliveriesResponse = zod.array(ListDeliveriesResponseItem);
 /**
  * @summary Create inbound delivery from batch scan
  */
-export const CreateDeliveryBody = zod.object({
-  batchTag: zod.string(),
-  stationId: zod.string(),
-  truckPlate: zod.string().optional(),
-  driverName: zod.string().optional(),
-  preOffloadSampleTaken: zod.boolean().optional(),
-});
+export const createDeliveryBodyWeightKgMin = 0;
+
+export const CreateDeliveryBody = zod
+  .object({
+    farmerId: zod.string().uuid().nullish(),
+    supplierId: zod.string().uuid().nullish(),
+    cropType: zod.string(),
+    weightKg: zod.number().min(createDeliveryBodyWeightKgMin),
+    batchTag: zod.string().optional(),
+    stationId: zod.string().optional(),
+    truckPlate: zod.string().optional(),
+    driverName: zod.string().optional(),
+    preOffloadSampleTaken: zod.boolean().optional(),
+  })
+  .describe(
+    "Per-seller drop-off capture. Provide EXACTLY ONE of farmerId or supplierId plus cropType and weightKg. Legacy batchTag\/stationId fields are retained for older callers but unused by the delivery-first flow.\n",
+  );
 
 /**
  * @summary Get delivery by ID
@@ -1058,7 +1359,12 @@ export const GetDeliveryResponse = zod
   .object({
     id: zod.string(),
     lotTag: zod.string(),
-    batchId: zod.string(),
+    deliveryNumber: zod.string().optional(),
+    farmerId: zod.string().nullish(),
+    supplierId: zod.string().nullish(),
+    cropType: zod.string().optional(),
+    capturedWeightKg: zod.string().optional(),
+    batchId: zod.string().nullish(),
     batchTag: zod.string().optional(),
     stationId: zod.string().optional(),
     truckPlate: zod.string().optional(),
@@ -1212,7 +1518,12 @@ export const SubmitDeliveryWeightBody = zod.object({
 export const SubmitDeliveryWeightResponse = zod.object({
   id: zod.string(),
   lotTag: zod.string(),
-  batchId: zod.string(),
+  deliveryNumber: zod.string().optional(),
+  farmerId: zod.string().nullish(),
+  supplierId: zod.string().nullish(),
+  cropType: zod.string().optional(),
+  capturedWeightKg: zod.string().optional(),
+  batchId: zod.string().nullish(),
   batchTag: zod.string().optional(),
   stationId: zod.string().optional(),
   truckPlate: zod.string().optional(),
@@ -1303,7 +1614,12 @@ export const ApproveDeliveryWeightParams = zod.object({
 export const ApproveDeliveryWeightResponse = zod.object({
   id: zod.string(),
   lotTag: zod.string(),
-  batchId: zod.string(),
+  deliveryNumber: zod.string().optional(),
+  farmerId: zod.string().nullish(),
+  supplierId: zod.string().nullish(),
+  cropType: zod.string().optional(),
+  capturedWeightKg: zod.string().optional(),
+  batchId: zod.string().nullish(),
   batchTag: zod.string().optional(),
   stationId: zod.string().optional(),
   truckPlate: zod.string().optional(),
@@ -1408,7 +1724,12 @@ export const SubmitDeliveryQcBody = zod.object({
 export const SubmitDeliveryQcResponse = zod.object({
   id: zod.string(),
   lotTag: zod.string(),
-  batchId: zod.string(),
+  deliveryNumber: zod.string().optional(),
+  farmerId: zod.string().nullish(),
+  supplierId: zod.string().nullish(),
+  cropType: zod.string().optional(),
+  capturedWeightKg: zod.string().optional(),
+  batchId: zod.string().nullish(),
   batchTag: zod.string().optional(),
   stationId: zod.string().optional(),
   truckPlate: zod.string().optional(),
@@ -1499,7 +1820,12 @@ export const ApproveDeliveryQcParams = zod.object({
 export const ApproveDeliveryQcResponse = zod.object({
   id: zod.string(),
   lotTag: zod.string(),
-  batchId: zod.string(),
+  deliveryNumber: zod.string().optional(),
+  farmerId: zod.string().nullish(),
+  supplierId: zod.string().nullish(),
+  cropType: zod.string().optional(),
+  capturedWeightKg: zod.string().optional(),
+  batchId: zod.string().nullish(),
   batchTag: zod.string().optional(),
   stationId: zod.string().optional(),
   truckPlate: zod.string().optional(),
@@ -1612,7 +1938,12 @@ export const ProposeDeliveryPricingBody = zod.object({
 export const ProposeDeliveryPricingResponse = zod.object({
   id: zod.string(),
   lotTag: zod.string(),
-  batchId: zod.string(),
+  deliveryNumber: zod.string().optional(),
+  farmerId: zod.string().nullish(),
+  supplierId: zod.string().nullish(),
+  cropType: zod.string().optional(),
+  capturedWeightKg: zod.string().optional(),
+  batchId: zod.string().nullish(),
   batchTag: zod.string().optional(),
   stationId: zod.string().optional(),
   truckPlate: zod.string().optional(),
@@ -1703,7 +2034,12 @@ export const ApproveDeliveryPricingParams = zod.object({
 export const ApproveDeliveryPricingResponse = zod.object({
   id: zod.string(),
   lotTag: zod.string(),
-  batchId: zod.string(),
+  deliveryNumber: zod.string().optional(),
+  farmerId: zod.string().nullish(),
+  supplierId: zod.string().nullish(),
+  cropType: zod.string().optional(),
+  capturedWeightKg: zod.string().optional(),
+  batchId: zod.string().nullish(),
   batchTag: zod.string().optional(),
   stationId: zod.string().optional(),
   truckPlate: zod.string().optional(),
@@ -1805,7 +2141,12 @@ export const RejectDeliveryBody = zod.object({
 export const RejectDeliveryResponse = zod.object({
   id: zod.string(),
   lotTag: zod.string(),
-  batchId: zod.string(),
+  deliveryNumber: zod.string().optional(),
+  farmerId: zod.string().nullish(),
+  supplierId: zod.string().nullish(),
+  cropType: zod.string().optional(),
+  capturedWeightKg: zod.string().optional(),
+  batchId: zod.string().nullish(),
   batchTag: zod.string().optional(),
   stationId: zod.string().optional(),
   truckPlate: zod.string().optional(),
@@ -1903,7 +2244,12 @@ export const ResumeDeliveryBody = zod.object({
 export const ResumeDeliveryResponse = zod.object({
   id: zod.string(),
   lotTag: zod.string(),
-  batchId: zod.string(),
+  deliveryNumber: zod.string().optional(),
+  farmerId: zod.string().nullish(),
+  supplierId: zod.string().nullish(),
+  cropType: zod.string().optional(),
+  capturedWeightKg: zod.string().optional(),
+  batchId: zod.string().nullish(),
   batchTag: zod.string().optional(),
   stationId: zod.string().optional(),
   truckPlate: zod.string().optional(),
@@ -2496,7 +2842,8 @@ export const ListPaymentsResponse = zod.array(ListPaymentsResponseItem);
  */
 export const InitiatePaymentBody = zod.object({
   deliveryId: zod.string(),
-  farmerId: zod.string(),
+  farmerId: zod.string().nullish(),
+  supplierId: zod.string().nullish(),
   amountDue: zod.number(),
   paymentMethod: zod.enum(["mobile_money", "bank_transfer", "cash"]),
   currency: zod.string(),
@@ -3582,6 +3929,7 @@ export const ListLoanProductsResponseItem = zod.object({
   allowPartialRepayment: zod.boolean(),
   allowFinanceOverride: zod.boolean(),
   seasonBased: zod.boolean(),
+  entrepreneursOnly: zod.boolean(),
   isActive: zod.boolean(),
   createdAt: zod.coerce.date(),
   updatedAt: zod.coerce.date(),
@@ -3639,6 +3987,7 @@ export const CreateLoanProductBody = zod.object({
   allowPartialRepayment: zod.boolean().optional(),
   allowFinanceOverride: zod.boolean().optional(),
   seasonBased: zod.boolean().optional(),
+  entrepreneursOnly: zod.boolean().optional(),
   isActive: zod.boolean().optional(),
 });
 
@@ -3669,6 +4018,7 @@ export const GetLoanProductResponse = zod
     allowPartialRepayment: zod.boolean(),
     allowFinanceOverride: zod.boolean(),
     seasonBased: zod.boolean(),
+    entrepreneursOnly: zod.boolean(),
     isActive: zod.boolean(),
     createdAt: zod.coerce.date(),
     updatedAt: zod.coerce.date(),
@@ -3746,6 +4096,7 @@ export const UpdateLoanProductBody = zod.object({
   allowPartialRepayment: zod.boolean().optional(),
   allowFinanceOverride: zod.boolean().optional(),
   seasonBased: zod.boolean().optional(),
+  entrepreneursOnly: zod.boolean().optional(),
   isActive: zod.boolean().optional(),
 });
 
@@ -3768,6 +4119,7 @@ export const UpdateLoanProductResponse = zod.object({
   allowPartialRepayment: zod.boolean(),
   allowFinanceOverride: zod.boolean(),
   seasonBased: zod.boolean(),
+  entrepreneursOnly: zod.boolean(),
   isActive: zod.boolean(),
   createdAt: zod.coerce.date(),
   updatedAt: zod.coerce.date(),

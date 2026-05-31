@@ -39,5 +39,6 @@ export interface LoanProductUpdate {
   allowPartialRepayment?: boolean;
   allowFinanceOverride?: boolean;
   seasonBased?: boolean;
+  entrepreneursOnly?: boolean;
   isActive?: boolean;
 }

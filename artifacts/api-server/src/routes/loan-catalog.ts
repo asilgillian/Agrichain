@@ -139,6 +139,8 @@ const createProductSchema = z.object({
   allowPartialRepayment: z.boolean().optional(),
   allowFinanceOverride: z.boolean().optional(),
   seasonBased: z.boolean().optional(),
+  // When true, only farmer-entrepreneurs may take this product (e.g. bulking loans).
+  entrepreneursOnly: z.boolean().optional(),
   isActive: z.boolean().optional(),
 });
 const updateProductSchema = createProductSchema.partial();
@@ -195,6 +197,7 @@ router.post("/loan-products", requirePermission("loans.write"), async (req, res)
       allowPartialRepayment: d.allowPartialRepayment ?? true,
       allowFinanceOverride: d.allowFinanceOverride ?? true,
       seasonBased: d.seasonBased ?? false,
+      entrepreneursOnly: d.entrepreneursOnly ?? false,
       isActive: d.isActive ?? true,
     }).returning();
     res.status(201).json(row);
@@ -230,6 +233,7 @@ router.patch("/loan-products/:id", requirePermission("loans.write"), async (req,
   if (d.allowPartialRepayment !== undefined) update.allowPartialRepayment = d.allowPartialRepayment;
   if (d.allowFinanceOverride !== undefined) update.allowFinanceOverride = d.allowFinanceOverride;
   if (d.seasonBased !== undefined) update.seasonBased = d.seasonBased;
+  if (d.entrepreneursOnly !== undefined) update.entrepreneursOnly = d.entrepreneursOnly;
   if (d.isActive !== undefined) update.isActive = d.isActive;
   // Lock-read + invariant-check + write in one tx so two concurrent patches
   // can't end up with productType='INPUT' AND unitPrice/unit=null.

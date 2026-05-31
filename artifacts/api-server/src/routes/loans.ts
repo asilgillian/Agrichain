@@ -237,6 +237,22 @@ router.post("/loans", requirePermission("loans.write"), async (req, res): Promis
     if (denial) { res.status(denial.status).json(denial.body); return; }
   }
 
+  // Entrepreneurs-only products (e.g. bulking loans) require the borrowing
+  // farmer to carry the entrepreneur flag. Group loans without a farmer can't
+  // satisfy this, so they're refused too.
+  if (product.entrepreneursOnly) {
+    if (!d.farmerId) {
+      res.status(409).json({ error: "This loan product is restricted to farmer-entrepreneurs", code: "ENTREPRENEURS_ONLY" });
+      return;
+    }
+    const [farmer] = await db.select().from(farmersTable).where(eq(farmersTable.id, d.farmerId)).limit(1);
+    if (!farmer) { res.status(404).json({ error: "Farmer not found" }); return; }
+    if (!farmer.isEntrepreneur) {
+      res.status(409).json({ error: "This loan product is restricted to farmer-entrepreneurs", code: "ENTREPRENEURS_ONLY" });
+      return;
+    }
+  }
+
   // Effective rates: product override (non-null) wins over the category default,
   // then a finance-officer override wins over that when the product permits it.
   const { interestType: effectiveInterestType, interestRate, penaltyRate, gracePeriodDays: gracePeriod } =

@@ -106,6 +106,15 @@ export default function ProcurementHomeScreen() {
         </Pressable>
       </View>
 
+      <Pressable
+        onPress={() => router.push("/procurement/suppliers/new")}
+        style={({ pressed }) => [styles.supplierLink, { opacity: pressed ? 0.6 : 1 }]}
+        testID="register-supplier-cta"
+      >
+        <Feather name="briefcase" size={14} color={colors.primary} />
+        <Text style={[styles.supplierLinkText, { color: colors.primary }]}>Register a third-party supplier</Text>
+      </Pressable>
+
       {loading ? (
         <View style={{ paddingVertical: 40, alignItems: "center" }}><ActivityIndicator color={colors.primary} /></View>
       ) : (
@@ -189,6 +198,8 @@ const styles = StyleSheet.create({
   actionBtnText: { fontWeight: "600", fontSize: 13 },
   actionBtnSecondary: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 11, borderRadius: 10, borderWidth: 1 },
   actionBtnSecondaryText: { fontWeight: "600", fontSize: 13 },
+  supplierLink: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 6 },
+  supplierLinkText: { fontWeight: "600", fontSize: 13 },
   sectionLabel: { fontSize: 11, fontWeight: "700", textTransform: "uppercase", letterSpacing: 0.6, marginTop: 14, marginBottom: 2 },
   row: { flexDirection: "row", alignItems: "center", gap: 12, borderWidth: 1, borderRadius: 12, padding: 12 },
   rowIcon: { width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center" },

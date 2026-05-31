@@ -66,6 +66,8 @@ const PERMISSION_CATALOG: Array<{ key: string; module: string; description: stri
   { key: "groups.transfer", module: "Groups", description: "Transfer and bulk-reassign farmers between groups" },
   { key: "groups.archive", module: "Groups", description: "Archive a group and redistribute members" },
   { key: "groups.assigned_only", module: "Groups", description: "Restrict groups/farmers visibility to those assigned to this user" },
+  { key: "suppliers.read", module: "Suppliers", description: "View third-party seller records" },
+  { key: "suppliers.write", module: "Suppliers", description: "Register and edit third-party sellers" },
   { key: "commodities.read", module: "Commodities", description: "View commodity catalog, types, prices, conversions" },
   { key: "commodities.write", module: "Commodities", description: "Create and edit commodities, types, conversions" },
   { key: "commodities.prices.write", module: "Commodities", description: "Set daily purchase prices per kg" },
@@ -622,6 +624,7 @@ const PERMISSION_TEMPLATES: Array<{ name: string; description: string; permissio
       "visits.read", "visits.write",
       "field.training.write", "field.gap.write", "field.bulking.write", "field.delivery.handover",
       "commodities.read",
+      "suppliers.read", "suppliers.write",
     ],
   },
   {
@@ -659,6 +662,7 @@ const PERMISSION_TEMPLATES: Array<{ name: string; description: string; permissio
       "procurement.contracts.read",
       "warehouse.read", "lots.write",
       "farmers.read", "groups.read", "commodities.read",
+      "suppliers.read", "suppliers.write",
     ],
   },
 ];
