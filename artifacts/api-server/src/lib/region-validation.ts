@@ -2,6 +2,13 @@ import { eq } from "drizzle-orm";
 import { db, regionsTable, countryHierarchiesTable } from "@workspace/db";
 import { getDistrictLevelForCountry, findAncestorRegionAtLevel } from "./org-region-scope";
 
+type AdminColumns = {
+  village: string | null;
+  parish: string | null;
+  subCounty: string | null;
+  district: string | null;
+};
+
 /**
  * Validate that a region id is acceptable as a "district" covered by a group.
  *
@@ -16,6 +23,7 @@ export async function validateGroupRegionAnchor(regionId: string): Promise<strin
   const [region] = await db.select().from(regionsTable).where(eq(regionsTable.id, regionId));
   if (!region) return "Region not found";
   if (region.isActive === false) return "Region is inactive";
+  if (!region.countryCode) return "Region has no country code configured";
 
   const [hier] = await db
     .select()
@@ -44,15 +52,11 @@ export async function validateGroupRegionAnchor(regionId: string): Promise<strin
  * Returns all-nulls if the region or its hierarchy can't be resolved (caller
  * should already have validated the regionId via validateGroupRegionAnchor).
  */
-export async function deriveGroupAdminColumnsFromRegion(regionId: string): Promise<{
-  village: string | null;
-  parish: string | null;
-  subCounty: string | null;
-  district: string | null;
-}> {
-  const empty = { village: null, parish: null, subCounty: null, district: null };
+export async function deriveGroupAdminColumnsFromRegion(regionId: string): Promise<AdminColumns> {
+  const empty: AdminColumns = { village: null, parish: null, subCounty: null, district: null };
   const [region] = await db.select().from(regionsTable).where(eq(regionsTable.id, regionId));
   if (!region) return empty;
+  if (!region.countryCode) return empty;
 
   const [hier] = await db
     .select()

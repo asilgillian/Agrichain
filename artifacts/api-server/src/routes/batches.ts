@@ -92,7 +92,7 @@ router.post("/batches/from-deliveries", requirePermission("procurement.write"), 
     (await db.select({ farmerId: deliveriesTable.farmerId })
       .from(deliveriesTable)
       .where(inArray(deliveriesTable.id, deliveryIds))
-    ).map(r => r.farmerId)
+    ).map(r => r.farmerId).filter((id): id is string => id !== null)
   ));
   if (preFarmerIds.length > 0) {
     const denial = await checkFarmersStageForTxn(preFarmerIds, "delivery");

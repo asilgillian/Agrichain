@@ -2,6 +2,7 @@ import { Router, type IRouter } from "express";
 import { eq, desc } from "drizzle-orm";
 import { db, exportContractsTable, shipmentsTable, exportDocumentsTable } from "@workspace/db";
 import { CreateExportContractBody } from "@workspace/api-zod";
+import { toDbDate } from "../lib/dates";
 
 const router: IRouter = Router();
 
@@ -20,6 +21,7 @@ router.post("/exports/contracts", async (req, res): Promise<void> => {
     ...parsed.data,
     quantityKg: parsed.data.quantityKg.toString(),
     pricePerKg: parsed.data.pricePerKg.toString(),
+    deliveryDate: toDbDate(parsed.data.deliveryDate),
   }).returning();
   res.status(201).json({ ...contract, quantityKg: parsed.data.quantityKg, pricePerKg: parsed.data.pricePerKg });
 });

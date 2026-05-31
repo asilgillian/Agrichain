@@ -2,6 +2,7 @@ import { Router, type IRouter } from "express";
 import { eq, and, desc } from "drizzle-orm";
 import { db, visitsTable, farmersTable } from "@workspace/db";
 import { ScheduleVisitBody, ListVisitsQueryParams } from "@workspace/api-zod";
+import { toDbDate } from "../lib/dates";
 
 const router: IRouter = Router();
 
@@ -37,7 +38,10 @@ router.post("/visits", async (req, res): Promise<void> => {
     res.status(400).json({ error: parsed.error.message });
     return;
   }
-  const [visit] = await db.insert(visitsTable).values(parsed.data).returning();
+  const [visit] = await db.insert(visitsTable).values({
+    ...parsed.data,
+    scheduledDate: toDbDate(parsed.data.scheduledDate),
+  }).returning();
   const [farmer] = await db.select().from(farmersTable).where(eq(farmersTable.id, visit.farmerId));
   res.status(201).json({
     ...visit,

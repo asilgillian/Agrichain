@@ -4,6 +4,7 @@ import { db, certificationStreamsTable, certificationEnrolmentsTable, farmersTab
 import { CreateEnrolmentBody, ListEnrolmentsQueryParams } from "@workspace/api-zod";
 import { checkFarmerStageForTxn } from "../lib/transaction-access";
 import { requirePermission } from "../middlewares/auth";
+import { toDbDate } from "../lib/dates";
 
 const router: IRouter = Router();
 
@@ -49,7 +50,11 @@ router.post("/certifications/enrolments", requirePermission("certifications.writ
   // Admin-controlled gate: farmer must meet the registration-stage rule for "certification".
   const denial = await checkFarmerStageForTxn(parsed.data.farmerId, "certification");
   if (denial) { res.status(denial.status).json(denial.body); return; }
-  const [enrolment] = await db.insert(certificationEnrolmentsTable).values(parsed.data).returning();
+  const [enrolment] = await db.insert(certificationEnrolmentsTable).values({
+    ...parsed.data,
+    enrolmentDate: toDbDate(parsed.data.enrolmentDate),
+    expiryDate: toDbDate(parsed.data.expiryDate),
+  }).returning();
   const [stream] = await db.select().from(certificationStreamsTable).where(eq(certificationStreamsTable.id, enrolment.streamId));
   res.status(201).json({ ...enrolment, streamName: stream?.name ?? "Unknown" });
 });

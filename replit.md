@@ -17,7 +17,7 @@ The project is structured as a pnpm workspace monorepo utilizing TypeScript.
 
 -   **Web Application (`artifacts/agri-web`):** A React + Vite Single Page Application (SPA) for back-office management, featuring `shadcn/ui` and Tailwind CSS for UI/UX, TanStack Query for data fetching, and wouter for routing.
 -   **API Server (`artifacts/api-server`):** An Express 5 API server handling all backend logic.
--   **Database Layer (`lib/db`):** Uses Drizzle ORM with PostgreSQL.
+-   **Database Layer (`lib/db`):** Uses Drizzle ORM with PostgreSQL. **Keeping the dev DB in sync:** after editing any schema file under `lib/db/src/schema/`, run `cd lib/db && pnpm run push` to apply the changes to the live dev database (Drizzle Kit push — no migration files). This is the authoritative way to reconcile committed schema with the running DB. Note that drizzle-kit may re-print a few cosmetic statements on every push (foreign-key constraint name truncations, expression-index DROP/CREATE on `commodity_prices`/`org_regions`, and array columns being `SET DEFAULT '{}'`); these are known drizzle-kit limitations, are safe to apply repeatedly, and do not indicate missing columns.
 -   **API Specification & Codegen (`lib/api-spec`, `lib/api-zod`, `lib/api-client-react`):** Employs OpenAPI for API specification and Orval for generating Zod schemas and React Query hooks for type-safe API interactions.
 -   **Validation:** Zod is used for data validation across the platform.
 

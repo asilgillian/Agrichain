@@ -6,6 +6,7 @@ import {
   CreateTrainingSessionBody,
   ListGapAssessmentsQueryParams,
 } from "@workspace/api-zod";
+import { toDbDate } from "../lib/dates";
 
 const router: IRouter = Router();
 
@@ -90,7 +91,10 @@ router.post("/compliance/training-sessions", async (req, res): Promise<void> => 
     res.status(400).json({ error: parsed.error.message });
     return;
   }
-  const [session] = await db.insert(trainingSessionsTable).values(parsed.data).returning();
+  const [session] = await db.insert(trainingSessionsTable).values({
+    ...parsed.data,
+    scheduledDate: toDbDate(parsed.data.scheduledDate),
+  }).returning();
   res.status(201).json({ ...session, facilitatorName: "Facilitator" });
 });
 

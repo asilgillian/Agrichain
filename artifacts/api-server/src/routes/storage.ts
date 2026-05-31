@@ -1,11 +1,25 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import { Readable } from "stream";
-import {
-  RequestUploadUrlBody,
-  RequestUploadUrlResponse,
-} from "@workspace/api-zod";
+import { z } from "zod";
 import { ObjectStorageService, ObjectNotFoundError } from "../lib/objectStorage";
 import { ObjectPermission } from "../lib/objectAcl";
+
+// This endpoint is not part of the OpenAPI contract (it returns presigned upload
+// URLs, not domain data), so its request/response schemas are defined locally.
+const RequestUploadUrlBody = z.object({
+  name: z.string(),
+  size: z.number(),
+  contentType: z.string(),
+});
+const RequestUploadUrlResponse = z.object({
+  uploadURL: z.string(),
+  objectPath: z.string(),
+  metadata: z.object({
+    name: z.string(),
+    size: z.number(),
+    contentType: z.string(),
+  }),
+});
 
 const router: IRouter = Router();
 const objectStorageService = new ObjectStorageService();

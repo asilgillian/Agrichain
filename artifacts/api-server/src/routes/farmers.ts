@@ -9,6 +9,7 @@ import {
 import { requirePermission, type AuthedRequest } from "../middlewares/auth";
 import { checkFarmerAccess, isUserScoped, getAssignedGroupIds } from "../lib/assignment-scope";
 import { isLeafInsideOrgRegion, isLeafRegion, isGroupInsideOrgRegion, getGroupDistrictIds, getDistrictAncestorId } from "../lib/org-region-scope";
+import { toDbDate } from "../lib/dates";
 
 /**
  * Multi-district invariant: when a farmer is being created against a group,
@@ -316,6 +317,7 @@ router.post("/farmers", requirePermission("farmers.register"), async (req: Authe
     const [created] = await tx.insert(farmersTable).values({
       ...parsed.data,
       ...livelihoodPatch,
+      dateOfBirth: toDbDate(parsed.data.dateOfBirth),
       referenceNumber,
       registrationStage: computedStage,
       fullyRegisteredAt: computedStage === "fully_registered" ? now : null,

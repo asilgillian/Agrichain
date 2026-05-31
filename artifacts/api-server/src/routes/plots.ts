@@ -4,6 +4,7 @@ import { db, plotsTable, farmersTable, groupsTable, regionsTable } from "@worksp
 import { CreatePlotBody, ListPlotsQueryParams } from "@workspace/api-zod";
 import { validatePlotGeometry, findOverlaps, polygonAreaHectares, type PlotGeometry, type PolygonGeometry } from "../lib/plot-validation";
 import { requirePermission } from "../middlewares/auth";
+import { toDbDate } from "../lib/dates";
 
 const router: IRouter = Router();
 
@@ -46,7 +47,8 @@ router.post("/plots", requirePermission("plots.gps_map"), async (req, res): Prom
   if (geometry && geometry.type !== "Point" && geometry.type !== "Polygon") {
     res.status(400).json({ error: "polygon must be a GeoJSON Point or Polygon" }); return;
   }
-  const errors = validatePlotGeometry({ geometry, areaHectares: parsed.data.areaHectares as number });
+  const areaHectares = typeof req.body.areaHectares === "number" ? req.body.areaHectares : Number(req.body.areaHectares ?? 0);
+  const errors = validatePlotGeometry({ geometry, areaHectares });
   if (errors.length > 0) { res.status(400).json({ error: "Plot validation failed", fieldErrors: errors }); return; }
   if (geometry?.type === "Polygon") {
     const others = await db.select({ id: plotsTable.id, polygon: plotsTable.polygon }).from(plotsTable);
@@ -56,7 +58,7 @@ router.post("/plots", requirePermission("plots.gps_map"), async (req, res): Prom
       return;
     }
   }
-  const [plot] = await db.insert(plotsTable).values({ ...parsed.data, polygon: geometry as any }).returning();
+  const [plot] = await db.insert(plotsTable).values({ ...parsed.data, polygon: geometry as any, areaHectares: areaHectares.toString(), harvestDate: toDbDate(parsed.data.harvestDate) }).returning();
   res.status(201).json({ ...plot, areaHectares: parseFloat(plot.areaHectares ?? "0") });
 });
 

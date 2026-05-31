@@ -173,7 +173,7 @@ async function transition(
 // Drop high-noise / always-changing fields from the audit snapshot. We keep the business-meaningful
 // columns so a reviewer can diff before vs. after in one glance without scrolling past timestamps.
 function stripNoiseFromAudit(row: typeof deliveriesTable.$inferSelect) {
-  const { id: _id, lotTag: _lt, createdAt: _ca, updatedAt: _ua, ...rest } = row;
+  const { id: _id, lotTag: _lt, status: _st, createdAt: _ca, updatedAt: _ua, ...rest } = row;
   return rest;
 }
 
@@ -384,6 +384,14 @@ async function loadDeliveryWithStage(deliveryId: string, expectedKind: string) {
   return { delivery, stages, current, next } as const;
 }
 
+// Discriminates the error sentinels returned by loadDeliveryWithStage from the
+// success shape. Using a type guard (rather than an inline `"error" in ctx`)
+// keeps `ctx.code` narrowed to a concrete `number` at the call sites.
+type StageLoadError = { error: string; code: number };
+function isStageLoadError(ctx: object): ctx is StageLoadError {
+  return "error" in ctx;
+}
+
 // Compute the status string for the stage AFTER advancement. If there is no next stage, we land
 // in `approved` (terminal). Otherwise we use the canonical pending_* label for that kind.
 function nextStatusAfter(nextStage: { stageKind: string } | null): string {
@@ -396,7 +404,7 @@ router.post("/procurement/deliveries/:deliveryId/weight/submit", requirePermissi
   const parsed = SubmitDeliveryWeightBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
   const ctx = await loadDeliveryWithStage(req.params.deliveryId as string, "WEIGHT_SUBMIT");
-  if ("error" in ctx) { res.status(ctx.code).json({ error: ctx.error }); return; }
+  if (isStageLoadError(ctx)) { res.status(ctx.code).json({ error: ctx.error }); return; }
   const userId = req.authedUser!.id;
   const net = (parsed.data.grossWeightKg - parsed.data.tareWeightKg).toFixed(3);
   const delivery = await transition(ctx.delivery.id, ctx.delivery.status, {
@@ -418,7 +426,7 @@ router.post("/procurement/deliveries/:deliveryId/weight/submit", requirePermissi
 
 router.post("/procurement/deliveries/:deliveryId/weight/approve", requirePermission("procurement.weight.approve"), async (req: AuthedRequest, res): Promise<void> => {
   const ctx = await loadDeliveryWithStage(req.params.deliveryId as string, "WEIGHT_APPROVE");
-  if ("error" in ctx) { res.status(ctx.code).json({ error: ctx.error }); return; }
+  if (isStageLoadError(ctx)) { res.status(ctx.code).json({ error: ctx.error }); return; }
   const userId = req.authedUser!.id;
   if (ctx.delivery.weightSubmittedById === userId) {
     res.status(403).json({ error: "Approver cannot be the same person as submitter" }); return;
@@ -438,7 +446,7 @@ router.post("/procurement/deliveries/:deliveryId/qc/submit", requirePermission("
   const parsed = SubmitDeliveryQcBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
   const ctx = await loadDeliveryWithStage(req.params.deliveryId as string, "QC_SUBMIT");
-  if ("error" in ctx) { res.status(ctx.code).json({ error: ctx.error }); return; }
+  if (isStageLoadError(ctx)) { res.status(ctx.code).json({ error: ctx.error }); return; }
   const userId = req.authedUser!.id;
   const grade = determineGrade(parsed.data.moistureContent, parsed.data.defectCount, parsed.data.cupScore ?? undefined);
   const sampleId = (parsed.data as any).sampleId ?? null;
@@ -463,7 +471,7 @@ router.post("/procurement/deliveries/:deliveryId/qc/submit", requirePermission("
 
 router.post("/procurement/deliveries/:deliveryId/qc/approve", requirePermission("procurement.qc.approve"), async (req: AuthedRequest, res): Promise<void> => {
   const ctx = await loadDeliveryWithStage(req.params.deliveryId as string, "QC_APPROVE");
-  if ("error" in ctx) { res.status(ctx.code).json({ error: ctx.error }); return; }
+  if (isStageLoadError(ctx)) { res.status(ctx.code).json({ error: ctx.error }); return; }
   const userId = req.authedUser!.id;
   if (ctx.delivery.qcSubmittedById === userId) {
     res.status(403).json({ error: "Approver cannot be the same person as submitter" }); return;
@@ -484,7 +492,7 @@ router.post("/procurement/deliveries/:deliveryId/pricing/propose", requirePermis
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
   const { deliveryId } = req.params;
   const ctx = await loadDeliveryWithStage(deliveryId as string, "PRICING_PROPOSE");
-  if ("error" in ctx) { res.status(ctx.code).json({ error: ctx.error }); return; }
+  if (isStageLoadError(ctx)) { res.status(ctx.code).json({ error: ctx.error }); return; }
   const current = ctx.delivery;
   // Workflow may have skipped weight/QC entirely (e.g. pricing-only quick flow). Only enforce
   // both-approved if those stage kinds are present in the resolved workflow.
@@ -609,7 +617,7 @@ router.post("/procurement/deliveries/:deliveryId/pricing/propose", requirePermis
 
 router.post("/procurement/deliveries/:deliveryId/pricing/approve", requirePermission("procurement.pricing.approve"), async (req: AuthedRequest, res): Promise<void> => {
   const ctx = await loadDeliveryWithStage(req.params.deliveryId as string, "PRICING_APPROVE");
-  if ("error" in ctx) { res.status(ctx.code).json({ error: ctx.error }); return; }
+  if (isStageLoadError(ctx)) { res.status(ctx.code).json({ error: ctx.error }); return; }
   const userId = req.authedUser!.id;
   if (ctx.delivery.pricingProposedById === userId) {
     res.status(403).json({ error: "Approver cannot be the same person as proposer" }); return;

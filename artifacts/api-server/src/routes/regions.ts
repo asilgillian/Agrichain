@@ -157,7 +157,7 @@ router.post("/admin/regions/import-hierarchical", requirePermission("admin.bulk_
       const parentPath = typeof raw.parentPath === "string" ? raw.parentPath.trim() : "";
       const parentName = typeof raw.parentName === "string" ? raw.parentName.trim() : "";
       if (parentPath) {
-        const parts = parentPath.split("/").map(p => p.trim()).filter(Boolean);
+        const parts = parentPath.split("/").map((p: string) => p.trim()).filter(Boolean);
         let curParent: string | null = null;
         let resolved = true;
         for (const p of parts) {
@@ -225,7 +225,7 @@ router.post("/admin/regions/import-shapefile", requirePermission("admin.bulk_upl
 
   let parsed: any;
   try {
-    parsed = await shp(buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength));
+    parsed = await shp(buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength) as ArrayBuffer);
   } catch (err: any) {
     res.status(400).json({ error: `Failed to parse shapefile: ${err?.message ?? err}` });
     return;
