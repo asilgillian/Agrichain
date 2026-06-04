@@ -28,8 +28,12 @@ export interface OrgRegionGroupVillagePickerProps {
   orgRegionId: string;
   groupId: string;
   villageId: string;
-  onChange: (next: { orgRegionId: string; groupId: string; villageId: string }) => void;
+  onChange: (next: { orgRegionId: string; groupId: string; villageId: string; villageName: string }) => void;
   testIDPrefix?: string;
+  /** Hide the Group level (Region → Village only). Used by forms with no group concept (suppliers). */
+  showGroup?: boolean;
+  /** Show the "*" required marker on labels. Set false when the selection is optional. */
+  requiredMark?: boolean;
 }
 
 /**
@@ -43,7 +47,10 @@ export function OrgRegionGroupVillagePicker({
   villageId,
   onChange,
   testIDPrefix = "ogv",
+  showGroup = true,
+  requiredMark = true,
 }: OrgRegionGroupVillagePickerProps) {
+  const mark = requiredMark ? " *" : "";
   const colors = useColors();
   const { getToken } = useAuth();
 
@@ -80,14 +87,15 @@ export function OrgRegionGroupVillagePicker({
   const groups = groupsQ.data ?? [];
   const villages = villagesQ.data ?? [];
 
-  const setOrgRegion = (id: string) => onChange({ orgRegionId: id, groupId: "", villageId: "" });
-  const setGroup = (id: string) => onChange({ orgRegionId, groupId: id, villageId });
-  const setVillage = (id: string) => onChange({ orgRegionId, groupId, villageId: id });
+  const villageNameOf = (id: string) => villages.find((v) => v.id === id)?.name ?? "";
+  const setOrgRegion = (id: string) => onChange({ orgRegionId: id, groupId: "", villageId: "", villageName: "" });
+  const setGroup = (id: string) => onChange({ orgRegionId, groupId: id, villageId, villageName: villageNameOf(villageId) });
+  const setVillage = (id: string) => onChange({ orgRegionId, groupId, villageId: id, villageName: villageNameOf(id) });
 
   return (
     <View style={{ gap: 10 }}>
       <DropdownField
-        label="Region *"
+        label={`Region${mark}`}
         valueLabel={orgRegions.find((r) => r.id === orgRegionId)?.name ?? "Tap to choose region"}
         loading={orgRegionsQ.isLoading}
         items={orgRegions.map((r) => ({ id: r.id, label: r.name, sub: `${r.districtCount ?? 0} districts` }))}
@@ -96,19 +104,21 @@ export function OrgRegionGroupVillagePicker({
         testID={`${testIDPrefix}-region`}
         colors={colors}
       />
+      {showGroup && (
+        <DropdownField
+          label={`Farmer Group${mark}`}
+          valueLabel={groups.find((g) => g.id === groupId)?.name ?? (orgRegionId ? "Tap to choose group" : "Pick a region first")}
+          disabled={!orgRegionId}
+          loading={groupsQ.isLoading}
+          items={groups.map((g) => ({ id: g.id, label: g.name }))}
+          onPick={setGroup}
+          emptyLabel="No groups in this region yet."
+          testID={`${testIDPrefix}-group`}
+          colors={colors}
+        />
+      )}
       <DropdownField
-        label="Farmer Group *"
-        valueLabel={groups.find((g) => g.id === groupId)?.name ?? (orgRegionId ? "Tap to choose group" : "Pick a region first")}
-        disabled={!orgRegionId}
-        loading={groupsQ.isLoading}
-        items={groups.map((g) => ({ id: g.id, label: g.name }))}
-        onPick={setGroup}
-        emptyLabel="No groups in this region yet."
-        testID={`${testIDPrefix}-group`}
-        colors={colors}
-      />
-      <DropdownField
-        label="Village *"
+        label={`Village${mark}`}
         valueLabel={villages.find((v) => v.id === villageId)?.name ?? (orgRegionId ? "Tap to choose village" : "Pick a region first")}
         disabled={!orgRegionId}
         loading={villagesQ.isLoading}

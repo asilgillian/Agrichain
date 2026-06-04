@@ -12,6 +12,7 @@ import { Link } from "wouter";
 import { Users, MapPin, ChevronRight, Plus, X } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
+import { OrgRegionGroupVillagePicker } from "@/components/OrgRegionGroupVillagePicker";
 
 const API_BASE = import.meta.env.BASE_URL?.replace(/\/$/, "");
 
@@ -19,7 +20,7 @@ export default function GroupsList() {
   const { data: groups, isLoading } = useListGroups({});
   const { data: regions } = useListRegions();
   const [open, setOpen] = useState(false);
-  const [form, setForm] = useState<{ name: string; districtIds: string[]; village: string }>({ name: "", districtIds: [], village: "" });
+  const [form, setForm] = useState<{ name: string; districtIds: string[]; village: string; orgRegionId: string; villageId: string }>({ name: "", districtIds: [], village: "", orgRegionId: "", villageId: "" });
   const [filter, setFilter] = useState("");
   const { toast } = useToast();
   const qc = useQueryClient();
@@ -40,7 +41,7 @@ export default function GroupsList() {
       qc.invalidateQueries({ queryKey: ["/api/groups"] });
       toast({ title: "Group created" });
       setOpen(false);
-      setForm({ name: "", districtIds: [], village: "" });
+      setForm({ name: "", districtIds: [], village: "", orgRegionId: "", villageId: "" });
       setFilter("");
     },
     onError: (e: any) => toast({ title: "Failed", description: e.message, variant: "destructive" }),
@@ -122,8 +123,17 @@ export default function GroupsList() {
                   </p>
                 </div>
                 <div>
-                  <Label>Village name (free text, optional)</Label>
-                  <Input value={form.village} onChange={e => setForm({ ...form, village: e.target.value })} placeholder="Primary village if applicable" data-testid="input-village" />
+                  <Label className="mb-1 block">Village (optional)</Label>
+                  <OrgRegionGroupVillagePicker
+                    orgRegionId={form.orgRegionId}
+                    groupId=""
+                    villageId={form.villageId}
+                    showGroup={false}
+                    requiredMark={false}
+                    testIdPrefix="group-village"
+                    onChange={({ orgRegionId, villageId, villageName }) =>
+                      setForm(f => ({ ...f, orgRegionId, villageId, village: villageId ? villageName : (f.villageId ? "" : f.village) }))}
+                  />
                 </div>
               </div>
               <DialogFooter>

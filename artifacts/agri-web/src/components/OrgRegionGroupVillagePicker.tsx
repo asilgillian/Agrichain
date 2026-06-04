@@ -18,9 +18,13 @@ export interface OrgRegionGroupVillagePickerProps {
   orgRegionId: string;
   groupId: string;
   villageId: string;
-  onChange: (next: { orgRegionId: string; groupId: string; villageId: string }) => void;
+  onChange: (next: { orgRegionId: string; groupId: string; villageId: string; villageName: string }) => void;
   testIdPrefix?: string;
   hideLabels?: boolean;
+  /** Hide the Group level (Region → Village only). Used by forms with no group concept (suppliers, groups). */
+  showGroup?: boolean;
+  /** Show the "*" required marker on labels. Set false when the selection is optional. */
+  requiredMark?: boolean;
 }
 
 /**
@@ -37,7 +41,10 @@ export function OrgRegionGroupVillagePicker({
   onChange,
   testIdPrefix = "ogv",
   hideLabels = false,
+  showGroup = true,
+  requiredMark = true,
 }: OrgRegionGroupVillagePickerProps) {
+  const mark = requiredMark ? " *" : "";
   const orgRegionsQ = useQuery<OrgRegionRow[]>({
     queryKey: ["/api/org-regions"],
     queryFn: () => fetch(`${API_BASE}/api/org-regions`).then(r => {
@@ -87,10 +94,10 @@ export function OrgRegionGroupVillagePicker({
   return (
     <div className="space-y-3">
       <div>
-        {!hideLabels && <Label className="text-xs mb-1 block">Region *</Label>}
+        {!hideLabels && <Label className="text-xs mb-1 block">Region{mark}</Label>}
         <Select
           value={orgRegionId}
-          onValueChange={(v) => onChange({ orgRegionId: v, groupId: "", villageId: "" })}
+          onValueChange={(v) => onChange({ orgRegionId: v, groupId: "", villageId: "", villageName: "" })}
         >
           <SelectTrigger data-testid={`${testIdPrefix}-region`}>
             <SelectValue placeholder={orgRegions.length === 0 ? "No regions available" : "Select region"} />
@@ -106,9 +113,9 @@ export function OrgRegionGroupVillagePicker({
         </Select>
       </div>
 
-      {orgRegionId && (
+      {showGroup && orgRegionId && (
         <div>
-          {!hideLabels && <Label className="text-xs mb-1 block">Group *</Label>}
+          {!hideLabels && <Label className="text-xs mb-1 block">Group{mark}</Label>}
           <SearchableCombo
             testId={`${testIdPrefix}-group`}
             placeholder={
@@ -120,7 +127,7 @@ export function OrgRegionGroupVillagePicker({
             selectedLabel={selectedGroup?.name}
             items={groups.map(g => ({ id: g.id, label: g.name }))}
             value={groupId}
-            onChange={(id) => onChange({ orgRegionId, groupId: id, villageId })}
+            onChange={(id) => onChange({ orgRegionId, groupId: id, villageId, villageName: selectedVillage?.name ?? "" })}
             emptyLabel="No groups found."
             searchPlaceholder="Search groups…"
           />
@@ -129,7 +136,7 @@ export function OrgRegionGroupVillagePicker({
 
       {orgRegionId && (
         <div>
-          {!hideLabels && <Label className="text-xs mb-1 block">Village *</Label>}
+          {!hideLabels && <Label className="text-xs mb-1 block">Village{mark}</Label>}
           <SearchableCombo
             testId={`${testIdPrefix}-village`}
             placeholder={
@@ -141,7 +148,7 @@ export function OrgRegionGroupVillagePicker({
             selectedLabel={selectedVillage?.name}
             items={villages.map(v => ({ id: v.id, label: v.name }))}
             value={villageId}
-            onChange={(id) => onChange({ orgRegionId, groupId, villageId: id })}
+            onChange={(id) => onChange({ orgRegionId, groupId, villageId: id, villageName: villages.find(v => v.id === id)?.name ?? "" })}
             emptyLabel="No villages found."
             searchPlaceholder="Search villages…"
           />

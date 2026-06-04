@@ -21,6 +21,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/hooks/use-toast";
 import { usePermissions } from "@/hooks/use-permissions";
 import { DEFAULT_PHONE_CODE } from "@/lib/currency";
+import { OrgRegionGroupVillagePicker } from "@/components/OrgRegionGroupVillagePicker";
 
 type SellerType = "business" | "individual";
 
@@ -34,6 +35,8 @@ const emptyForm = {
   phoneNumber: DEFAULT_PHONE_CODE,
   email: "",
   village: "",
+  orgRegionId: "",
+  villageId: "",
   address: "",
   paymentMethod: "cash" as "cash" | "mobile_money" | "bank_transfer",
   momoProvider: "mtn_momo" as "mtn_momo" | "airtel_money",
@@ -113,6 +116,8 @@ export default function SuppliersList() {
       phoneNumber: s.phoneNumber ?? DEFAULT_PHONE_CODE,
       email: s.email ?? "",
       village: s.village ?? "",
+      orgRegionId: "",
+      villageId: "",
       address: s.address ?? "",
       paymentMethod: (s.paymentMethod ?? "cash") as FormState["paymentMethod"],
       momoProvider: (s.momoProvider ?? "mtn") as FormState["momoProvider"],
@@ -234,7 +239,22 @@ export default function SuppliersList() {
                   <div><Label>Email</Label><Input value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} data-testid="supplier-email" /></div>
                 </div>
                 <div className="grid grid-cols-2 gap-3">
-                  <div><Label>Village</Label><Input value={form.village} onChange={e => setForm({ ...form, village: e.target.value })} data-testid="supplier-village" /></div>
+                  <div>
+                    <Label className="mb-1 block">Village</Label>
+                    <OrgRegionGroupVillagePicker
+                      orgRegionId={form.orgRegionId}
+                      groupId=""
+                      villageId={form.villageId}
+                      showGroup={false}
+                      requiredMark={false}
+                      testIdPrefix="supplier-village"
+                      onChange={({ orgRegionId, villageId, villageName }) =>
+                        setForm(f => ({ ...f, orgRegionId, villageId, village: villageId ? villageName : (f.villageId ? "" : f.village) }))}
+                    />
+                    {editing && form.village && !form.villageId && (
+                      <p className="text-xs text-muted-foreground mt-1">Current: {form.village}</p>
+                    )}
+                  </div>
                   <div><Label>Address</Label><Input value={form.address} onChange={e => setForm({ ...form, address: e.target.value })} data-testid="supplier-address" /></div>
                 </div>
 

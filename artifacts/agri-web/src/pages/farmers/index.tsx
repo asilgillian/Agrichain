@@ -187,16 +187,13 @@ export default function FarmersList() {
                     <div><Label>First Name *</Label><Input value={preForm.firstName} onChange={e => setPreForm({ ...preForm, firstName: e.target.value })} data-testid="pre-input-first-name" /></div>
                     <div><Label>Last Name *</Label><Input value={preForm.lastName} onChange={e => setPreForm({ ...preForm, lastName: e.target.value })} data-testid="pre-input-last-name" /></div>
                   </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div><Label>Phone</Label><Input value={preForm.phoneNumber} onChange={e => setPreForm({ ...preForm, phoneNumber: e.target.value })} placeholder="+256..." data-testid="pre-input-phone" /></div>
-                    <div><Label>Village</Label><Input value={preForm.village} onChange={e => setPreForm({ ...preForm, village: e.target.value })} data-testid="pre-input-village" /></div>
-                  </div>
+                  <div><Label>Phone</Label><Input value={preForm.phoneNumber} onChange={e => setPreForm({ ...preForm, phoneNumber: e.target.value })} placeholder="+256..." data-testid="pre-input-phone" /></div>
                   <OrgRegionGroupVillagePicker
                     orgRegionId={preForm.orgRegionId}
                     groupId={preForm.groupId}
                     villageId={preForm.regionId}
-                    onChange={({ orgRegionId, groupId, villageId }) =>
-                      setPreForm({ ...preForm, orgRegionId, groupId, regionId: villageId })}
+                    onChange={({ orgRegionId, groupId, villageId, villageName }) =>
+                      setPreForm(f => ({ ...f, orgRegionId, groupId, regionId: villageId, village: villageId ? villageName : (f.regionId ? "" : f.village) }))}
                     testIdPrefix="pre-input"
                   />
                 </div>
@@ -240,14 +237,13 @@ export default function FarmersList() {
                         </SelectContent>
                       </Select>
                     </div>
-                    <div><Label>Village</Label><Input value={fullForm.village} onChange={e => setFullForm({ ...fullForm, village: e.target.value })} data-testid="input-village" /></div>
                   </div>
                   <OrgRegionGroupVillagePicker
                     orgRegionId={fullForm.orgRegionId}
                     groupId={fullForm.groupId}
                     villageId={fullForm.regionId}
-                    onChange={({ orgRegionId, groupId, villageId }) =>
-                      setFullForm({ ...fullForm, orgRegionId, groupId, regionId: villageId })}
+                    onChange={({ orgRegionId, groupId, villageId, villageName }) =>
+                      setFullForm(f => ({ ...f, orgRegionId, groupId, regionId: villageId, village: villageId ? villageName : (f.regionId ? "" : f.village) }))}
                     testIdPrefix="input"
                   />
                 </div>

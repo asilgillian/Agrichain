@@ -98,16 +98,13 @@ export default function FarmerPreregisterPage() {
             <div><Label>First Name *</Label><Input value={form.firstName} onChange={e => setForm({ ...form, firstName: e.target.value })} data-testid="page-pre-first-name" /></div>
             <div><Label>Last Name *</Label><Input value={form.lastName} onChange={e => setForm({ ...form, lastName: e.target.value })} data-testid="page-pre-last-name" /></div>
           </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div><Label>Phone</Label><Input value={form.phoneNumber} onChange={e => setForm({ ...form, phoneNumber: e.target.value })} placeholder="+256..." data-testid="page-pre-phone" /></div>
-            <div><Label>Village</Label><Input value={form.village} onChange={e => setForm({ ...form, village: e.target.value })} data-testid="page-pre-village" /></div>
-          </div>
+          <div><Label>Phone</Label><Input value={form.phoneNumber} onChange={e => setForm({ ...form, phoneNumber: e.target.value })} placeholder="+256..." data-testid="page-pre-phone" /></div>
           <OrgRegionGroupVillagePicker
             orgRegionId={form.orgRegionId}
             groupId={form.groupId}
             villageId={form.regionId}
-            onChange={({ orgRegionId, groupId, villageId }) =>
-              setForm({ ...form, orgRegionId, groupId, regionId: villageId })}
+            onChange={({ orgRegionId, groupId, villageId, villageName }) =>
+              setForm(f => ({ ...f, orgRegionId, groupId, regionId: villageId, village: villageId ? villageName : (f.regionId ? "" : f.village) }))}
             testIdPrefix="page-pre"
           />
           <div className="flex justify-end gap-2 pt-2">

@@ -16,6 +16,7 @@ import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 import { usePermissions } from "@/hooks/use-permissions";
 import { PlotDrawMap, type DrawnGeometry } from "@/components/plots/PlotDrawMap";
+import { OrgRegionGroupVillagePicker } from "@/components/OrgRegionGroupVillagePicker";
 
 const API_BASE = import.meta.env.BASE_URL?.replace(/\/$/, "");
 
@@ -65,6 +66,8 @@ export default function FarmerDetail() {
     sex: "",
     dateOfBirth: "",
     village: "",
+    orgRegionId: "",
+    villageId: "",
     phoneNumber: "",
     headOfHousehold: "",
     landTenure: "",
@@ -279,7 +282,21 @@ export default function FarmerDetail() {
                     </div>
                   </div>
                   <div className="grid grid-cols-2 gap-3">
-                    <div><Label>Village</Label><Input value={completeForm.village} onChange={e => setCompleteForm({ ...completeForm, village: e.target.value })} /></div>
+                    <div>
+                      <Label className="mb-1 block">Village</Label>
+                      <OrgRegionGroupVillagePicker
+                        orgRegionId={completeForm.orgRegionId}
+                        groupId=""
+                        villageId={completeForm.villageId}
+                        showGroup={false}
+                        requiredMark={false}
+                        onChange={({ orgRegionId, villageId, villageName }) =>
+                          setCompleteForm(f => ({ ...f, orgRegionId, villageId, village: villageId ? villageName : (f.villageId ? "" : f.village) }))}
+                      />
+                      {completeForm.village && !completeForm.villageId && (
+                        <p className="text-xs text-muted-foreground mt-1">Current: {completeForm.village}</p>
+                      )}
+                    </div>
                     <div><Label>Phone</Label><Input value={completeForm.phoneNumber} onChange={e => setCompleteForm({ ...completeForm, phoneNumber: e.target.value })} placeholder="+256..." /></div>
                   </div>
                   <div className="grid grid-cols-2 gap-3">

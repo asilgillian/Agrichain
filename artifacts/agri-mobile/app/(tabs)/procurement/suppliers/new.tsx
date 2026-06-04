@@ -7,6 +7,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useApi } from "@/lib/api";
 import { useColors } from "@/hooks/useColors";
+import { OrgRegionGroupVillagePicker } from "@/components/OrgRegionGroupVillagePicker";
 
 // Third-party SUPPLIER registration screen.
 //
@@ -36,6 +37,8 @@ export default function SupplierRegisterScreen() {
   const [nationalId, setNationalId] = useState("");
   const [phoneNumber, setPhoneNumber] = useState(PHONE_PREFIX);
   const [village, setVillage] = useState("");
+  const [orgRegionId, setOrgRegionId] = useState("");
+  const [villageId, setVillageId] = useState("");
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("cash");
   const [momoProvider, setMomoProvider] = useState<MomoProvider>("mtn_momo");
   const [momoMsisdn, setMomoMsisdn] = useState("");
@@ -134,7 +137,23 @@ export default function SupplierRegisterScreen() {
       {/* CONTACT */}
       <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
         <Field label="Phone number" value={phoneNumber} onChangeText={setPhoneNumber} colors={colors} keyboardType="phone-pad" testID="supplier-phone" />
-        <Field label="Village" value={village} onChangeText={setVillage} colors={colors} testID="supplier-village" />
+        <View style={{ gap: 6 }}>
+          <Text style={[styles.label, { color: colors.foreground }]}>Village</Text>
+          <OrgRegionGroupVillagePicker
+            orgRegionId={orgRegionId}
+            groupId=""
+            villageId={villageId}
+            showGroup={false}
+            requiredMark={false}
+            onChange={({ orgRegionId: r, villageId: v, villageName }) => {
+              setOrgRegionId(r);
+              setVillageId(v);
+              if (v) setVillage(villageName);
+              else if (villageId) setVillage("");
+            }}
+            testIDPrefix="supplier-village"
+          />
+        </View>
       </View>
 
       {/* PAYOUT */}
