@@ -119,10 +119,10 @@ title = "uga_regions_rebuild_v2.sql — ADM3 modern districts"
 id = "F5cAWZeGYXIf4F_gNz-sw"
 uri = "file://exports/AgriChain-Integration-Plan.pdf"
 type = "pdf"
-title = "AgriChain Integration Plan (PDF)"
+title = "AgriChain Integration Plan (PDF, updated)"
 
 [[outputs]]
 id = "iPscHvvRPnZaEeYmfkpSu"
 uri = "file://exports/AgriChain-Integration-Plan.docx"
 type = "word_document"
-title = "AgriChain Integration Plan (Word)"
+title = "AgriChain Integration Plan (Word, updated)"
