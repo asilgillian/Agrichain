@@ -22,6 +22,8 @@ import { useToast } from "@/hooks/use-toast";
 import { usePermissions } from "@/hooks/use-permissions";
 import { DEFAULT_PHONE_CODE } from "@/lib/currency";
 import { OrgRegionGroupVillagePicker } from "@/components/OrgRegionGroupVillagePicker";
+import { FarmerLinkPicker } from "@/components/FarmerLinkPicker";
+import { Link2 } from "lucide-react";
 
 type SellerType = "business" | "individual";
 
@@ -44,6 +46,8 @@ const emptyForm = {
   bankName: "",
   bankAccountNumber: "",
   status: "active" as "pending" | "active" | "inactive",
+  farmerId: "",
+  farmerLabel: "",
   notes: "",
 };
 
@@ -125,6 +129,8 @@ export default function SuppliersList() {
       bankName: s.bankName ?? "",
       bankAccountNumber: s.bankAccountNumber ?? "",
       status: (s.status ?? "active") as FormState["status"],
+      farmerId: s.farmerId ?? "",
+      farmerLabel: "",
       notes: s.notes ?? "",
     });
     setOpen(true);
@@ -146,6 +152,7 @@ export default function SuppliersList() {
       address: form.address.trim() || null,
       paymentMethod: form.paymentMethod,
       status: form.status,
+      farmerId: form.farmerId || null,
       notes: form.notes.trim() || null,
     };
     if (form.sellerType === "business") {
@@ -304,6 +311,16 @@ export default function SuppliersList() {
                   </Select>
                 </div>
 
+                <div>
+                  <Label className="mb-1 block">Linked farmer (optional)</Label>
+                  <FarmerLinkPicker
+                    value={form.farmerId}
+                    currentLabel={editing && editing.farmerId ? "Linked farmer" : ""}
+                    onChange={({ farmerId, label }) => setForm({ ...form, farmerId, farmerLabel: label })}
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">Link this supplier to a registered farmer if they are the same person (e.g. an entrepreneur farmer who also sells as a supplier).</p>
+                </div>
+
                 <div><Label>Notes</Label><Input value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} data-testid="supplier-notes" /></div>
               </div>
               <DialogFooter>
@@ -376,6 +393,11 @@ export default function SuppliersList() {
                       <div className="flex items-center gap-2">
                         {s.sellerType === "business" ? <Building2 className="h-4 w-4 text-muted-foreground" /> : <User className="h-4 w-4 text-muted-foreground" />}
                         <span className="font-medium">{supplierName(s)}</span>
+                        {s.farmerId && (
+                          <Badge variant="secondary" className="gap-1" title="Linked to a registered farmer">
+                            <Link2 className="h-3 w-3" /> Farmer
+                          </Badge>
+                        )}
                       </div>
                     </TableCell>
                     <TableCell className="font-mono text-xs">{s.referenceNumber}</TableCell>

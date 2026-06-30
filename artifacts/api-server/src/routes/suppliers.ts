@@ -135,8 +135,13 @@ router.post("/suppliers", requirePermission("suppliers.write"), async (req: Auth
     });
     res.status(201).json(row);
   } catch (e: any) {
-    if (e?.code === "23505") {
-      res.status(409).json({ error: "A supplier with that national ID or business registration number already exists" });
+    const pgCode = e?.code ?? e?.cause?.code;
+    const pgConstraint = e?.constraint ?? e?.cause?.constraint;
+    if (pgCode === "23505") {
+      const msg = pgConstraint === "suppliers_farmer_id_uniq"
+        ? "That farmer is already linked to another supplier"
+        : "A supplier with that national ID or business registration number already exists";
+      res.status(409).json({ error: msg });
       return;
     }
     throw e;
@@ -200,8 +205,13 @@ router.patch("/suppliers/:supplierId", requirePermission("suppliers.write"), asy
     });
     res.json(supplier);
   } catch (e: any) {
-    if (e?.code === "23505") {
-      res.status(409).json({ error: "A supplier with that national ID or business registration number already exists" });
+    const pgCode = e?.code ?? e?.cause?.code;
+    const pgConstraint = e?.constraint ?? e?.cause?.constraint;
+    if (pgCode === "23505") {
+      const msg = pgConstraint === "suppliers_farmer_id_uniq"
+        ? "That farmer is already linked to another supplier"
+        : "A supplier with that national ID or business registration number already exists";
+      res.status(409).json({ error: msg });
       return;
     }
     throw e;
