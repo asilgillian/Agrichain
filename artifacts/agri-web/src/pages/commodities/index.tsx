@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
-import { Leaf, Plus, Tag, Coins, ArrowRightLeft, CalendarRange, FlaskConical, ClipboardList, Trash2 } from "lucide-react";
+import { Leaf, Plus, Tag, Coins, ArrowRightLeft, CalendarRange, FlaskConical, ClipboardList, Trash2, Layers } from "lucide-react";
 import { customFetch } from "@workspace/api-client-react";
 
 const API_BASE = import.meta.env.BASE_URL?.replace(/\/$/, "");
@@ -291,12 +291,14 @@ function ManagePanel({ type, commodity, siblings }: { type: CommodityType; commo
       <TabsList>
         <TabsTrigger value="prices"><Coins className="h-4 w-4 mr-1" /> Prices</TabsTrigger>
         <TabsTrigger value="conversions"><ArrowRightLeft className="h-4 w-4 mr-1" /> Conversions</TabsTrigger>
+        <TabsTrigger value="grading"><Layers className="h-4 w-4 mr-1" /> Grading</TabsTrigger>
         <TabsTrigger value="seasons"><CalendarRange className="h-4 w-4 mr-1" /> Seasons</TabsTrigger>
         <TabsTrigger value="quality"><FlaskConical className="h-4 w-4 mr-1" /> Quality Specs</TabsTrigger>
         <TabsTrigger value="sampling"><ClipboardList className="h-4 w-4 mr-1" /> Sampling Rules</TabsTrigger>
       </TabsList>
       <TabsContent value="prices"><PricesPanel type={type} commodity={commodity} /></TabsContent>
       <TabsContent value="conversions"><ConversionsPanel type={type} siblings={siblings} /></TabsContent>
+      <TabsContent value="grading"><GradingPanel type={type} siblings={siblings} /></TabsContent>
       <TabsContent value="seasons"><SeasonsPanel type={type} /></TabsContent>
       <TabsContent value="quality"><QualitySpecsPanel type={type} /></TabsContent>
       <TabsContent value="sampling"><SamplingPanel type={type} /></TabsContent>
@@ -507,6 +509,234 @@ function ConversionsPanel({ type, siblings }: { type: CommodityType; siblings: C
         </TableBody>
       </Table>
     </div>
+  );
+}
+
+type GradingProfile = {
+  id: string; name: string; inputCommodityTypeId: string; status: string;
+  effectiveDate: string; notes: string | null;
+};
+type GradingProfileOutput = {
+  id: string; gradingProfileId: string; outputCommodityTypeId: string | null;
+  label: string | null; expectedYieldPct: string; minYieldPct: string | null;
+  maxYieldPct: string | null; isSellable: boolean; sortOrder: number;
+};
+type GradingProfileDetail = GradingProfile & { outputs: GradingProfileOutput[] };
+
+type OutputDraft = {
+  outputCommodityTypeId: string; // "" = loss/byproduct
+  label: string;
+  expectedYieldPct: string;
+  isSellable: boolean;
+};
+
+const LOSS_VALUE = "__loss__";
+
+function GradingPanel({ type, siblings }: { type: CommodityType; siblings: CommodityType[] }) {
+  const qc = useQueryClient();
+  const { toast } = useToast();
+  const { data: profiles, isLoading } = useQuery<GradingProfile[]>({
+    queryKey: [`/api/grading-profiles?inputCommodityTypeId=${type.id}`],
+    queryFn: () => api(`/api/grading-profiles?inputCommodityTypeId=${type.id}`),
+  });
+  const [editing, setEditing] = useState<GradingProfileDetail | "new" | null>(null);
+
+  const del = useMutation({
+    mutationFn: (id: string) => api(`/api/grading-profiles/${id}`, { method: "DELETE" }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: [`/api/grading-profiles?inputCommodityTypeId=${type.id}`] });
+      toast({ title: "Profile deleted" });
+    },
+    onError: (e: any) => toast({ title: "Failed", description: e.message, variant: "destructive" }),
+  });
+
+  const outputTypes = siblings.filter(s => s.id !== type.id);
+
+  return (
+    <div className="space-y-4 mt-3">
+      <div className="flex items-center justify-between">
+        <div className="text-sm text-muted-foreground">
+          Grading profiles split one input (<strong>{type.name}</strong>) into multiple graded outputs (e.g. Screen 18/15/12, undergrades) plus loss/byproduct. Expected yields must sum to ~100%.
+        </div>
+        <Button size="sm" onClick={() => setEditing("new")} data-testid="btn-new-grading-profile"><Plus className="h-4 w-4 mr-1" /> New profile</Button>
+      </div>
+
+      {isLoading ? (
+        <Skeleton className="h-24 w-full" />
+      ) : (
+        <Table>
+          <TableHeader><TableRow><TableHead>Name</TableHead><TableHead>Effective</TableHead><TableHead>Outputs</TableHead><TableHead>Status</TableHead><TableHead></TableHead></TableRow></TableHeader>
+          <TableBody>
+            {(profiles ?? []).map(p => (
+              <GradingProfileRow key={p.id} profile={p} onEdit={(d) => setEditing(d)} onDelete={(id) => del.mutate(id)} />
+            ))}
+            {(profiles ?? []).length === 0 && <TableRow><TableCell colSpan={5} className="text-muted-foreground text-center py-6">No grading profiles yet.</TableCell></TableRow>}
+          </TableBody>
+        </Table>
+      )}
+
+      {editing && (
+        <GradingProfileDialog
+          inputType={type}
+          outputTypes={outputTypes}
+          existing={editing === "new" ? null : editing}
+          onClose={() => setEditing(null)}
+          onSaved={() => {
+            qc.invalidateQueries({ queryKey: [`/api/grading-profiles?inputCommodityTypeId=${type.id}`] });
+            setEditing(null);
+            toast({ title: "Profile saved" });
+          }}
+          onError={(msg) => toast({ title: "Failed", description: msg, variant: "destructive" })}
+        />
+      )}
+    </div>
+  );
+}
+
+function GradingProfileRow({ profile, onEdit, onDelete }: { profile: GradingProfile; onEdit: (d: GradingProfileDetail) => void; onDelete: (id: string) => void }) {
+  const { data: detail } = useQuery<GradingProfileDetail>({
+    queryKey: [`/api/grading-profiles/${profile.id}`],
+    queryFn: () => api(`/api/grading-profiles/${profile.id}`),
+  });
+  return (
+    <TableRow>
+      <TableCell className="font-medium">{profile.name}</TableCell>
+      <TableCell>{profile.effectiveDate}</TableCell>
+      <TableCell className="text-sm text-muted-foreground">
+        {detail ? detail.outputs.map(o => `${o.label ?? "grade"} ${Number(o.expectedYieldPct)}%`).join(", ") : "…"}
+      </TableCell>
+      <TableCell><Badge variant={profile.status === "active" ? "default" : "secondary"}>{profile.status}</Badge></TableCell>
+      <TableCell className="flex gap-1">
+        <Button size="sm" variant="ghost" disabled={!detail} onClick={() => detail && onEdit(detail)} data-testid={`btn-edit-grading-${profile.id}`}>Edit</Button>
+        <Button size="sm" variant="ghost" onClick={() => { if (confirm("Delete this grading profile?")) onDelete(profile.id); }} data-testid={`btn-delete-grading-${profile.id}`}><Trash2 className="h-4 w-4" /></Button>
+      </TableCell>
+    </TableRow>
+  );
+}
+
+function GradingProfileDialog({ inputType, outputTypes, existing, onClose, onSaved, onError }: {
+  inputType: CommodityType;
+  outputTypes: CommodityType[];
+  existing: GradingProfileDetail | null;
+  onClose: () => void;
+  onSaved: () => void;
+  onError: (msg: string) => void;
+}) {
+  const today = new Date().toISOString().slice(0, 10);
+  const [name, setName] = useState(existing?.name ?? "");
+  const [effectiveDate, setEffectiveDate] = useState(existing?.effectiveDate ?? today);
+  const [status, setStatus] = useState(existing?.status ?? "active");
+  const [notes, setNotes] = useState(existing?.notes ?? "");
+  const [rows, setRows] = useState<OutputDraft[]>(
+    existing
+      ? existing.outputs.map(o => ({
+          outputCommodityTypeId: o.outputCommodityTypeId ?? "",
+          label: o.label ?? "",
+          expectedYieldPct: String(Number(o.expectedYieldPct)),
+          isSellable: o.isSellable,
+        }))
+      : [{ outputCommodityTypeId: "", label: "", expectedYieldPct: "", isSellable: true }],
+  );
+
+  const total = rows.reduce((s, r) => s + (Number(r.expectedYieldPct) || 0), 0);
+  const totalOk = Math.abs(total - 100) <= 0.5;
+  const typeNameById = useMemo(() => new Map(outputTypes.map(t => [t.id, t.name])), [outputTypes]);
+
+  const setRow = (i: number, patch: Partial<OutputDraft>) => setRows(rs => rs.map((r, idx) => idx === i ? { ...r, ...patch } : r));
+  const addRow = () => setRows(rs => [...rs, { outputCommodityTypeId: "", label: "", expectedYieldPct: "", isSellable: true }]);
+  const removeRow = (i: number) => setRows(rs => rs.filter((_, idx) => idx !== i));
+
+  const save = useMutation({
+    mutationFn: () => {
+      const body = {
+        name: name.trim(),
+        inputCommodityTypeId: inputType.id,
+        status,
+        effectiveDate,
+        notes: notes.trim() || undefined,
+        outputs: rows.map((r, i) => {
+          const isLoss = !r.isSellable;
+          return {
+            outputCommodityTypeId: r.outputCommodityTypeId || undefined,
+            label: r.label.trim() || (r.outputCommodityTypeId ? typeNameById.get(r.outputCommodityTypeId) : undefined),
+            expectedYieldPct: Number(r.expectedYieldPct),
+            isSellable: !isLoss,
+            sortOrder: i,
+          };
+        }),
+      };
+      return existing
+        ? api(`/api/grading-profiles/${existing.id}`, { method: "PATCH", body: JSON.stringify(body) })
+        : api(`/api/grading-profiles`, { method: "POST", body: JSON.stringify(body) });
+    },
+    onSuccess: onSaved,
+    onError: (e: any) => onError(e.message),
+  });
+
+  const canSave = name.trim() && effectiveDate && totalOk && rows.length > 0 &&
+    rows.every(r => Number(r.expectedYieldPct) >= 0 && (r.isSellable ? !!r.outputCommodityTypeId : (!!r.label.trim() || !!r.outputCommodityTypeId)));
+
+  return (
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="max-w-3xl">
+        <DialogHeader><DialogTitle>{existing ? "Edit" : "New"} grading profile — {inputType.name}</DialogTitle></DialogHeader>
+        <div className="space-y-4">
+          <div className="grid grid-cols-3 gap-2">
+            <div className="col-span-1"><Label>Name</Label><Input value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Arabica screen grading" data-testid="input-grading-name" /></div>
+            <div><Label>Effective</Label><Input type="date" value={effectiveDate} onChange={e => setEffectiveDate(e.target.value)} /></div>
+            <div><Label>Status</Label>
+              <Select value={status} onValueChange={setStatus}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent><SelectItem value="active">Active</SelectItem><SelectItem value="inactive">Inactive</SelectItem></SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <Label>Output grades</Label>
+              <span className={`text-sm font-medium ${totalOk ? "text-green-600" : "text-destructive"}`} data-testid="text-grading-total">Total: {total.toFixed(2)}%</span>
+            </div>
+            {!totalOk && <div className="text-xs text-destructive">Expected yields must sum to ~100% (currently {total.toFixed(2)}%).</div>}
+            <Table>
+              <TableHeader><TableRow><TableHead className="w-[40%]">Output</TableHead><TableHead>Type</TableHead><TableHead className="w-[18%]">Expected %</TableHead><TableHead></TableHead></TableRow></TableHeader>
+              <TableBody>
+                {rows.map((r, i) => (
+                  <TableRow key={i}>
+                    <TableCell>
+                      <Select
+                        value={r.isSellable ? (r.outputCommodityTypeId || "") : LOSS_VALUE}
+                        onValueChange={(v) => {
+                          if (v === LOSS_VALUE) setRow(i, { isSellable: false, outputCommodityTypeId: "" });
+                          else setRow(i, { isSellable: true, outputCommodityTypeId: v, label: typeNameById.get(v) ?? r.label });
+                        }}
+                      >
+                        <SelectTrigger data-testid={`select-grading-output-${i}`}><SelectValue placeholder="Select grade" /></SelectTrigger>
+                        <SelectContent>
+                          {outputTypes.map(t => <SelectItem key={t.id} value={t.id}>{t.name} <span className="text-muted-foreground">{t.code}</span></SelectItem>)}
+                          <SelectItem value={LOSS_VALUE}>Loss / byproduct</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      {!r.isSellable && <Input className="mt-1" value={r.label} onChange={e => setRow(i, { label: e.target.value })} placeholder="Loss label e.g. Husk / Moisture loss" data-testid={`input-grading-loss-label-${i}`} />}
+                    </TableCell>
+                    <TableCell>{r.isSellable ? <Badge variant="outline">Sellable</Badge> : <Badge variant="secondary">Loss</Badge>}</TableCell>
+                    <TableCell><Input type="number" step="0.01" value={r.expectedYieldPct} onChange={e => setRow(i, { expectedYieldPct: e.target.value })} data-testid={`input-grading-yield-${i}`} /></TableCell>
+                    <TableCell><Button size="sm" variant="ghost" onClick={() => removeRow(i)} disabled={rows.length === 1}><Trash2 className="h-4 w-4" /></Button></TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+            <Button size="sm" variant="outline" onClick={addRow} data-testid="btn-add-grading-output"><Plus className="h-4 w-4 mr-1" /> Add output</Button>
+          </div>
+
+          <div><Label>Notes</Label><Input value={notes} onChange={e => setNotes(e.target.value)} /></div>
+        </div>
+        <DialogFooter>
+          <Button variant="ghost" onClick={onClose}>Cancel</Button>
+          <Button onClick={() => save.mutate()} disabled={!canSave || save.isPending} data-testid="btn-save-grading-profile">{save.isPending ? "Saving…" : "Save profile"}</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 

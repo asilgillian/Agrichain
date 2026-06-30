@@ -61,6 +61,13 @@ import type {
   GapAssessment,
   GetDashboardActivityParams,
   GetGroupDistricts200,
+  GradingProfile,
+  GradingProfileDetail,
+  GradingProfileInput,
+  GradingProfileUpdate,
+  GradingRun,
+  GradingRunDetail,
+  GradingRunInput,
   HealthStatus,
   InitiatePaymentBody,
   ListActivityFundsParams,
@@ -71,6 +78,8 @@ import type {
   ListEnrolmentsParams,
   ListFarmersParams,
   ListGapAssessmentsParams,
+  ListGradingProfilesParams,
+  ListGradingRunsParams,
   ListGroupsParams,
   ListLoanProductsParams,
   ListLotsParams,
@@ -10524,6 +10533,722 @@ export const useCreateLoanProductItem = <
 > => {
   return useMutation(getCreateLoanProductItemMutationOptions(options));
 };
+
+/**
+ * @summary List grading profiles
+ */
+export const getListGradingProfilesUrl = (
+  params?: ListGradingProfilesParams,
+) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/grading-profiles?${stringifiedParams}`
+    : `/api/grading-profiles`;
+};
+
+export const listGradingProfiles = async (
+  params?: ListGradingProfilesParams,
+  options?: RequestInit,
+): Promise<GradingProfile[]> => {
+  return customFetch<GradingProfile[]>(getListGradingProfilesUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListGradingProfilesQueryKey = (
+  params?: ListGradingProfilesParams,
+) => {
+  return [`/api/grading-profiles`, ...(params ? [params] : [])] as const;
+};
+
+export const getListGradingProfilesQueryOptions = <
+  TData = Awaited<ReturnType<typeof listGradingProfiles>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: ListGradingProfilesParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listGradingProfiles>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getListGradingProfilesQueryKey(params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listGradingProfiles>>
+  > = ({ signal }) =>
+    listGradingProfiles(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listGradingProfiles>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListGradingProfilesQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listGradingProfiles>>
+>;
+export type ListGradingProfilesQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List grading profiles
+ */
+
+export function useListGradingProfiles<
+  TData = Awaited<ReturnType<typeof listGradingProfiles>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: ListGradingProfilesParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listGradingProfiles>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListGradingProfilesQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Create a grading profile with its output grades
+ */
+export const getCreateGradingProfileUrl = () => {
+  return `/api/grading-profiles`;
+};
+
+export const createGradingProfile = async (
+  gradingProfileInput: GradingProfileInput,
+  options?: RequestInit,
+): Promise<GradingProfileDetail> => {
+  return customFetch<GradingProfileDetail>(getCreateGradingProfileUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(gradingProfileInput),
+  });
+};
+
+export const getCreateGradingProfileMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createGradingProfile>>,
+    TError,
+    { data: BodyType<GradingProfileInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createGradingProfile>>,
+  TError,
+  { data: BodyType<GradingProfileInput> },
+  TContext
+> => {
+  const mutationKey = ["createGradingProfile"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createGradingProfile>>,
+    { data: BodyType<GradingProfileInput> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return createGradingProfile(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateGradingProfileMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createGradingProfile>>
+>;
+export type CreateGradingProfileMutationBody = BodyType<GradingProfileInput>;
+export type CreateGradingProfileMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Create a grading profile with its output grades
+ */
+export const useCreateGradingProfile = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createGradingProfile>>,
+    TError,
+    { data: BodyType<GradingProfileInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createGradingProfile>>,
+  TError,
+  { data: BodyType<GradingProfileInput> },
+  TContext
+> => {
+  return useMutation(getCreateGradingProfileMutationOptions(options));
+};
+
+/**
+ * @summary Get a grading profile with its outputs
+ */
+export const getGetGradingProfileUrl = (profileId: string) => {
+  return `/api/grading-profiles/${profileId}`;
+};
+
+export const getGradingProfile = async (
+  profileId: string,
+  options?: RequestInit,
+): Promise<GradingProfileDetail> => {
+  return customFetch<GradingProfileDetail>(getGetGradingProfileUrl(profileId), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetGradingProfileQueryKey = (profileId: string) => {
+  return [`/api/grading-profiles/${profileId}`] as const;
+};
+
+export const getGetGradingProfileQueryOptions = <
+  TData = Awaited<ReturnType<typeof getGradingProfile>>,
+  TError = ErrorType<void>,
+>(
+  profileId: string,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getGradingProfile>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetGradingProfileQueryKey(profileId);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getGradingProfile>>
+  > = ({ signal }) =>
+    getGradingProfile(profileId, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!profileId,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getGradingProfile>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetGradingProfileQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getGradingProfile>>
+>;
+export type GetGradingProfileQueryError = ErrorType<void>;
+
+/**
+ * @summary Get a grading profile with its outputs
+ */
+
+export function useGetGradingProfile<
+  TData = Awaited<ReturnType<typeof getGradingProfile>>,
+  TError = ErrorType<void>,
+>(
+  profileId: string,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getGradingProfile>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetGradingProfileQueryOptions(profileId, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Update a grading profile and replace its outputs
+ */
+export const getUpdateGradingProfileUrl = (profileId: string) => {
+  return `/api/grading-profiles/${profileId}`;
+};
+
+export const updateGradingProfile = async (
+  profileId: string,
+  gradingProfileUpdate: GradingProfileUpdate,
+  options?: RequestInit,
+): Promise<GradingProfileDetail> => {
+  return customFetch<GradingProfileDetail>(
+    getUpdateGradingProfileUrl(profileId),
+    {
+      ...options,
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(gradingProfileUpdate),
+    },
+  );
+};
+
+export const getUpdateGradingProfileMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateGradingProfile>>,
+    TError,
+    { profileId: string; data: BodyType<GradingProfileUpdate> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateGradingProfile>>,
+  TError,
+  { profileId: string; data: BodyType<GradingProfileUpdate> },
+  TContext
+> => {
+  const mutationKey = ["updateGradingProfile"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateGradingProfile>>,
+    { profileId: string; data: BodyType<GradingProfileUpdate> }
+  > = (props) => {
+    const { profileId, data } = props ?? {};
+
+    return updateGradingProfile(profileId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateGradingProfileMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateGradingProfile>>
+>;
+export type UpdateGradingProfileMutationBody = BodyType<GradingProfileUpdate>;
+export type UpdateGradingProfileMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Update a grading profile and replace its outputs
+ */
+export const useUpdateGradingProfile = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateGradingProfile>>,
+    TError,
+    { profileId: string; data: BodyType<GradingProfileUpdate> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateGradingProfile>>,
+  TError,
+  { profileId: string; data: BodyType<GradingProfileUpdate> },
+  TContext
+> => {
+  return useMutation(getUpdateGradingProfileMutationOptions(options));
+};
+
+/**
+ * @summary Delete a grading profile
+ */
+export const getDeleteGradingProfileUrl = (profileId: string) => {
+  return `/api/grading-profiles/${profileId}`;
+};
+
+export const deleteGradingProfile = async (
+  profileId: string,
+  options?: RequestInit,
+): Promise<void> => {
+  return customFetch<void>(getDeleteGradingProfileUrl(profileId), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getDeleteGradingProfileMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteGradingProfile>>,
+    TError,
+    { profileId: string },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof deleteGradingProfile>>,
+  TError,
+  { profileId: string },
+  TContext
+> => {
+  const mutationKey = ["deleteGradingProfile"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof deleteGradingProfile>>,
+    { profileId: string }
+  > = (props) => {
+    const { profileId } = props ?? {};
+
+    return deleteGradingProfile(profileId, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DeleteGradingProfileMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deleteGradingProfile>>
+>;
+
+export type DeleteGradingProfileMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Delete a grading profile
+ */
+export const useDeleteGradingProfile = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteGradingProfile>>,
+    TError,
+    { profileId: string },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof deleteGradingProfile>>,
+  TError,
+  { profileId: string },
+  TContext
+> => {
+  return useMutation(getDeleteGradingProfileMutationOptions(options));
+};
+
+/**
+ * @summary List grading runs
+ */
+export const getListGradingRunsUrl = (params?: ListGradingRunsParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/grading-runs?${stringifiedParams}`
+    : `/api/grading-runs`;
+};
+
+export const listGradingRuns = async (
+  params?: ListGradingRunsParams,
+  options?: RequestInit,
+): Promise<GradingRun[]> => {
+  return customFetch<GradingRun[]>(getListGradingRunsUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListGradingRunsQueryKey = (params?: ListGradingRunsParams) => {
+  return [`/api/grading-runs`, ...(params ? [params] : [])] as const;
+};
+
+export const getListGradingRunsQueryOptions = <
+  TData = Awaited<ReturnType<typeof listGradingRuns>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: ListGradingRunsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listGradingRuns>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getListGradingRunsQueryKey(params);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof listGradingRuns>>> = ({
+    signal,
+  }) => listGradingRuns(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listGradingRuns>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListGradingRunsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listGradingRuns>>
+>;
+export type ListGradingRunsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List grading runs
+ */
+
+export function useListGradingRuns<
+  TData = Awaited<ReturnType<typeof listGradingRuns>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: ListGradingRunsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listGradingRuns>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListGradingRunsQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Execute a grading profile against an input quantity
+ */
+export const getCreateGradingRunUrl = () => {
+  return `/api/grading-runs`;
+};
+
+export const createGradingRun = async (
+  gradingRunInput: GradingRunInput,
+  options?: RequestInit,
+): Promise<GradingRunDetail> => {
+  return customFetch<GradingRunDetail>(getCreateGradingRunUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(gradingRunInput),
+  });
+};
+
+export const getCreateGradingRunMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createGradingRun>>,
+    TError,
+    { data: BodyType<GradingRunInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createGradingRun>>,
+  TError,
+  { data: BodyType<GradingRunInput> },
+  TContext
+> => {
+  const mutationKey = ["createGradingRun"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createGradingRun>>,
+    { data: BodyType<GradingRunInput> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return createGradingRun(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateGradingRunMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createGradingRun>>
+>;
+export type CreateGradingRunMutationBody = BodyType<GradingRunInput>;
+export type CreateGradingRunMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Execute a grading profile against an input quantity
+ */
+export const useCreateGradingRun = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createGradingRun>>,
+    TError,
+    { data: BodyType<GradingRunInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createGradingRun>>,
+  TError,
+  { data: BodyType<GradingRunInput> },
+  TContext
+> => {
+  return useMutation(getCreateGradingRunMutationOptions(options));
+};
+
+/**
+ * @summary Get a grading run with per-grade results
+ */
+export const getGetGradingRunUrl = (runId: string) => {
+  return `/api/grading-runs/${runId}`;
+};
+
+export const getGradingRun = async (
+  runId: string,
+  options?: RequestInit,
+): Promise<GradingRunDetail> => {
+  return customFetch<GradingRunDetail>(getGetGradingRunUrl(runId), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetGradingRunQueryKey = (runId: string) => {
+  return [`/api/grading-runs/${runId}`] as const;
+};
+
+export const getGetGradingRunQueryOptions = <
+  TData = Awaited<ReturnType<typeof getGradingRun>>,
+  TError = ErrorType<void>,
+>(
+  runId: string,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getGradingRun>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetGradingRunQueryKey(runId);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getGradingRun>>> = ({
+    signal,
+  }) => getGradingRun(runId, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!runId,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getGradingRun>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetGradingRunQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getGradingRun>>
+>;
+export type GetGradingRunQueryError = ErrorType<void>;
+
+/**
+ * @summary Get a grading run with per-grade results
+ */
+
+export function useGetGradingRun<
+  TData = Awaited<ReturnType<typeof getGradingRun>>,
+  TError = ErrorType<void>,
+>(
+  runId: string,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getGradingRun>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetGradingRunQueryOptions(runId, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
 
 /**
  * @summary Update loan product item

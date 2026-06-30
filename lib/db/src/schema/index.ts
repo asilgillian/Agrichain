@@ -31,6 +31,7 @@ export * from "./assets";
 export * from "./activity-funds";
 export * from "./audit";
 export * from "./commodities";
+export * from "./grading";
 export * from "./samples";
 export * from "./registration-templates";
 export * from "./farmer-custom-field-values";

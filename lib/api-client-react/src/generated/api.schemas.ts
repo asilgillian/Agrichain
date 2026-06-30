@@ -573,6 +573,144 @@ export interface SupplierUpdate {
   notes?: string | null;
 }
 
+export interface GradingProfileOutput {
+  id: string;
+  gradingProfileId: string;
+  outputCommodityTypeId?: string | null;
+  label?: string | null;
+  expectedYieldPct: string;
+  minYieldPct?: string | null;
+  maxYieldPct?: string | null;
+  isSellable: boolean;
+  sortOrder: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type GradingProfileStatus =
+  (typeof GradingProfileStatus)[keyof typeof GradingProfileStatus];
+
+export const GradingProfileStatus = {
+  active: "active",
+  inactive: "inactive",
+} as const;
+
+export interface GradingProfile {
+  id: string;
+  name: string;
+  inputCommodityTypeId: string;
+  status: GradingProfileStatus;
+  effectiveDate: string;
+  notes?: string | null;
+  createdById?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type GradingProfileDetail = GradingProfile & {
+  outputs: GradingProfileOutput[];
+};
+
+export interface GradingProfileOutputInput {
+  outputCommodityTypeId?: string | null;
+  /** @maxLength 160 */
+  label?: string | null;
+  expectedYieldPct: number;
+  minYieldPct?: number | null;
+  maxYieldPct?: number | null;
+  isSellable?: boolean | null;
+  sortOrder?: number | null;
+}
+
+export type GradingProfileInputStatus =
+  | (typeof GradingProfileInputStatus)[keyof typeof GradingProfileInputStatus]
+  | null;
+
+export const GradingProfileInputStatus = {
+  active: "active",
+  inactive: "inactive",
+} as const;
+
+export interface GradingProfileInput {
+  /** @maxLength 200 */
+  name: string;
+  inputCommodityTypeId: string;
+  status?: GradingProfileInputStatus;
+  effectiveDate?: string | null;
+  /** @maxLength 2000 */
+  notes?: string | null;
+  outputs: GradingProfileOutputInput[];
+}
+
+export type GradingProfileUpdateStatus =
+  | (typeof GradingProfileUpdateStatus)[keyof typeof GradingProfileUpdateStatus]
+  | null;
+
+export const GradingProfileUpdateStatus = {
+  active: "active",
+  inactive: "inactive",
+} as const;
+
+export interface GradingProfileUpdate {
+  /** @maxLength 200 */
+  name?: string;
+  inputCommodityTypeId?: string;
+  status?: GradingProfileUpdateStatus;
+  effectiveDate?: string | null;
+  /** @maxLength 2000 */
+  notes?: string | null;
+  outputs?: GradingProfileOutputInput[] | null;
+}
+
+export interface GradingRunOutput {
+  id: string;
+  gradingRunId: string;
+  gradingProfileOutputId?: string | null;
+  outputCommodityTypeId?: string | null;
+  label?: string | null;
+  isSellable: boolean;
+  expectedYieldPct: string;
+  actualWeightKg: string;
+  actualYieldPct: string;
+  variancePct: string;
+  createdAt: string;
+}
+
+export interface GradingRun {
+  id: string;
+  runNumber: string;
+  gradingProfileId: string;
+  siloBatchId?: string | null;
+  inputCommodityTypeId: string;
+  inputWeightKg: string;
+  totalOutputKg: string;
+  lossKg: string;
+  lossPct: string;
+  status: string;
+  notes?: string | null;
+  runById?: string | null;
+  createdAt: string;
+}
+
+export type GradingRunDetail = GradingRun & {
+  profileName?: string | null;
+  outputs: GradingRunOutput[];
+};
+
+export interface GradingRunOutputInput {
+  gradingProfileOutputId: string;
+  actualWeightKg: number;
+}
+
+export interface GradingRunInput {
+  gradingProfileId: string;
+  siloBatchId?: string | null;
+  inputWeightKg: number;
+  /** @maxLength 2000 */
+  notes?: string | null;
+  outputs: GradingRunOutputInput[];
+}
+
 export type FarmerSex = (typeof FarmerSex)[keyof typeof FarmerSex];
 
 export const FarmerSex = {
@@ -2362,4 +2500,23 @@ export type CreateRoleBody = {
 
 export type ListLoanProductsParams = {
   loanCategoryId?: string;
+};
+
+export type ListGradingProfilesParams = {
+  inputCommodityTypeId?: string;
+  commodityId?: string;
+  status?: ListGradingProfilesStatus;
+};
+
+export type ListGradingProfilesStatus =
+  (typeof ListGradingProfilesStatus)[keyof typeof ListGradingProfilesStatus];
+
+export const ListGradingProfilesStatus = {
+  active: "active",
+  inactive: "inactive",
+} as const;
+
+export type ListGradingRunsParams = {
+  gradingProfileId?: string;
+  siloBatchId?: string;
 };

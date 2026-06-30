@@ -4845,6 +4845,263 @@ export const CreateLoanProductItemBody = zod.object({
 });
 
 /**
+ * @summary List grading profiles
+ */
+export const ListGradingProfilesQueryParams = zod.object({
+  inputCommodityTypeId: zod.coerce.string().uuid().optional(),
+  commodityId: zod.coerce.string().uuid().optional(),
+  status: zod.enum(["active", "inactive"]).optional(),
+});
+
+export const ListGradingProfilesResponseItem = zod.object({
+  id: zod.string().uuid(),
+  name: zod.string(),
+  inputCommodityTypeId: zod.string().uuid(),
+  status: zod.enum(["active", "inactive"]),
+  effectiveDate: zod.string(),
+  notes: zod.string().nullish(),
+  createdById: zod.string().uuid().nullish(),
+  createdAt: zod.coerce.date(),
+  updatedAt: zod.coerce.date(),
+});
+export const ListGradingProfilesResponse = zod.array(
+  ListGradingProfilesResponseItem,
+);
+
+/**
+ * @summary Create a grading profile with its output grades
+ */
+export const createGradingProfileBodyNameMax = 200;
+
+export const createGradingProfileBodyNotesMax = 2000;
+
+export const createGradingProfileBodyOutputsItemLabelMax = 160;
+
+export const CreateGradingProfileBody = zod.object({
+  name: zod.string().max(createGradingProfileBodyNameMax),
+  inputCommodityTypeId: zod.string().uuid(),
+  status: zod.enum(["active", "inactive"]).nullish(),
+  effectiveDate: zod.string().nullish(),
+  notes: zod.string().max(createGradingProfileBodyNotesMax).nullish(),
+  outputs: zod.array(
+    zod.object({
+      outputCommodityTypeId: zod.string().uuid().nullish(),
+      label: zod
+        .string()
+        .max(createGradingProfileBodyOutputsItemLabelMax)
+        .nullish(),
+      expectedYieldPct: zod.number(),
+      minYieldPct: zod.number().nullish(),
+      maxYieldPct: zod.number().nullish(),
+      isSellable: zod.boolean().nullish(),
+      sortOrder: zod.number().nullish(),
+    }),
+  ),
+});
+
+/**
+ * @summary Get a grading profile with its outputs
+ */
+export const GetGradingProfileParams = zod.object({
+  profileId: zod.coerce.string().uuid(),
+});
+
+export const GetGradingProfileResponse = zod
+  .object({
+    id: zod.string().uuid(),
+    name: zod.string(),
+    inputCommodityTypeId: zod.string().uuid(),
+    status: zod.enum(["active", "inactive"]),
+    effectiveDate: zod.string(),
+    notes: zod.string().nullish(),
+    createdById: zod.string().uuid().nullish(),
+    createdAt: zod.coerce.date(),
+    updatedAt: zod.coerce.date(),
+  })
+  .and(
+    zod.object({
+      outputs: zod.array(
+        zod.object({
+          id: zod.string().uuid(),
+          gradingProfileId: zod.string().uuid(),
+          outputCommodityTypeId: zod.string().uuid().nullish(),
+          label: zod.string().nullish(),
+          expectedYieldPct: zod.string(),
+          minYieldPct: zod.string().nullish(),
+          maxYieldPct: zod.string().nullish(),
+          isSellable: zod.boolean(),
+          sortOrder: zod.number(),
+          createdAt: zod.coerce.date(),
+          updatedAt: zod.coerce.date(),
+        }),
+      ),
+    }),
+  );
+
+/**
+ * @summary Update a grading profile and replace its outputs
+ */
+export const UpdateGradingProfileParams = zod.object({
+  profileId: zod.coerce.string().uuid(),
+});
+
+export const updateGradingProfileBodyNameMax = 200;
+
+export const updateGradingProfileBodyNotesMax = 2000;
+
+export const updateGradingProfileBodyOutputsItemLabelMax = 160;
+
+export const UpdateGradingProfileBody = zod.object({
+  name: zod.string().max(updateGradingProfileBodyNameMax).optional(),
+  inputCommodityTypeId: zod.string().uuid().optional(),
+  status: zod.enum(["active", "inactive"]).nullish(),
+  effectiveDate: zod.string().nullish(),
+  notes: zod.string().max(updateGradingProfileBodyNotesMax).nullish(),
+  outputs: zod
+    .array(
+      zod.object({
+        outputCommodityTypeId: zod.string().uuid().nullish(),
+        label: zod
+          .string()
+          .max(updateGradingProfileBodyOutputsItemLabelMax)
+          .nullish(),
+        expectedYieldPct: zod.number(),
+        minYieldPct: zod.number().nullish(),
+        maxYieldPct: zod.number().nullish(),
+        isSellable: zod.boolean().nullish(),
+        sortOrder: zod.number().nullish(),
+      }),
+    )
+    .nullish(),
+});
+
+export const UpdateGradingProfileResponse = zod
+  .object({
+    id: zod.string().uuid(),
+    name: zod.string(),
+    inputCommodityTypeId: zod.string().uuid(),
+    status: zod.enum(["active", "inactive"]),
+    effectiveDate: zod.string(),
+    notes: zod.string().nullish(),
+    createdById: zod.string().uuid().nullish(),
+    createdAt: zod.coerce.date(),
+    updatedAt: zod.coerce.date(),
+  })
+  .and(
+    zod.object({
+      outputs: zod.array(
+        zod.object({
+          id: zod.string().uuid(),
+          gradingProfileId: zod.string().uuid(),
+          outputCommodityTypeId: zod.string().uuid().nullish(),
+          label: zod.string().nullish(),
+          expectedYieldPct: zod.string(),
+          minYieldPct: zod.string().nullish(),
+          maxYieldPct: zod.string().nullish(),
+          isSellable: zod.boolean(),
+          sortOrder: zod.number(),
+          createdAt: zod.coerce.date(),
+          updatedAt: zod.coerce.date(),
+        }),
+      ),
+    }),
+  );
+
+/**
+ * @summary Delete a grading profile
+ */
+export const DeleteGradingProfileParams = zod.object({
+  profileId: zod.coerce.string().uuid(),
+});
+
+/**
+ * @summary List grading runs
+ */
+export const ListGradingRunsQueryParams = zod.object({
+  gradingProfileId: zod.coerce.string().uuid().optional(),
+  siloBatchId: zod.coerce.string().uuid().optional(),
+});
+
+export const ListGradingRunsResponseItem = zod.object({
+  id: zod.string().uuid(),
+  runNumber: zod.string(),
+  gradingProfileId: zod.string().uuid(),
+  siloBatchId: zod.string().uuid().nullish(),
+  inputCommodityTypeId: zod.string().uuid(),
+  inputWeightKg: zod.string(),
+  totalOutputKg: zod.string(),
+  lossKg: zod.string(),
+  lossPct: zod.string(),
+  status: zod.string(),
+  notes: zod.string().nullish(),
+  runById: zod.string().uuid().nullish(),
+  createdAt: zod.coerce.date(),
+});
+export const ListGradingRunsResponse = zod.array(ListGradingRunsResponseItem);
+
+/**
+ * @summary Execute a grading profile against an input quantity
+ */
+export const createGradingRunBodyNotesMax = 2000;
+
+export const CreateGradingRunBody = zod.object({
+  gradingProfileId: zod.string().uuid(),
+  siloBatchId: zod.string().uuid().nullish(),
+  inputWeightKg: zod.number(),
+  notes: zod.string().max(createGradingRunBodyNotesMax).nullish(),
+  outputs: zod.array(
+    zod.object({
+      gradingProfileOutputId: zod.string().uuid(),
+      actualWeightKg: zod.number(),
+    }),
+  ),
+});
+
+/**
+ * @summary Get a grading run with per-grade results
+ */
+export const GetGradingRunParams = zod.object({
+  runId: zod.coerce.string().uuid(),
+});
+
+export const GetGradingRunResponse = zod
+  .object({
+    id: zod.string().uuid(),
+    runNumber: zod.string(),
+    gradingProfileId: zod.string().uuid(),
+    siloBatchId: zod.string().uuid().nullish(),
+    inputCommodityTypeId: zod.string().uuid(),
+    inputWeightKg: zod.string(),
+    totalOutputKg: zod.string(),
+    lossKg: zod.string(),
+    lossPct: zod.string(),
+    status: zod.string(),
+    notes: zod.string().nullish(),
+    runById: zod.string().uuid().nullish(),
+    createdAt: zod.coerce.date(),
+  })
+  .and(
+    zod.object({
+      profileName: zod.string().nullish(),
+      outputs: zod.array(
+        zod.object({
+          id: zod.string().uuid(),
+          gradingRunId: zod.string().uuid(),
+          gradingProfileOutputId: zod.string().uuid().nullish(),
+          outputCommodityTypeId: zod.string().uuid().nullish(),
+          label: zod.string().nullish(),
+          isSellable: zod.boolean(),
+          expectedYieldPct: zod.string(),
+          actualWeightKg: zod.string(),
+          actualYieldPct: zod.string(),
+          variancePct: zod.string(),
+          createdAt: zod.coerce.date(),
+        }),
+      ),
+    }),
+  );
+
+/**
  * @summary Update loan product item
  */
 export const UpdateLoanProductItemParams = zod.object({

@@ -2589,6 +2589,154 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/LoanProductItem" }
 
+  # ============================================================
+  # GRADING (multi-output coffee grading)
+  # ============================================================
+  /grading-profiles:
+    get:
+      operationId: listGradingProfiles
+      tags: [grading]
+      summary: List grading profiles
+      parameters:
+        - in: query
+          name: inputCommodityTypeId
+          schema: { type: string, format: uuid }
+        - in: query
+          name: commodityId
+          schema: { type: string, format: uuid }
+        - in: query
+          name: status
+          schema: { type: string, enum: [active, inactive] }
+      responses:
+        "200":
+          description: Grading profile list
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/GradingProfile" }
+    post:
+      operationId: createGradingProfile
+      tags: [grading]
+      summary: Create a grading profile with its output grades
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/GradingProfileInput" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/GradingProfileDetail" }
+
+  /grading-profiles/{profileId}:
+    get:
+      operationId: getGradingProfile
+      tags: [grading]
+      summary: Get a grading profile with its outputs
+      parameters:
+        - in: path
+          name: profileId
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Grading profile detail
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/GradingProfileDetail" }
+        "404":
+          description: Not found
+    patch:
+      operationId: updateGradingProfile
+      tags: [grading]
+      summary: Update a grading profile and replace its outputs
+      parameters:
+        - in: path
+          name: profileId
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/GradingProfileUpdate" }
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/GradingProfileDetail" }
+    delete:
+      operationId: deleteGradingProfile
+      tags: [grading]
+      summary: Delete a grading profile
+      parameters:
+        - in: path
+          name: profileId
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "204":
+          description: Deleted
+
+  /grading-runs:
+    get:
+      operationId: listGradingRuns
+      tags: [grading]
+      summary: List grading runs
+      parameters:
+        - in: query
+          name: gradingProfileId
+          schema: { type: string, format: uuid }
+        - in: query
+          name: siloBatchId
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Grading run list
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/GradingRun" }
+    post:
+      operationId: createGradingRun
+      tags: [grading]
+      summary: Execute a grading profile against an input quantity
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/GradingRunInput" }
+      responses:
+        "201":
+          description: Grading run created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/GradingRunDetail" }
+
+  /grading-runs/{runId}:
+    get:
+      operationId: getGradingRun
+      tags: [grading]
+      summary: Get a grading run with per-grade results
+      parameters:
+        - in: path
+          name: runId
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Grading run detail
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/GradingRunDetail" }
+        "404":
+          description: Not found
+
   /loan-product-items/{itemId}:
     patch:
       operationId: updateLoanProductItem
@@ -2964,6 +3112,148 @@ components:
         loanEligible: { type: boolean, nullable: true }
         farmerId: { type: string, format: uuid, nullable: true }
         notes: { type: string, nullable: true, maxLength: 2000 }
+
+    GradingProfileOutput:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        gradingProfileId: { type: string, format: uuid }
+        outputCommodityTypeId: { type: string, format: uuid, nullable: true }
+        label: { type: string, nullable: true }
+        expectedYieldPct: { type: string }
+        minYieldPct: { type: string, nullable: true }
+        maxYieldPct: { type: string, nullable: true }
+        isSellable: { type: boolean }
+        sortOrder: { type: integer }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+      required: [id, gradingProfileId, expectedYieldPct, isSellable, sortOrder, createdAt, updatedAt]
+
+    GradingProfile:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        inputCommodityTypeId: { type: string, format: uuid }
+        status: { type: string, enum: [active, inactive] }
+        effectiveDate: { type: string }
+        notes: { type: string, nullable: true }
+        createdById: { type: string, format: uuid, nullable: true }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+      required: [id, name, inputCommodityTypeId, status, effectiveDate, createdAt, updatedAt]
+
+    GradingProfileDetail:
+      allOf:
+        - $ref: "#/components/schemas/GradingProfile"
+        - type: object
+          properties:
+            outputs:
+              type: array
+              items: { $ref: "#/components/schemas/GradingProfileOutput" }
+          required: [outputs]
+
+    GradingProfileOutputInput:
+      type: object
+      properties:
+        outputCommodityTypeId: { type: string, format: uuid, nullable: true }
+        label: { type: string, nullable: true, maxLength: 160 }
+        expectedYieldPct: { type: number }
+        minYieldPct: { type: number, nullable: true }
+        maxYieldPct: { type: number, nullable: true }
+        isSellable: { type: boolean, nullable: true }
+        sortOrder: { type: integer, nullable: true }
+      required: [expectedYieldPct]
+
+    GradingProfileInput:
+      type: object
+      properties:
+        name: { type: string, maxLength: 200 }
+        inputCommodityTypeId: { type: string, format: uuid }
+        status: { type: string, nullable: true, enum: [active, inactive] }
+        effectiveDate: { type: string, nullable: true }
+        notes: { type: string, nullable: true, maxLength: 2000 }
+        outputs:
+          type: array
+          items: { $ref: "#/components/schemas/GradingProfileOutputInput" }
+      required: [name, inputCommodityTypeId, outputs]
+
+    GradingProfileUpdate:
+      type: object
+      properties:
+        name: { type: string, maxLength: 200 }
+        inputCommodityTypeId: { type: string, format: uuid }
+        status: { type: string, nullable: true, enum: [active, inactive] }
+        effectiveDate: { type: string, nullable: true }
+        notes: { type: string, nullable: true, maxLength: 2000 }
+        outputs:
+          type: array
+          nullable: true
+          items: { $ref: "#/components/schemas/GradingProfileOutputInput" }
+
+    GradingRunOutput:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        gradingRunId: { type: string, format: uuid }
+        gradingProfileOutputId: { type: string, format: uuid, nullable: true }
+        outputCommodityTypeId: { type: string, format: uuid, nullable: true }
+        label: { type: string, nullable: true }
+        isSellable: { type: boolean }
+        expectedYieldPct: { type: string }
+        actualWeightKg: { type: string }
+        actualYieldPct: { type: string }
+        variancePct: { type: string }
+        createdAt: { type: string, format: date-time }
+      required: [id, gradingRunId, isSellable, expectedYieldPct, actualWeightKg, actualYieldPct, variancePct, createdAt]
+
+    GradingRun:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        runNumber: { type: string }
+        gradingProfileId: { type: string, format: uuid }
+        siloBatchId: { type: string, format: uuid, nullable: true }
+        inputCommodityTypeId: { type: string, format: uuid }
+        inputWeightKg: { type: string }
+        totalOutputKg: { type: string }
+        lossKg: { type: string }
+        lossPct: { type: string }
+        status: { type: string }
+        notes: { type: string, nullable: true }
+        runById: { type: string, format: uuid, nullable: true }
+        createdAt: { type: string, format: date-time }
+      required: [id, runNumber, gradingProfileId, inputCommodityTypeId, inputWeightKg, totalOutputKg, lossKg, lossPct, status, createdAt]
+
+    GradingRunDetail:
+      allOf:
+        - $ref: "#/components/schemas/GradingRun"
+        - type: object
+          properties:
+            profileName: { type: string, nullable: true }
+            outputs:
+              type: array
+              items: { $ref: "#/components/schemas/GradingRunOutput" }
+          required: [outputs]
+
+    GradingRunOutputInput:
+      type: object
+      properties:
+        gradingProfileOutputId: { type: string, format: uuid }
+        actualWeightKg: { type: number }
+      required: [gradingProfileOutputId, actualWeightKg]
+
+    GradingRunInput:
+      type: object
+      properties:
+        gradingProfileId: { type: string, format: uuid }
+        siloBatchId: { type: string, format: uuid, nullable: true }
+        inputWeightKg: { type: number }
+        notes: { type: string, nullable: true, maxLength: 2000 }
+        outputs:
+          type: array
+          items: { $ref: "#/components/schemas/GradingRunOutputInput" }
+      required: [gradingProfileId, inputWeightKg, outputs]
 
     Farmer:
       type: object
