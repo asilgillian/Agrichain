@@ -1,1 +1,1 @@
-- [Ledger sales lot modeling](ledger-sales-lots.md) — graded sales model milled OUTPUT as synthetic per-grade lots, never allocate sale weight against raw delivery lots.
+- [Replit publish = schema only](publish-data-seeding.md) — publish syncs DB *schema* to prod, never rows; seed prod data via an idempotent guarded runtime endpoint (agent prod access is read-only).

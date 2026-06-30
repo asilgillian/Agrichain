@@ -34,6 +34,7 @@ import commoditiesRouter from "./commodities";
 import samplesRouter from "./samples";
 import suppliersRouter from "./suppliers";
 import paymentsWebhooksRouter from "./payments-webhooks";
+import ledgerSeedRouter from "./ledger-seed";
 
 const router: IRouter = Router();
 
@@ -41,6 +42,9 @@ router.use(healthRouter);
 router.use(meRouter);
 // Public mobile-money provider callbacks — must be reachable WITHOUT auth.
 router.use(paymentsWebhooksRouter);
+// One-time, secret-token-gated historical ledger seed. Intentionally OUTSIDE
+// Clerk auth (gated by LEDGER_SEED_TOKEN header instead).
+router.use(ledgerSeedRouter);
 
 router.use(requireAuth);
 

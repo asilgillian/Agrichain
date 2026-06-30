@@ -538,6 +538,9 @@ importers:
       '@workspace/db':
         specifier: workspace:*
         version: link:../../lib/db
+      '@workspace/ledger-import':
+        specifier: workspace:*
+        version: link:../../lib/ledger-import
       cookie-parser:
         specifier: ^1.4.7
         version: 1.4.7
@@ -832,6 +835,19 @@ importers:
         specifier: 'catalog:'
         version: 4.21.0
 
+  lib/ledger-import:
+    dependencies:
+      '@workspace/db':
+        specifier: workspace:*
+        version: link:../db
+      drizzle-orm:
+        specifier: 'catalog:'
+        version: 0.45.1(@types/pg@8.18.0)(pg@8.20.0)
+    devDependencies:
+      '@types/node':
+        specifier: 'catalog:'
+        version: 25.3.5
+
   lib/object-storage-web:
     dependencies:
       '@uppy/aws-s3':
@@ -856,6 +872,9 @@ importers:
       '@workspace/db':
         specifier: workspace:*
         version: link:../lib/db
+      '@workspace/ledger-import':
+        specifier: workspace:*
+        version: link:../lib/ledger-import
       drizzle-orm:
         specifier: 'catalog:'
         version: 0.45.1(@types/pg@8.18.0)(pg@8.20.0)
