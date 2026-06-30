@@ -1,6 +1,7 @@
 import { pgTable, text, uuid, timestamp, boolean, index, uniqueIndex } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
+import { farmersTable } from "./farmers";
 
 // =================================================================================================
 // Suppliers — Third-Party Sellers.
@@ -50,6 +51,13 @@ export const suppliersTable = pgTable("suppliers", {
   // Foundation flag for future third-party loans. No lending flow uses it yet.
   loanEligible: boolean("loan_eligible").notNull().default(false),
 
+  // Optional link to a registered farmer. Set when this third-party supplier
+  // is the SAME real-world person as a farmer in the registry (e.g. an
+  // entrepreneur farmer who also sells under a separate supplier record). Lets
+  // reports recognize the two records as one identity. NULL = no known farmer
+  // counterpart. ON DELETE SET NULL so deleting the farmer just clears the link.
+  farmerId: uuid("farmer_id").references(() => farmersTable.id, { onDelete: "set null" }),
+
   notes: text("notes"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
@@ -58,6 +66,8 @@ export const suppliersTable = pgTable("suppliers", {
   index("suppliers_status_idx").on(t.status),
   uniqueIndex("suppliers_national_id_uniq").on(t.nationalId),
   uniqueIndex("suppliers_business_reg_no_uniq").on(t.businessRegNo),
+  // A farmer maps to at most one supplier record (multiple NULLs allowed).
+  uniqueIndex("suppliers_farmer_id_uniq").on(t.farmerId),
 ]);
 
 export const insertSupplierSchema = createInsertSchema(suppliersTable).omit({ id: true, referenceNumber: true, createdAt: true, updatedAt: true });

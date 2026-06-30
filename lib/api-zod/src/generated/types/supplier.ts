@@ -31,6 +31,7 @@ export interface Supplier {
   bankAccountNumber?: string | null;
   status: SupplierStatus;
   loanEligible: boolean;
+  farmerId?: string | null;
   notes?: string | null;
   createdAt: Date;
   updatedAt: Date;

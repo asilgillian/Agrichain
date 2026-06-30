@@ -578,6 +578,7 @@ export const ListSuppliersResponseItem = zod.object({
   bankAccountNumber: zod.string().nullish(),
   status: zod.enum(["pending", "active", "inactive"]),
   loanEligible: zod.boolean(),
+  farmerId: zod.string().uuid().nullish(),
   notes: zod.string().nullish(),
   createdAt: zod.coerce.date(),
   updatedAt: zod.coerce.date(),
@@ -641,6 +642,7 @@ export const CreateSupplierBody = zod
       .nullish(),
     status: zod.enum(["pending", "active", "inactive"]).nullish(),
     loanEligible: zod.boolean().nullish(),
+    farmerId: zod.string().uuid().nullish(),
     notes: zod.string().max(createSupplierBodyNotesMax).nullish(),
   })
   .describe(
@@ -675,6 +677,7 @@ export const GetSupplierResponse = zod.object({
   bankAccountNumber: zod.string().nullish(),
   status: zod.enum(["pending", "active", "inactive"]),
   loanEligible: zod.boolean(),
+  farmerId: zod.string().uuid().nullish(),
   notes: zod.string().nullish(),
   createdAt: zod.coerce.date(),
   updatedAt: zod.coerce.date(),
@@ -735,6 +738,7 @@ export const UpdateSupplierBody = zod.object({
     .nullish(),
   status: zod.enum(["pending", "active", "inactive"]).nullish(),
   loanEligible: zod.boolean().nullish(),
+  farmerId: zod.string().uuid().nullish(),
   notes: zod.string().max(updateSupplierBodyNotesMax).nullish(),
 });
 
@@ -759,6 +763,7 @@ export const UpdateSupplierResponse = zod.object({
   bankAccountNumber: zod.string().nullish(),
   status: zod.enum(["pending", "active", "inactive"]),
   loanEligible: zod.boolean(),
+  farmerId: zod.string().uuid().nullish(),
   notes: zod.string().nullish(),
   createdAt: zod.coerce.date(),
   updatedAt: zod.coerce.date(),

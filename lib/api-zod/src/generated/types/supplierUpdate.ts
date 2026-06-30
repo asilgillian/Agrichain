@@ -41,6 +41,7 @@ export interface SupplierUpdate {
   bankAccountNumber?: string | null;
   status?: SupplierUpdateStatus;
   loanEligible?: boolean | null;
+  farmerId?: string | null;
   /** @maxLength 2000 */
   notes?: string | null;
 }

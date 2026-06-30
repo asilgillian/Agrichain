@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import { eq, and, desc, ilike, or } from "drizzle-orm";
 import { z } from "zod/v4";
-import { db, suppliersTable, auditLogsTable } from "@workspace/db";
+import { db, suppliersTable, auditLogsTable, farmersTable } from "@workspace/db";
 import { requirePermission, type AuthedRequest } from "../middlewares/auth";
 
 const router: IRouter = Router();
@@ -32,6 +32,7 @@ const CreateSupplierBody = z.object({
   bankAccountNumber: z.string().max(60).optional().nullable(),
   status: statusSchema.optional().nullable(),
   loanEligible: z.boolean().optional().nullable(),
+  farmerId: z.string().uuid().optional().nullable(),
   notes: z.string().max(2000).optional().nullable(),
 });
 const UpdateSupplierBody = CreateSupplierBody.partial();
@@ -90,6 +91,11 @@ router.post("/suppliers", requirePermission("suppliers.write"), async (req: Auth
   const fieldErr = validateSellerFields(d);
   if (fieldErr) { res.status(400).json({ error: fieldErr }); return; }
 
+  if (d.farmerId) {
+    const [farmer] = await db.select({ id: farmersTable.id }).from(farmersTable).where(eq(farmersTable.id, d.farmerId));
+    if (!farmer) { res.status(400).json({ error: "Linked farmer not found" }); return; }
+  }
+
   const referenceNumber = generateSupplierRef();
   try {
     const row = await db.transaction(async (tx) => {
@@ -113,6 +119,7 @@ router.post("/suppliers", requirePermission("suppliers.write"), async (req: Auth
         bankAccountNumber: d.bankAccountNumber ?? null,
         status: d.status ?? "pending",
         loanEligible: d.loanEligible ?? false,
+        farmerId: d.farmerId ?? null,
         notes: d.notes ?? null,
       }).returning();
       await tx.insert(auditLogsTable).values({
@@ -161,11 +168,16 @@ router.patch("/suppliers/:supplierId", requirePermission("suppliers.write"), asy
   });
   if (fieldErr) { res.status(400).json({ error: fieldErr }); return; }
 
+  if (d.farmerId) {
+    const [farmer] = await db.select({ id: farmersTable.id }).from(farmersTable).where(eq(farmersTable.id, d.farmerId));
+    if (!farmer) { res.status(400).json({ error: "Linked farmer not found" }); return; }
+  }
+
   const update: Record<string, unknown> = { updatedAt: new Date() };
   const fields = [
     "sellerType", "businessName", "businessRegNo", "firstName", "lastName", "nationalId",
     "phoneNumber", "email", "regionId", "village", "address", "paymentMethod", "momoProvider",
-    "momoMsisdn", "bankName", "bankAccountNumber", "status", "loanEligible", "notes",
+    "momoMsisdn", "bankName", "bankAccountNumber", "status", "loanEligible", "farmerId", "notes",
   ] as const;
   for (const f of fields) {
     const v = (d as Record<string, unknown>)[f];

@@ -417,6 +417,7 @@ export interface Supplier {
   bankAccountNumber?: string | null;
   status: SupplierStatus;
   loanEligible: boolean;
+  farmerId?: string | null;
   notes?: string | null;
   createdAt: string;
   updatedAt: string;
@@ -494,6 +495,7 @@ export interface SupplierInput {
   bankAccountNumber?: string | null;
   status?: SupplierInputStatus;
   loanEligible?: boolean | null;
+  farmerId?: string | null;
   /** @maxLength 2000 */
   notes?: string | null;
 }
@@ -566,6 +568,7 @@ export interface SupplierUpdate {
   bankAccountNumber?: string | null;
   status?: SupplierUpdateStatus;
   loanEligible?: boolean | null;
+  farmerId?: string | null;
   /** @maxLength 2000 */
   notes?: string | null;
 }

@@ -2906,6 +2906,7 @@ components:
         bankAccountNumber: { type: string, nullable: true }
         status: { type: string, enum: [pending, active, inactive] }
         loanEligible: { type: boolean }
+        farmerId: { type: string, format: uuid, nullable: true }
         notes: { type: string, nullable: true }
         createdAt: { type: string, format: date-time }
         updatedAt: { type: string, format: date-time }
@@ -2936,6 +2937,7 @@ components:
         bankAccountNumber: { type: string, nullable: true, maxLength: 60 }
         status: { type: string, nullable: true, enum: [pending, active, inactive] }
         loanEligible: { type: boolean, nullable: true }
+        farmerId: { type: string, format: uuid, nullable: true }
         notes: { type: string, nullable: true, maxLength: 2000 }
       required: [sellerType]
 
@@ -2960,6 +2962,7 @@ components:
         bankAccountNumber: { type: string, nullable: true, maxLength: 60 }
         status: { type: string, nullable: true, enum: [pending, active, inactive] }
         loanEligible: { type: boolean, nullable: true }
+        farmerId: { type: string, format: uuid, nullable: true }
         notes: { type: string, nullable: true, maxLength: 2000 }
 
     Farmer:
