@@ -1,0 +1,14 @@
+Batch,COGS,Operating,COGS+Operating,WorkbookExpenditure,ExpenditureDelta,RevenuePosted,WorkbookRevenue,RevenueDelta
+Batch 1,294552000,5492610,300044610,300044610,0,303029200,303029200,0
+Batch 2,97391000,1065500,98456500,98456500,0,93978986.4,93978986.4,0
+Batch 3,243141750,9048050,252189800,252146100,43700,259423700,259423700,0
+Batch 4,97599100,5366320,102965420,102965420,0,107645000,107645000,0
+Batch 5,388247639,22915325,411162964,411162964,0,400901800,400901800,0
+All,1120931489,43887805,1164819294,1164775594,43700,1164978686.4,1164978686.4,0
+
+"Other cash movements (balance-sheet, not P&L)",Amount
+Field funding transfers in (Stanbic -> field float),1203184289
+Transfers / refunds back to bank,53200050
+"Opening float carried between batches (balance b/f, not re-posted)",77034580
+Capex (equipment/vehicles),0
+"Fixed costs (water, electricity, rent, legal, accounting)",0

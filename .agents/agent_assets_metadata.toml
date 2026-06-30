@@ -126,3 +126,15 @@ id = "iPscHvvRPnZaEeYmfkpSu"
 uri = "file://exports/AgriChain-Integration-Plan.docx"
 type = "word_document"
 title = "AgriChain Integration Plan (Word, updated)"
+
+[[outputs]]
+id = "Io8IOaXa_sHav_vbtIkBB"
+uri = "file://exports/quickbooks-cash-ledger-reconciliation.csv"
+type = "table"
+title = "Reconciliation summary (CSV)"
+
+[[outputs]]
+id = "e8Q-KLqsNKZBUfAWqUvqL"
+uri = "file://exports/quickbooks-cash-ledger-import.csv"
+type = "table"
+title = "QuickBooks journal import (CSV)"

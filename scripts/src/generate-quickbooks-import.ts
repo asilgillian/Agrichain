@@ -236,6 +236,79 @@ function reconcile(ledger: Ledger): string {
   return out.join("\n") + "\n";
 }
 
+/** Spreadsheet-friendly CSV version of the per-batch reconciliation. */
+function reconcileCsv(ledger: Ledger): string {
+  const rows: (string | number)[][] = [];
+  rows.push([
+    "Batch",
+    "COGS",
+    "Operating",
+    "COGS+Operating",
+    "WorkbookExpenditure",
+    "ExpenditureDelta",
+    "RevenuePosted",
+    "WorkbookRevenue",
+    "RevenueDelta",
+  ]);
+  let totCogs = 0,
+    totOpex = 0,
+    totRev = 0;
+  for (const b of ledger.batches) {
+    const ls = ledger.lines.filter((l) => l.batch === b);
+    const cogs = sumBy(ls, (l) => l.category === "COGS");
+    const opex = sumBy(ls, (l) => l.category === "OPERATING");
+    const rev = sumBy(ls, (l) => l.category === "REVENUE");
+    totCogs += cogs;
+    totOpex += opex;
+    totRev += rev;
+    const t = ledger.targets[b]!;
+    rows.push([
+      b,
+      fmt(cogs),
+      fmt(opex),
+      fmt(cogs + opex),
+      fmt(t.expenditure),
+      fmt(cogs + opex - t.expenditure),
+      fmt(rev),
+      fmt(t.revenue),
+      fmt(rev - t.revenue),
+    ]);
+  }
+  const totExp = Object.values(ledger.targets).reduce((a, t) => a + t.expenditure, 0);
+  const totRevT = Object.values(ledger.targets).reduce((a, t) => a + t.revenue, 0);
+  rows.push([
+    "All",
+    fmt(totCogs),
+    fmt(totOpex),
+    fmt(totCogs + totOpex),
+    fmt(totExp),
+    fmt(totCogs + totOpex - totExp),
+    fmt(totRev),
+    fmt(totRevT),
+    fmt(totRev - totRevT),
+  ]);
+
+  // Blank row, then non-P&L cash movements as labelled rows.
+  rows.push([]);
+  rows.push(["Other cash movements (balance-sheet, not P&L)", "Amount"]);
+  rows.push([
+    "Field funding transfers in (Stanbic -> field float)",
+    fmt(sumBy(ledger.lines, (l) => l.category === "FUNDING_IN")),
+  ]);
+  rows.push([
+    "Transfers / refunds back to bank",
+    fmt(sumBy(ledger.lines, (l) => l.category === "TRANSFER_OUT")),
+  ]);
+  rows.push([
+    "Opening float carried between batches (balance b/f, not re-posted)",
+    fmt(sumBy(ledger.lines, (l) => l.category === "BALANCE_BF")),
+  ]);
+  rows.push(["Capex (equipment/vehicles)", 0]);
+  rows.push(["Fixed costs (water, electricity, rent, legal, accounting)", 0]);
+
+  return rows.map((r) => r.map(csvCell).join(",")).join("\n") + "\n";
+}
+
 // Coffee suppliers seen in the ledger; used to catch coffee purchases that are
 // not tagged COGS (e.g. lines that name a supplier but omit the word "coffee").
 const COFFEE_VENDOR_TOKENS = [
@@ -372,14 +445,20 @@ function main(): void {
   }
   const csvPath = resolve(ROOT, "exports/quickbooks-cash-ledger-import.csv");
   const mdPath = resolve(ROOT, "exports/quickbooks-cash-ledger-reconciliation.md");
+  const reconCsvPath = resolve(
+    ROOT,
+    "exports/quickbooks-cash-ledger-reconciliation.csv",
+  );
   mkdirSync(dirname(csvPath), { recursive: true });
   writeFileSync(csvPath, csvLines.join("\n") + "\n");
   writeFileSync(mdPath, reconcile(ledger));
+  writeFileSync(reconCsvPath, reconcileCsv(ledger));
 
   // eslint-disable-next-line no-console
   console.log(
     `Wrote ${rows.length} journal rows (${rows.length / 2} entries) to ${csvPath}\n` +
       `Wrote reconciliation to ${mdPath}\n` +
+      `Wrote reconciliation CSV to ${reconCsvPath}\n` +
       `Balanced: debits == credits == ${totalDebit.toLocaleString("en-US")} UGX`,
   );
 }
