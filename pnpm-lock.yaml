@@ -538,9 +538,6 @@ importers:
       '@workspace/db':
         specifier: workspace:*
         version: link:../../lib/db
-      '@workspace/ledger-import':
-        specifier: workspace:*
-        version: link:../../lib/ledger-import
       cookie-parser:
         specifier: ^1.4.7
         version: 1.4.7
