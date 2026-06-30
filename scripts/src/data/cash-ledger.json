@@ -1,0 +1,2151 @@
+{
+ "currency": "UGX",
+ "source": "Mtandao_trading_ledger_revised_20052026 (cash ledger sheets)",
+ "batches": [
+  "Batch 1",
+  "Batch 2",
+  "Batch 3",
+  "Batch 4",
+  "Batch 5"
+ ],
+ "targets": {
+  "Batch 1": {
+   "expenditure": 300044610,
+   "revenue": 303029200
+  },
+  "Batch 2": {
+   "expenditure": 98456500,
+   "revenue": 93978986.4
+  },
+  "Batch 3": {
+   "expenditure": 252146100,
+   "revenue": 259423700
+  },
+  "Batch 4": {
+   "expenditure": 102965420,
+   "revenue": 107645000
+  },
+  "Batch 5": {
+   "expenditure": 411162964,
+   "revenue": 400901800
+  }
+ },
+ "lines": [
+  {
+   "batch": "Batch 1",
+   "date": "2025-05-13",
+   "particulars": "Transfer to Stancoff for the purchase of coffee in southwestern Uganda",
+   "direction": "in",
+   "amount": 120000000.0,
+   "category": "FUNDING_IN"
+  },
+  {
+   "batch": "Batch 1",
+   "date": "2025-05-16",
+   "particulars": "Transfer to Jeremiah Muwanika for the purchase of coffee in Masaka",
+   "direction": "in",
+   "amount": 30000000.0,
+   "category": "FUNDING_IN"
+  },
+  {
+   "batch": "Batch 1",
+   "date": "2025-05-17",
+   "particulars": "Transfer to Mugisha Michael for the purchase of coffee in Masaka",
+   "direction": "in",
+   "amount": 120000000.0,
+   "category": "FUNDING_IN"
+  },
+  {
+   "batch": "Batch 1",
+   "date": "2025-05-17",
+   "particulars": "Receipt of funds from Paul Nuwagaba for coffee purchase in Masaka",
+   "direction": "in",
+   "amount": 1500000.0,
+   "category": "FUNDING_IN"
+  },
+  {
+   "batch": "Batch 1",
+   "date": "2025-05-19",
+   "particulars": "Transfer to stancoff additional funds for coffee purchase in southwestern Uganda",
+   "direction": "in",
+   "amount": 75864000.0,
+   "category": "FUNDING_IN"
+  },
+  {
+   "batch": "Batch 1",
+   "date": "2025-05-20",
+   "particulars": "Reimbursement of funds back to Adrine Atwiine from the Masaka account",
+   "direction": "out",
+   "amount": 50000000.0,
+   "category": "TRANSFER_OUT"
+  },
+  {
+   "batch": "Batch 1",
+   "date": "2025-05-14",
+   "particulars": "Crop survey fuel expense in Masaka",
+   "direction": "out",
+   "amount": 200000.0,
+   "category": "OPERATING",
+   "subAccount": "Fuel"
+  },
+  {
+   "batch": "Batch 1",
+   "date": "2025-05-14",
+   "particulars": "Crop survey fuel expense in Masaka",
+   "direction": "out",
+   "amount": 200000.0,
+   "category": "OPERATING",
+   "subAccount": "Fuel"
+  },
+  {
+   "batch": "Batch 1",
+   "date": "2025-05-14",
+   "particulars": "crop survey accommodation in Masaka",
+   "direction": "out",
+   "amount": 250000.0,
+   "category": "OPERATING",
+   "subAccount": "Field Subsistence"
+  },
+  {
+   "batch": "Batch 1",
+   "date": "2025-05-14",
+   "particulars": "Crop survey western Uganda",
+   "direction": "out",
+   "amount": 200000.0,
+   "category": "OPERATING",
+   "subAccount": "Sundry"
+  },
+  {
+   "batch": "Batch 1",
+   "date": "2025-05-14",
+   "particulars": "Lunch in Masaka",
+   "direction": "out",
+   "amount": 15000.0,
+   "category": "OPERATING",
+   "subAccount": "Field Subsistence"
+  },
+  {
+   "batch": "Batch 1",
+   "date": "2025-05-14",
+   "particulars": "Facilitation for field agents in Masaka",
+   "direction": "out",
+   "amount": 50000.0,
+   "category": "OPERATING",
+   "subAccount": "Commissions & Facilitation"
+  },
+  {
+   "batch": "Batch 1",
+   "date": "2025-05-16",
+   "particulars": "Fuel expense",
+   "direction": "out",
+   "amount": 100000.0,
+   "category": "OPERATING",
+   "subAccount": "Fuel"
+  },
+  {
+   "batch": "Batch 1",
+   "date": "2025-05-16",
+   "particulars": "Fuel expense",
+   "direction": "out",
+   "amount": 100000.0,
+   "category": "OPERATING",
+   "subAccount": "Fuel"
+  },
+  {
+   "batch": "Batch 1",
+   "date": "2025-05-16",
+   "particulars": "Transport facilitation for field agent meeting in Kampala",
+   "direction": "out",
+   "amount": 50000.0,
+   "category": "OPERATING",
+   "subAccount": "Transport & Freight"
+  },
+  {
+   "batch": "Batch 1",
+   "date": "2025-05-12",
+   "particulars": "withdraw charges",
+   "direction": "out",
+   "amount": 1610.0,
+   "category": "OPERATING",
+   "subAccount": "Bank Charges"
+  },
+  {
+   "batch": "Batch 1",
+   "date": "2025-05-12",
+   "particulars": "Transport from Nansana to Tausi coaches by boda",
+   "direction": "out",
+   "amount": 10000.0,
+   "category": "OPERATING",
+   "subAccount": "Transport & Freight"
+  },
+  {
+   "batch": "Batch 1",
+   "date": "2025-05-12",
+   "particulars": "Transport from Kampala to Ishaka",
+   "direction": "out",
+   "amount": 35000.0,
+   "category": "OPERATING",
+   "subAccount": "Transport & Freight"
+  },
+  {
+   "batch": "Batch 1",
+   "date": "2025-05-12",
+   "particulars": "Meals",
+   "direction": "out",
+   "amount": 20000.0,
+   "category": "OPERATING",
+   "subAccount": "Field Subsistence"
+  },
+  {
+   "batch": "Batch 1",
+   "date": "2025-05-12",
+   "particulars": "Transport from Ishaka to Rubirizi",
+   "direction": "out",
+   "amount": 8000.0,
+   "category": "OPERATING",
+   "subAccount": "Transport & Freight"
+  },
+  {
+   "batch": "Batch 1",
+   "date": "2025-05-13",
+   "particulars": "Meals",
+   "direction": "out",
+   "amount": 17000.0,
+   "category": "OPERATING",
+   "subAccount": "Field Subsistence"
+  },
+  {
+   "batch": "Batch 1",
+   "date": "2025-05-13",
+   "particulars": "Transport to Ishaka",
+   "direction": "out",
+   "amount": 6000.0,
+   "category": "OPERATING",
+   "subAccount": "Transport & Freight"
+  },
+  {
+   "batch": "Batch 1",
+   "date": "2025-05-13",
+   "particulars": "Transport from Ishaka to Rubirizi",
+   "direction": "out",
+   "amount": 6000.0,
+   "category": "OPERATING",
+   "subAccount": "Transport & Freight"
+  },
+  {
+   "batch": "Batch 1",
+   "date": "2025-05-14",
+   "particulars": "Meals",
+   "direction": "out",
+   "amount": 16000.0,
+   "category": "OPERATING",
+   "subAccount": "Field Subsistence"
+  },
+  {
+   "batch": "Batch 1",
+   "date": "2025-05-14",
+   "particulars": "Transport to and from Rwandaro",
+   "direction": "out",
+   "amount": 6000.0,
+   "category": "OPERATING",
+   "subAccount": "Transport & Freight"
+  },
+  {
+   "batch": "Batch 1",
+   "date": "2025-05-15",
+   "particulars": "Meals",
+   "direction": "out",
+   "amount": 13000.0,
+   "category": "OPERATING",
+   "subAccount": "Field Subsistence"
+  },
+  {
+   "batch": "Batch 1",
+   "date": "2025-05-16",
+   "particulars": "Transport to Ibanda from Rubirizi",
+   "direction": "out",
+   "amount": 31000.0,
+   "category": "OPERATING",
+   "subAccount": "Transport & Freight"
+  },
+  {
+   "batch": "Batch 1",
+   "date": "2025-05-16",
+   "particulars": "Breakfast",
+   "direction": "out",
+   "amount": 3000.0,
+   "category": "OPERATING",
+   "subAccount": "Field Subsistence"
+  },
+  {
+   "batch": "Batch 1",
+   "date": "2025-05-16",
+   "particulars": "Lunch in Ibanda",
+   "direction": "out",
+   "amount": 13000.0,
+   "category": "OPERATING",
+   "subAccount": "Field Subsistence"
+  },
+  {
+   "batch": "Batch 1",
+   "date": "2025-05-16",
+   "particulars": "Dinner in Ibanda",
+   "direction": "out",
+   "amount": 7000.0,
+   "category": "OPERATING",
+   "subAccount": "Field Subsistence"
+  },
+  {
+   "batch": "Batch 1",
+   "date": "2025-05-16",
+   "particulars": "Accommodation in Ibanda",
+   "direction": "out",
+   "amount": 30000.0,
+   "category": "OPERATING",
+   "subAccount": "Field Subsistence"
+  },
+  {
+   "batch": "Batch 1",
+   "date": "2025-05-17",
+   "particulars": "Transport from Ibanda to Rubirizi",
+   "direction": "out",
+   "amount": 25000.0,
+   "category": "OPERATING",
+   "subAccount": "Transport & Freight"
+  },
+  {
+   "batch": "Batch 1",
+   "date": "2025-05-17",
+   "particulars": "Breakfast",
+   "direction": "out",
+   "amount": 4000.0,
+   "category": "OPERATING",
+   "subAccount": "Field Subsistence"
+  },
+  {
+   "batch": "Batch 1",
+   "date": "2025-05-17",
+   "particulars": "Lunch",
+   "direction": "out",
+   "amount": 15000.0,
+   "category": "OPERATING",
+   "subAccount": "Field Subsistence"
+  },
+  {
+   "batch": "Batch 1",
+   "date": "2025-05-18",
+   "particulars": "Transport to and from Kabeeka's factory",
+   "direction": "out",
+   "amount": 8000.0,
+   "category": "OPERATING",
+   "subAccount": "Transport & Freight"
+  },
+  {
+   "batch": "Batch 1",
+   "date": "2025-05-18",
+   "particulars": "Breakfast",
+   "direction": "out",
+   "amount": 3000.0,
+   "category": "OPERATING",
+   "subAccount": "Field Subsistence"
+  },
+  {
+   "batch": "Batch 1",
+   "date": "2025-05-18",
+   "particulars": "Lunch",
+   "direction": "out",
+   "amount": 5000.0,
+   "category": "OPERATING",
+   "subAccount": "Field Subsistence"
+  },
+  {
+   "batch": "Batch 1",
+   "date": "2025-05-18",
+   "particulars": "Dinner",
+   "direction": "out",
+   "amount": 5000.0,
+   "category": "OPERATING",
+   "subAccount": "Field Subsistence"
+  },
+  {
+   "batch": "Batch 1",
+   "date": "2025-05-19",
+   "particulars": "Truck hire to transport coffee to Kampala",
+   "direction": "out",
+   "amount": 1600000.0,
+   "category": "OPERATING",
+   "subAccount": "Transport & Freight"
+  },
+  {
+   "batch": "Batch 1",
+   "date": "2025-05-19",
+   "particulars": "Lunch",
+   "direction": "out",
+   "amount": 10000.0,
+   "category": "OPERATING",
+   "subAccount": "Field Subsistence"
+  },
+  {
+   "batch": "Batch 1",
+   "date": "2025-05-19",
+   "particulars": "Transport to Ishaka",
+   "direction": "out",
+   "amount": 5000.0,
+   "category": "OPERATING",
+   "subAccount": "Transport & Freight"
+  },
+  {
+   "batch": "Batch 1",
+   "date": "2025-05-19",
+   "particulars": "Loading fees",
+   "direction": "out",
+   "amount": 155000.0,
+   "category": "OPERATING",
+   "subAccount": "Loading & Handling"
+  },
+  {
+   "batch": "Batch 1",
+   "date": "2025-05-19",
+   "particulars": "Padlock",
+   "direction": "out",
+   "amount": 20000.0,
+   "category": "OPERATING",
+   "subAccount": "Loading & Handling"
+  },
+  {
+   "batch": "Batch 1",
+   "date": "2025-05-19",
+   "particulars": "Facilitation to move coffee from Ishaka",
+   "direction": "out",
+   "amount": 70000.0,
+   "category": "OPERATING",
+   "subAccount": "Commissions & Facilitation"
+  },
+  {
+   "batch": "Batch 1",
+   "date": "2025-05-18",
+   "particulars": "Transport of coffee from Masaka",
+   "direction": "out",
+   "amount": 750000.0,
+   "category": "OPERATING",
+   "subAccount": "Transport & Freight"
+  },
+  {
+   "batch": "Batch 1",
+   "date": "2025-05-18",
+   "particulars": "Loading fees for coffee",
+   "direction": "out",
+   "amount": 65000.0,
+   "category": "OPERATING",
+   "subAccount": "Loading & Handling"
+  },
+  {
+   "batch": "Batch 1",
+   "date": "2025-05-18",
+   "particulars": "weighing of coffee at Julius' factory",
+   "direction": "out",
+   "amount": 20000.0,
+   "category": "OPERATING",
+   "subAccount": "Loading & Handling"
+  },
+  {
+   "batch": "Batch 1",
+   "date": "2025-05-18",
+   "particulars": "Commission for Alex for mobilisation coffee",
+   "direction": "out",
+   "amount": 350000.0,
+   "category": "OPERATING",
+   "subAccount": "Commissions & Facilitation"
+  },
+  {
+   "batch": "Batch 1",
+   "date": "2025-05-18",
+   "particulars": "Commission for Jeremiah for coffee mobilisation",
+   "direction": "out",
+   "amount": 470000.0,
+   "category": "OPERATING",
+   "subAccount": "Commissions & Facilitation"
+  },
+  {
+   "batch": "Batch 1",
+   "date": "2025-05-18",
+   "particulars": "Fuel expense for Michael to travel back to Kampala",
+   "direction": "out",
+   "amount": 200000.0,
+   "category": "OPERATING",
+   "subAccount": "Fuel"
+  },
+  {
+   "batch": "Batch 1",
+   "date": "2025-05-18",
+   "particulars": "boda hire during coffee mobilisation",
+   "direction": "out",
+   "amount": 45000.0,
+   "category": "OPERATING",
+   "subAccount": "Transport & Freight"
+  },
+  {
+   "batch": "Batch 1",
+   "date": "2025-05-18",
+   "particulars": "Lunch for Masaka team",
+   "direction": "out",
+   "amount": 54000.0,
+   "category": "OPERATING",
+   "subAccount": "Field Subsistence"
+  },
+  {
+   "batch": "Batch 1",
+   "date": "2025-05-18",
+   "particulars": "Dinner for Masaka team",
+   "direction": "out",
+   "amount": 91000.0,
+   "category": "OPERATING",
+   "subAccount": "Field Subsistence"
+  },
+  {
+   "batch": "Batch 1",
+   "date": "2025-05-18",
+   "particulars": "Accommodation for Michael",
+   "direction": "out",
+   "amount": 135000.0,
+   "category": "OPERATING",
+   "subAccount": "Field Subsistence"
+  },
+  {
+   "batch": "Batch 1",
+   "date": "2025-05-18",
+   "particulars": "Payment of 8,180kg of coffee from Julius Kivumbi at 12000",
+   "direction": "out",
+   "amount": 98160000.0,
+   "category": "COGS",
+   "vendor": "Julius Kivumbi"
+  },
+  {
+   "batch": "Batch 1",
+   "date": "2025-05-17",
+   "particulars": "Payment of 16,366kg of coffee from Rubirizi at 12000",
+   "direction": "out",
+   "amount": 196392000.0,
+   "category": "COGS",
+   "vendor": "Rubirizi seller (TBC)"
+  },
+  {
+   "batch": "Batch 1",
+   "date": "2025-05-21",
+   "particulars": "Transfer of funds to Stancoff to facilitate coffee movement",
+   "direction": "in",
+   "amount": 1860000.0,
+   "category": "FUNDING_IN"
+  },
+  {
+   "batch": "Batch 2",
+   "date": "2025-05-20",
+   "particulars": "Transfer of funds to Jeremiah Muwanika to purchase coffee in Masaka",
+   "direction": "in",
+   "amount": 28095800.0,
+   "category": "FUNDING_IN"
+  },
+  {
+   "batch": "Batch 2",
+   "date": "2025-05-20",
+   "particulars": "Transfer of funds to Jeremiah Muwanika to purchase coffee in Masaka",
+   "direction": "in",
+   "amount": 21688400.0,
+   "category": "FUNDING_IN"
+  },
+  {
+   "batch": "Batch 2",
+   "date": "2025-05-20",
+   "particulars": "Purchase of 2,381kg of coffee in Masaka from Natema Betty",
+   "direction": "out",
+   "amount": 28095800.0,
+   "category": "COGS",
+   "vendor": "Natema Betty"
+  },
+  {
+   "batch": "Batch 2",
+   "date": "2025-05-20",
+   "particulars": "Purchase of 1,838kg of coffee in Masaka from Gurama coffee factory (Segawa Joseph)",
+   "direction": "out",
+   "amount": 21688400.0,
+   "category": "COGS",
+   "vendor": "Joseph Segawa (Gurama)"
+  },
+  {
+   "batch": "Batch 2",
+   "date": "2025-05-21",
+   "particulars": "Transfer of 100,000UGX to book coffee from Robert in Masaka",
+   "direction": "out",
+   "amount": 100000.0,
+   "category": "COGS",
+   "vendor": "Robert Samula"
+  },
+  {
+   "batch": "Batch 2",
+   "date": "2025-05-21",
+   "particulars": "Transfer of funds to Jeremiah Muwanika to purchase coffee in Masaka",
+   "direction": "in",
+   "amount": 26000000.0,
+   "category": "FUNDING_IN"
+  },
+  {
+   "batch": "Batch 2",
+   "date": "2025-05-21",
+   "particulars": "Purchase of 2331kg from Allan Ssenyondo",
+   "direction": "out",
+   "amount": 27505800.0,
+   "category": "COGS",
+   "vendor": "Allan Ssenyondo"
+  },
+  {
+   "batch": "Batch 2",
+   "date": "2025-05-22",
+   "particulars": "Transfer of funds to Jeremiah Muwanika to purchase coffee in Masaka",
+   "direction": "in",
+   "amount": 20001000.0,
+   "category": "FUNDING_IN"
+  },
+  {
+   "batch": "Batch 2",
+   "date": "2025-05-22",
+   "particulars": "Purchase of 1,695kg from Robert",
+   "direction": "out",
+   "amount": 20001000.0,
+   "category": "COGS",
+   "vendor": "Robert Samula"
+  },
+  {
+   "batch": "Batch 2",
+   "date": "2025-05-22",
+   "particulars": "Transfer of funds to complete payment of coffee from ssenyondo Allan",
+   "direction": "in",
+   "amount": 1505800.0,
+   "category": "FUNDING_IN"
+  },
+  {
+   "batch": "Batch 2",
+   "date": "2025-05-22",
+   "particulars": "Transfer of fund to facilitate Jeremiah's accommodation",
+   "direction": "in",
+   "amount": 100000.0,
+   "category": "FUNDING_IN"
+  },
+  {
+   "batch": "Batch 2",
+   "date": "2025-05-22",
+   "particulars": "Accommodation expense for Jeremiah Muwanika during delivery of coffee to Kampala",
+   "direction": "out",
+   "amount": 100000.0,
+   "category": "OPERATING",
+   "subAccount": "Field Subsistence"
+  },
+  {
+   "batch": "Batch 2",
+   "date": "2025-05-22",
+   "particulars": "Transfer of funds to facilitate loading and transport of coffee to Kampala",
+   "direction": "in",
+   "amount": 965500.0,
+   "category": "FUNDING_IN"
+  },
+  {
+   "batch": "Batch 2",
+   "date": "2025-05-22",
+   "particulars": "Transport expense for coffee to Namanve (Commodity Solution)",
+   "direction": "out",
+   "amount": 800000.0,
+   "category": "OPERATING",
+   "subAccount": "Transport & Freight"
+  },
+  {
+   "batch": "Batch 2",
+   "date": "2025-05-22",
+   "particulars": "Loading expenses for the coffee",
+   "direction": "out",
+   "amount": 155500.0,
+   "category": "OPERATING",
+   "subAccount": "Loading & Handling"
+  },
+  {
+   "batch": "Batch 2",
+   "date": "2025-05-22",
+   "particulars": "Purchase of sacks",
+   "direction": "out",
+   "amount": 10000.0,
+   "category": "OPERATING",
+   "subAccount": "Loading & Handling"
+  },
+  {
+   "batch": "Batch 1",
+   "date": "2025-05-21",
+   "particulars": "Payment for the first batch delivered",
+   "direction": "in",
+   "amount": 303029200.0,
+   "category": "REVENUE"
+  },
+  {
+   "batch": "Batch 2",
+   "date": "2025-05-22",
+   "particulars": "payment for the second batch delivered",
+   "direction": "in",
+   "amount": 93978986.4,
+   "category": "REVENUE"
+  },
+  {
+   "batch": "Batch 3",
+   "date": "2025-05-29",
+   "particulars": "Transfer of funds to facilitate bulking",
+   "direction": "in",
+   "amount": 1300000.0,
+   "category": "FUNDING_IN"
+  },
+  {
+   "batch": "Batch 3",
+   "date": "2025-05-31",
+   "particulars": "Kampala-Masaka fuel expense",
+   "direction": "out",
+   "amount": 200000.0,
+   "category": "OPERATING",
+   "subAccount": "Fuel"
+  },
+  {
+   "batch": "Batch 3",
+   "date": "2025-05-31",
+   "particulars": "Receipt of funds for batch expenses",
+   "direction": "in",
+   "amount": 2000000.0,
+   "category": "FUNDING_IN"
+  },
+  {
+   "batch": "Batch 3",
+   "date": "2025-05-31",
+   "particulars": "Lunch in Masaka for Michael",
+   "direction": "out",
+   "amount": 15000.0,
+   "category": "OPERATING",
+   "subAccount": "Field Subsistence"
+  },
+  {
+   "batch": "Batch 3",
+   "date": "2025-05-31",
+   "particulars": "Water and snack",
+   "direction": "out",
+   "amount": 10000.0,
+   "category": "OPERATING",
+   "subAccount": "Field Subsistence"
+  },
+  {
+   "batch": "Batch 3",
+   "date": "2025-05-31",
+   "particulars": "Breakfast at Endiro",
+   "direction": "out",
+   "amount": 19000.0,
+   "category": "OPERATING",
+   "subAccount": "Field Subsistence"
+  },
+  {
+   "batch": "Batch 3",
+   "date": "2025-05-31",
+   "particulars": "Fuel in Kyotera-coffee mobilisation",
+   "direction": "out",
+   "amount": 100000.0,
+   "category": "OPERATING",
+   "subAccount": "Fuel"
+  },
+  {
+   "batch": "Batch 3",
+   "date": "2025-05-31",
+   "particulars": "dinner",
+   "direction": "out",
+   "amount": 184000.0,
+   "category": "OPERATING",
+   "subAccount": "Field Subsistence"
+  },
+  {
+   "batch": "Batch 3",
+   "date": "2025-05-31",
+   "particulars": "snack",
+   "direction": "out",
+   "amount": 2000.0,
+   "category": "OPERATING",
+   "subAccount": "Field Subsistence"
+  },
+  {
+   "batch": "Batch 3",
+   "date": "2025-05-31",
+   "particulars": "Accommodation expense",
+   "direction": "out",
+   "amount": 135000.0,
+   "category": "OPERATING",
+   "subAccount": "Field Subsistence"
+  },
+  {
+   "batch": "Batch 3",
+   "date": "2025-06-01",
+   "particulars": "Receipt of funds for coffee purchase",
+   "direction": "in",
+   "amount": 200000000.0,
+   "category": "FUNDING_IN"
+  },
+  {
+   "batch": "Batch 3",
+   "date": "2025-06-01",
+   "particulars": "coffee advance for Robert Samula",
+   "direction": "out",
+   "amount": 1030000.0,
+   "category": "COGS",
+   "vendor": "Robert Samula"
+  },
+  {
+   "batch": "Batch 3",
+   "date": "2025-06-01",
+   "particulars": "coffee advance for Kafeero Baptist",
+   "direction": "out",
+   "amount": 1000000.0,
+   "category": "COGS",
+   "vendor": "Kafeero Baptist"
+  },
+  {
+   "batch": "Batch 3",
+   "date": "2025-06-01",
+   "particulars": "coffee advance for Ddamulira Eria",
+   "direction": "out",
+   "amount": 1000000.0,
+   "category": "COGS",
+   "vendor": "Ddamulira Eria"
+  },
+  {
+   "batch": "Batch 3",
+   "date": "2025-06-01",
+   "particulars": "purchase of sampling spear",
+   "direction": "out",
+   "amount": 9300.0,
+   "category": "OPERATING",
+   "subAccount": "Sundry"
+  },
+  {
+   "batch": "Batch 3",
+   "date": "2025-06-01",
+   "particulars": "parking fees",
+   "direction": "out",
+   "amount": 2000.0,
+   "category": "OPERATING",
+   "subAccount": "Sundry"
+  },
+  {
+   "batch": "Batch 3",
+   "date": "2025-06-01",
+   "particulars": "snacks",
+   "direction": "out",
+   "amount": 8000.0,
+   "category": "OPERATING",
+   "subAccount": "Field Subsistence"
+  },
+  {
+   "batch": "Batch 3",
+   "date": "2025-06-01",
+   "particulars": "lunch for Jeremiah",
+   "direction": "out",
+   "amount": 6000.0,
+   "category": "OPERATING",
+   "subAccount": "Field Subsistence"
+  },
+  {
+   "batch": "Batch 3",
+   "date": "2025-06-01",
+   "particulars": "Diesel fuel expense at Morgas",
+   "direction": "out",
+   "amount": 100000.0,
+   "category": "OPERATING",
+   "subAccount": "Fuel"
+  },
+  {
+   "batch": "Batch 3",
+   "date": "2025-06-01",
+   "particulars": "Weighing of coffee at Katumba's factory",
+   "direction": "out",
+   "amount": 30000.0,
+   "category": "OPERATING",
+   "subAccount": "Loading & Handling"
+  },
+  {
+   "batch": "Batch 3",
+   "date": "2025-06-01",
+   "particulars": "dinner",
+   "direction": "out",
+   "amount": 25000.0,
+   "category": "OPERATING",
+   "subAccount": "Field Subsistence"
+  },
+  {
+   "batch": "Batch 3",
+   "date": "2025-06-01",
+   "particulars": "Second advance payment for Robert's coffee",
+   "direction": "out",
+   "amount": 32000000.0,
+   "category": "COGS",
+   "vendor": "Robert Samula"
+  },
+  {
+   "batch": "Batch 3",
+   "date": "2025-06-01",
+   "particulars": "Advance payment for Julius Kivumbi's coffee",
+   "direction": "out",
+   "amount": 10000000.0,
+   "category": "COGS",
+   "vendor": "Julius Kivumbi"
+  },
+  {
+   "batch": "Batch 3",
+   "date": "2025-06-01",
+   "particulars": "Second advance payment for Kafeero Baptist's coffee",
+   "direction": "out",
+   "amount": 10000000.0,
+   "category": "COGS",
+   "vendor": "Kafeero Baptist"
+  },
+  {
+   "batch": "Batch 3",
+   "date": "2025-06-01",
+   "particulars": "Second advance payment for Ddamulira Eria's coffee",
+   "direction": "out",
+   "amount": 20000000.0,
+   "category": "COGS",
+   "vendor": "Ddamulira Eria"
+  },
+  {
+   "batch": "Batch 3",
+   "date": "2025-06-01",
+   "particulars": "Payment for Katumba's coffee",
+   "direction": "out",
+   "amount": 50262800.0,
+   "category": "COGS",
+   "vendor": "Katumba"
+  },
+  {
+   "batch": "Batch 3",
+   "date": "2025-06-02",
+   "particulars": "purchase of socks and notebook and pen",
+   "direction": "out",
+   "amount": 21000.0,
+   "category": "OPERATING",
+   "subAccount": "Sundry"
+  },
+  {
+   "batch": "Batch 3",
+   "date": "2025-06-02",
+   "particulars": "Accommodation expense for Michael",
+   "direction": "out",
+   "amount": 135000.0,
+   "category": "OPERATING",
+   "subAccount": "Field Subsistence"
+  },
+  {
+   "batch": "Batch 3",
+   "date": "2025-06-02",
+   "particulars": "Fuel expense",
+   "direction": "out",
+   "amount": 300000.0,
+   "category": "OPERATING",
+   "subAccount": "Fuel"
+  },
+  {
+   "batch": "Batch 3",
+   "date": "2025-06-02",
+   "particulars": "Reimbursement of Happy from Batch 1",
+   "direction": "out",
+   "amount": 130000.0,
+   "category": "OPERATING",
+   "subAccount": "Commissions & Facilitation"
+  },
+  {
+   "batch": "Batch 3",
+   "date": "2025-06-02",
+   "particulars": "Part payment for truck hire to transport coffee to Kampala",
+   "direction": "out",
+   "amount": 500000.0,
+   "category": "OPERATING",
+   "subAccount": "Transport & Freight"
+  },
+  {
+   "batch": "Batch 3",
+   "date": "2025-06-02",
+   "particulars": "Loading fees",
+   "direction": "out",
+   "amount": 30000.0,
+   "category": "OPERATING",
+   "subAccount": "Loading & Handling"
+  },
+  {
+   "batch": "Batch 3",
+   "date": "2025-06-02",
+   "particulars": "Commission for Katwalo",
+   "direction": "out",
+   "amount": 10000.0,
+   "category": "OPERATING",
+   "subAccount": "Commissions & Facilitation"
+  },
+  {
+   "batch": "Batch 3",
+   "date": "2025-06-02",
+   "particulars": "Transport expense for coffee from Vincent's factory to the truck",
+   "direction": "out",
+   "amount": 20000.0,
+   "category": "OPERATING",
+   "subAccount": "Transport & Freight"
+  },
+  {
+   "batch": "Batch 3",
+   "date": "2025-06-02",
+   "particulars": "Payment for Katwalo's coffee",
+   "direction": "out",
+   "amount": 9802000.0,
+   "category": "COGS",
+   "vendor": "Katwalo"
+  },
+  {
+   "batch": "Batch 3",
+   "date": "2025-06-02",
+   "particulars": "Payment for Vicent's coffee",
+   "direction": "out",
+   "amount": 40388000.0,
+   "category": "COGS",
+   "vendor": "Vincent Kizza"
+  },
+  {
+   "batch": "Batch 3",
+   "date": "2025-06-02",
+   "particulars": "Receipt of additional funds from Adrine",
+   "direction": "in",
+   "amount": 32000000.0,
+   "category": "FUNDING_IN"
+  },
+  {
+   "batch": "Batch 3",
+   "date": "2025-06-02",
+   "particulars": "Receipt of funds from Adrine",
+   "direction": "in",
+   "amount": 10000000.0,
+   "category": "FUNDING_IN"
+  },
+  {
+   "batch": "Batch 3",
+   "date": "2025-06-02",
+   "particulars": "Receipt of funds from Adrine",
+   "direction": "in",
+   "amount": 3000000.0,
+   "category": "FUNDING_IN"
+  },
+  {
+   "batch": "Batch 3",
+   "date": "2025-06-02",
+   "particulars": "Additional payment for Kafeero's coffee",
+   "direction": "out",
+   "amount": 14091400.0,
+   "category": "COGS",
+   "vendor": "Kafeero Baptist"
+  },
+  {
+   "batch": "Batch 3",
+   "date": "2025-06-02",
+   "particulars": "Additional payment for Julius Kivumbi's coffee",
+   "direction": "out",
+   "amount": 25797600.0,
+   "category": "COGS",
+   "vendor": "Julius Kivumbi"
+  },
+  {
+   "batch": "Batch 3",
+   "date": "2025-06-02",
+   "particulars": "Additional payment for Robert Samula's coffee",
+   "direction": "out",
+   "amount": 2466000.0,
+   "category": "COGS",
+   "vendor": "Robert Samula"
+  },
+  {
+   "batch": "Batch 3",
+   "date": "2025-06-02",
+   "particulars": "Additioanl payment for Ddamulira's coffee",
+   "direction": "out",
+   "amount": 25303950.0,
+   "category": "COGS",
+   "vendor": "Ddamulira Eria"
+  },
+  {
+   "batch": "Batch 3",
+   "date": "2025-06-02",
+   "particulars": "Loading expense",
+   "direction": "out",
+   "amount": 20000.0,
+   "category": "OPERATING",
+   "subAccount": "Loading & Handling"
+  },
+  {
+   "batch": "Batch 3",
+   "date": "2025-06-02",
+   "particulars": "Transport of coffee to the main truck",
+   "direction": "out",
+   "amount": 30000.0,
+   "category": "OPERATING",
+   "subAccount": "Transport & Freight"
+  },
+  {
+   "batch": "Batch 3",
+   "date": "2025-06-02",
+   "particulars": "Loading expense",
+   "direction": "out",
+   "amount": 210000.0,
+   "category": "OPERATING",
+   "subAccount": "Loading & Handling"
+  },
+  {
+   "batch": "Batch 3",
+   "date": "2025-06-02",
+   "particulars": "Loading and truck offloading",
+   "direction": "out",
+   "amount": 30000.0,
+   "category": "OPERATING",
+   "subAccount": "Loading & Handling"
+  },
+  {
+   "batch": "Batch 3",
+   "date": "2025-06-02",
+   "particulars": "Final payment for truck hire",
+   "direction": "out",
+   "amount": 1200000.0,
+   "category": "OPERATING",
+   "subAccount": "Transport & Freight"
+  },
+  {
+   "batch": "Batch 3",
+   "date": "2025-06-02",
+   "particulars": "weighbridge fees",
+   "direction": "out",
+   "amount": 100000.0,
+   "category": "OPERATING",
+   "subAccount": "Loading & Handling"
+  },
+  {
+   "batch": "Batch 3",
+   "date": "2025-06-02",
+   "particulars": "Jeremiah's part commission",
+   "direction": "out",
+   "amount": 300000.0,
+   "category": "OPERATING",
+   "subAccount": "Commissions & Facilitation"
+  },
+  {
+   "batch": "Batch 3",
+   "date": "2025-06-04",
+   "particulars": "coffee processing and transport to the buyer's warehouse",
+   "direction": "out",
+   "amount": 4476050.0,
+   "category": "OPERATING",
+   "subAccount": "Transport & Freight"
+  },
+  {
+   "batch": "Batch 3",
+   "date": "2025-06-04",
+   "particulars": "Obed's commission",
+   "direction": "out",
+   "amount": 100000.0,
+   "category": "OPERATING",
+   "subAccount": "Commissions & Facilitation"
+  },
+  {
+   "batch": "Batch 3",
+   "date": "2025-06-04",
+   "particulars": "Bags",
+   "direction": "out",
+   "amount": 400000.0,
+   "category": "OPERATING",
+   "subAccount": "Loading & Handling"
+  },
+  {
+   "batch": "Batch 3",
+   "date": "2025-06-04",
+   "particulars": "Transport for bags",
+   "direction": "out",
+   "amount": 28000.0,
+   "category": "OPERATING",
+   "subAccount": "Transport & Freight"
+  },
+  {
+   "batch": "Batch 3",
+   "date": "2025-06-04",
+   "particulars": "Rebagging casuals",
+   "direction": "out",
+   "amount": 20000.0,
+   "category": "OPERATING",
+   "subAccount": "Loading & Handling"
+  },
+  {
+   "batch": "Batch 3",
+   "date": "2025-06-04",
+   "particulars": "Lunch",
+   "direction": "out",
+   "amount": 39000.0,
+   "category": "OPERATING",
+   "subAccount": "Field Subsistence"
+  },
+  {
+   "batch": "Batch 3",
+   "date": "2025-06-04",
+   "particulars": "Transfer of funds to pay processing and transport to buyer's warehouse",
+   "direction": "in",
+   "amount": 4476050.0,
+   "category": "FUNDING_IN"
+  },
+  {
+   "batch": "Batch 3",
+   "date": "2025-06-05",
+   "particulars": "Obed's transport to acccompany coffee for offloading",
+   "direction": "out",
+   "amount": 30000.0,
+   "category": "OPERATING",
+   "subAccount": "Transport & Freight"
+  },
+  {
+   "batch": "Batch 3",
+   "date": "2025-06-05",
+   "particulars": "Airtime for Elizabeth at Platinum as tip for wonderful support",
+   "direction": "out",
+   "amount": 30000.0,
+   "category": "OPERATING",
+   "subAccount": "Commissions & Facilitation"
+  },
+  {
+   "batch": "Batch 3",
+   "date": "2025-06-05",
+   "particulars": "Receipt of funds to clear arrears",
+   "direction": "in",
+   "amount": 1200050.0,
+   "category": "FUNDING_IN"
+  },
+  {
+   "batch": "Batch 3",
+   "date": "2025-06-05",
+   "particulars": "Reimbursement from Adrine for money spent on the batch",
+   "direction": "in",
+   "amount": 1370050.0,
+   "category": "FUNDING_IN"
+  },
+  {
+   "batch": "Batch 3",
+   "date": "2025-06-05",
+   "particulars": "Refund of balances from batch 3",
+   "direction": "out",
+   "amount": 3200050.0,
+   "category": "TRANSFER_OUT"
+  },
+  {
+   "batch": "Batch 3",
+   "date": "2025-06-05",
+   "particulars": "bank charges",
+   "direction": "out",
+   "amount": 43700.0,
+   "category": "OPERATING",
+   "subAccount": "Bank Charges"
+  },
+  {
+   "batch": "Batch 4",
+   "date": "2025-05-29",
+   "particulars": "Transfer of funds for coffee purchasing",
+   "direction": "in",
+   "amount": 10000000.0,
+   "category": "FUNDING_IN"
+  },
+  {
+   "batch": "Batch 4",
+   "date": "2025-06-11",
+   "particulars": "Transfer of funds for coffee purchasing",
+   "direction": "in",
+   "amount": 10000000.0,
+   "category": "FUNDING_IN"
+  },
+  {
+   "batch": "Batch 4",
+   "date": "2025-06-11",
+   "particulars": "Transfer of funds for coffee purchasing",
+   "direction": "in",
+   "amount": 10000000.0,
+   "category": "FUNDING_IN"
+  },
+  {
+   "batch": "Batch 4",
+   "date": "2025-06-11",
+   "particulars": "Transfer of funds for coffee purchasing",
+   "direction": "in",
+   "amount": 80000000.0,
+   "category": "FUNDING_IN"
+  },
+  {
+   "batch": "Batch 4",
+   "date": "2025-06-11",
+   "particulars": "Purchase of fuel",
+   "direction": "out",
+   "amount": 200000.0,
+   "category": "OPERATING",
+   "subAccount": "Fuel"
+  },
+  {
+   "batch": "Batch 4",
+   "date": "2025-06-11",
+   "particulars": "Field facilitation for coffee mobilisation",
+   "direction": "out",
+   "amount": 300000.0,
+   "category": "OPERATING",
+   "subAccount": "Commissions & Facilitation"
+  },
+  {
+   "batch": "Batch 4",
+   "date": "2025-06-11",
+   "particulars": "Reimbursement of Happy's money from batch 3",
+   "direction": "out",
+   "amount": 150000.0,
+   "category": "OPERATING",
+   "subAccount": "Commissions & Facilitation"
+  },
+  {
+   "batch": "Batch 4",
+   "date": "2025-06-12",
+   "particulars": "Jeremiah and Michael's breakfast",
+   "direction": "out",
+   "amount": 18000.0,
+   "category": "OPERATING",
+   "subAccount": "Field Subsistence"
+  },
+  {
+   "batch": "Batch 4",
+   "date": "2025-06-12",
+   "particulars": "Snacks",
+   "direction": "out",
+   "amount": 28000.0,
+   "category": "OPERATING",
+   "subAccount": "Field Subsistence"
+  },
+  {
+   "batch": "Batch 4",
+   "date": "2025-06-12",
+   "particulars": "Fuel added to facilitate bulking",
+   "direction": "out",
+   "amount": 200000.0,
+   "category": "OPERATING",
+   "subAccount": "Fuel"
+  },
+  {
+   "batch": "Batch 4",
+   "date": "2025-06-12",
+   "particulars": "Dinner for three",
+   "direction": "out",
+   "amount": 41000.0,
+   "category": "OPERATING",
+   "subAccount": "Field Subsistence"
+  },
+  {
+   "batch": "Batch 4",
+   "date": "2025-06-12",
+   "particulars": "Purchase of Robert Samula's coffee",
+   "direction": "out",
+   "amount": 46987600.0,
+   "category": "COGS",
+   "vendor": "Robert Samula"
+  },
+  {
+   "batch": "Batch 4",
+   "date": "2025-06-12",
+   "particulars": "Purchase of Katumba Vincent coffee",
+   "direction": "out",
+   "amount": 50611500.0,
+   "category": "COGS",
+   "vendor": "Vincent Kizza"
+  },
+  {
+   "batch": "Batch 4",
+   "date": "2025-06-12",
+   "particulars": "Transfer of additional funds for coffee purchase",
+   "direction": "in",
+   "amount": 70000000.0,
+   "category": "FUNDING_IN"
+  },
+  {
+   "batch": "Batch 4",
+   "date": "2025-06-12",
+   "particulars": "Partial payment for truck hire to transport coffee to Kampala",
+   "direction": "out",
+   "amount": 700000.0,
+   "category": "OPERATING",
+   "subAccount": "Transport & Freight"
+  },
+  {
+   "batch": "Batch 4",
+   "date": "2025-06-12",
+   "particulars": "Accommodation for a night in Masaka",
+   "direction": "out",
+   "amount": 135000.0,
+   "category": "OPERATING",
+   "subAccount": "Field Subsistence"
+  },
+  {
+   "batch": "Batch 4",
+   "date": "2025-06-12",
+   "particulars": "Accommodation for a night in Masaka",
+   "direction": "out",
+   "amount": 135000.0,
+   "category": "OPERATING",
+   "subAccount": "Field Subsistence"
+  },
+  {
+   "batch": "Batch 4",
+   "date": "2025-06-12",
+   "particulars": "Additional payment for car hire to transport coffee",
+   "direction": "out",
+   "amount": 900000.0,
+   "category": "OPERATING",
+   "subAccount": "Transport & Freight"
+  },
+  {
+   "batch": "Batch 4",
+   "date": "2025-06-12",
+   "particulars": "Jeremiah's commission",
+   "direction": "out",
+   "amount": 250000.0,
+   "category": "OPERATING",
+   "subAccount": "Commissions & Facilitation"
+  },
+  {
+   "batch": "Batch 4",
+   "date": "2025-06-12",
+   "particulars": "grading, drying and coloursorting plus transport",
+   "direction": "out",
+   "amount": 2171320.0,
+   "category": "OPERATING",
+   "subAccount": "Transport & Freight"
+  },
+  {
+   "batch": "Batch 4",
+   "date": "2025-06-12",
+   "particulars": "Tips for the workers at the factory",
+   "direction": "out",
+   "amount": 138000.0,
+   "category": "OPERATING",
+   "subAccount": "Commissions & Facilitation"
+  },
+  {
+   "batch": "Batch 5",
+   "date": "2025-06-15",
+   "particulars": "Balance b/f from batch 4",
+   "direction": "in",
+   "amount": 77034580.0,
+   "category": "BALANCE_BF"
+  },
+  {
+   "batch": "Batch 5",
+   "date": "2025-06-15",
+   "particulars": "Transfer of funds for coffee purchasing",
+   "direction": "in",
+   "amount": 73000000.0,
+   "category": "FUNDING_IN"
+  },
+  {
+   "batch": "Batch 5",
+   "date": "2025-06-16",
+   "particulars": "Part payment to Julius Kivumbi for coffee",
+   "direction": "out",
+   "amount": 72000000.0,
+   "category": "COGS",
+   "vendor": "Julius Kivumbi"
+  },
+  {
+   "batch": "Batch 5",
+   "date": "2025-06-15",
+   "particulars": "Transfer of funds to Eria to cover bulking costs",
+   "direction": "out",
+   "amount": 1000000.0,
+   "category": "OPERATING",
+   "subAccount": "Sundry"
+  },
+  {
+   "batch": "Batch 5",
+   "date": "2025-06-16",
+   "particulars": "Receipt of funds for cofffee purchasing",
+   "direction": "in",
+   "amount": 90000000.0,
+   "category": "FUNDING_IN"
+  },
+  {
+   "batch": "Batch 5",
+   "date": "2025-06-16",
+   "particulars": "Purchase of fuel at Jalia shell station",
+   "direction": "out",
+   "amount": 300000.0,
+   "category": "OPERATING",
+   "subAccount": "Fuel"
+  },
+  {
+   "batch": "Batch 5",
+   "date": "2025-06-16",
+   "particulars": "Lunch in Masaka",
+   "direction": "out",
+   "amount": 27000.0,
+   "category": "OPERATING",
+   "subAccount": "Field Subsistence"
+  },
+  {
+   "batch": "Batch 5",
+   "date": "2025-06-16",
+   "particulars": "Part payment for truck hire to transport coffee from Julius and Kalisizo to Kampala",
+   "direction": "out",
+   "amount": 500000.0,
+   "category": "OPERATING",
+   "subAccount": "Transport & Freight"
+  },
+  {
+   "batch": "Batch 5",
+   "date": "2025-06-16",
+   "particulars": "Additional payment for Julius Kivumbi coffee",
+   "direction": "out",
+   "amount": 20000000.0,
+   "category": "COGS",
+   "vendor": "Julius Kivumbi"
+  },
+  {
+   "batch": "Batch 5",
+   "date": "2025-06-16",
+   "particulars": "Transfer of momo to pay for loading and weighing at Julius",
+   "direction": "out",
+   "amount": 100000.0,
+   "category": "OPERATING",
+   "subAccount": "Loading & Handling"
+  },
+  {
+   "batch": "Batch 5",
+   "date": "2025-06-16",
+   "particulars": "Receipt of additional funds for coffee purchasing",
+   "direction": "in",
+   "amount": 110000000.0,
+   "category": "FUNDING_IN"
+  },
+  {
+   "batch": "Batch 5",
+   "date": "2025-06-16",
+   "particulars": "Payment for coffee at Deus' factory",
+   "direction": "out",
+   "amount": 243550000.0,
+   "category": "COGS",
+   "vendor": "Deus Ntege"
+  },
+  {
+   "batch": "Batch 5",
+   "date": "2025-06-16",
+   "particulars": "Payment for coffee transportation to Kampala from Deus' factory",
+   "direction": "out",
+   "amount": 2000000.0,
+   "category": "OPERATING",
+   "subAccount": "Transport & Freight"
+  },
+  {
+   "batch": "Batch 5",
+   "date": "2025-06-16",
+   "particulars": "Facilitation for Joel to accompany coffee to Transgas",
+   "direction": "out",
+   "amount": 100000.0,
+   "category": "OPERATING",
+   "subAccount": "Commissions & Facilitation"
+  },
+  {
+   "batch": "Batch 5",
+   "date": "2025-06-16",
+   "particulars": "Receipt of funds from Godwin via momo to pay Deus",
+   "direction": "in",
+   "amount": 5000000.0,
+   "category": "FUNDING_IN"
+  },
+  {
+   "batch": "Batch 5",
+   "date": "2025-06-16",
+   "particulars": "Receipt of funds from Adrine via momo to pay Deus",
+   "direction": "in",
+   "amount": 1700000.0,
+   "category": "FUNDING_IN"
+  },
+  {
+   "batch": "Batch 5",
+   "date": "2025-06-16",
+   "particulars": "Payment of Deus via momo",
+   "direction": "out",
+   "amount": 6450000.0,
+   "category": "COGS",
+   "vendor": "Deus Ntege"
+  },
+  {
+   "batch": "Batch 5",
+   "date": "2025-06-16",
+   "particulars": "Accommodation for a night in Masaka",
+   "direction": "out",
+   "amount": 135000.0,
+   "category": "OPERATING",
+   "subAccount": "Field Subsistence"
+  },
+  {
+   "batch": "Batch 5",
+   "date": "2025-06-16",
+   "particulars": "Jeremiah's part commission for coffee sourcing",
+   "direction": "out",
+   "amount": 400000.0,
+   "category": "OPERATING",
+   "subAccount": "Commissions & Facilitation"
+  },
+  {
+   "batch": "Batch 5",
+   "date": "2025-06-16",
+   "particulars": "Eria's commission for coffee sourcing",
+   "direction": "out",
+   "amount": 400000.0,
+   "category": "OPERATING",
+   "subAccount": "Commissions & Facilitation"
+  },
+  {
+   "batch": "Batch 5",
+   "date": "2025-06-16",
+   "particulars": "Tips at the Stanbic bank",
+   "direction": "out",
+   "amount": 10000.0,
+   "category": "OPERATING",
+   "subAccount": "Commissions & Facilitation"
+  },
+  {
+   "batch": "Batch 5",
+   "date": "2025-06-17",
+   "particulars": "Transport cost for coffee from Bukomansimbi to Masaka",
+   "direction": "out",
+   "amount": 130000.0,
+   "category": "OPERATING",
+   "subAccount": "Transport & Freight"
+  },
+  {
+   "batch": "Batch 5",
+   "date": "2025-06-17",
+   "particulars": "Purchase of coffee from Brendon",
+   "direction": "out",
+   "amount": 29240739.0,
+   "category": "COGS",
+   "vendor": "Brendon"
+  },
+  {
+   "batch": "Batch 5",
+   "date": "2025-06-17",
+   "particulars": "Reimbursement of Godwin Kanzira",
+   "direction": "out",
+   "amount": 5000000.0,
+   "category": "OPERATING",
+   "subAccount": "Commissions & Facilitation"
+  },
+  {
+   "batch": "Batch 5",
+   "date": "2025-06-17",
+   "particulars": "Purchase of coffee from Ronald Musoke",
+   "direction": "out",
+   "amount": 6449300.0,
+   "category": "COGS",
+   "vendor": "Ronald Musoke"
+  },
+  {
+   "batch": "Batch 5",
+   "date": "2025-06-17",
+   "particulars": "Payment of loading, weighing and transport",
+   "direction": "out",
+   "amount": 30000.0,
+   "category": "OPERATING",
+   "subAccount": "Transport & Freight"
+  },
+  {
+   "batch": "Batch 5",
+   "date": "2025-06-17",
+   "particulars": "Payment of loading of coffee from Bukomansimbi",
+   "direction": "out",
+   "amount": 20000.0,
+   "category": "OPERATING",
+   "subAccount": "Loading & Handling"
+  },
+  {
+   "batch": "Batch 5",
+   "date": "2025-06-17",
+   "particulars": "Additional payment for Julius Kivumbi coffee",
+   "direction": "out",
+   "amount": 8157600.0,
+   "category": "COGS",
+   "vendor": "Julius Kivumbi"
+  },
+  {
+   "batch": "Batch 5",
+   "date": "2025-06-17",
+   "particulars": "Transfer of funds to Happy to purchase coffee",
+   "direction": "in",
+   "amount": 31078339.0,
+   "category": "FUNDING_IN"
+  },
+  {
+   "batch": "Batch 5",
+   "date": "2025-06-17",
+   "particulars": "Transfer of funds to Happy to purchase coffee",
+   "direction": "in",
+   "amount": 6479300.0,
+   "category": "FUNDING_IN"
+  },
+  {
+   "batch": "Batch 5",
+   "date": "2025-06-17",
+   "particulars": "Payment of Obed for quality supervision",
+   "direction": "out",
+   "amount": 100000.0,
+   "category": "OPERATING",
+   "subAccount": "Sundry"
+  },
+  {
+   "batch": "Batch 5",
+   "date": "2025-06-17",
+   "particulars": "Payment for a truck from Kalisizo",
+   "direction": "out",
+   "amount": 150000.0,
+   "category": "OPERATING",
+   "subAccount": "Transport & Freight"
+  },
+  {
+   "batch": "Batch 5",
+   "date": "2025-06-17",
+   "particulars": "Payment of transport for Joel to return to Masaka",
+   "direction": "out",
+   "amount": 30000.0,
+   "category": "OPERATING",
+   "subAccount": "Transport & Freight"
+  },
+  {
+   "batch": "Batch 5",
+   "date": "2025-06-17",
+   "particulars": "Additional payment fo 11-ton truck to transport coffee to Kampala",
+   "direction": "out",
+   "amount": 1000000.0,
+   "category": "OPERATING",
+   "subAccount": "Transport & Freight"
+  },
+  {
+   "batch": "Batch 5",
+   "date": "2025-06-16",
+   "particulars": "Drying and grading cost",
+   "direction": "out",
+   "amount": 4883465.0,
+   "category": "OPERATING",
+   "subAccount": "Milling & Processing"
+  },
+  {
+   "batch": "Batch 5",
+   "date": "2025-06-16",
+   "particulars": "coloursorting and handling",
+   "direction": "out",
+   "amount": 300000.0,
+   "category": "OPERATING",
+   "subAccount": "Milling & Processing"
+  },
+  {
+   "batch": "Batch 5",
+   "date": "2025-06-16",
+   "particulars": "Fuel",
+   "direction": "out",
+   "amount": 100000.0,
+   "category": "OPERATING",
+   "subAccount": "Fuel"
+  },
+  {
+   "batch": "Batch 5",
+   "date": "2025-06-16",
+   "particulars": "Lunch during processing",
+   "direction": "out",
+   "amount": 22000.0,
+   "category": "OPERATING",
+   "subAccount": "Milling & Processing"
+  },
+  {
+   "batch": "Batch 5",
+   "date": "2025-06-16",
+   "particulars": "Tip for workers",
+   "direction": "out",
+   "amount": 40000.0,
+   "category": "OPERATING",
+   "subAccount": "Commissions & Facilitation"
+  },
+  {
+   "batch": "Batch 5",
+   "date": "2025-06-16",
+   "particulars": "rebagging and bulking loading",
+   "direction": "out",
+   "amount": 170000.0,
+   "category": "OPERATING",
+   "subAccount": "Loading & Handling"
+  },
+  {
+   "batch": "Batch 5",
+   "date": "2025-06-16",
+   "particulars": "coffee movement during processing",
+   "direction": "out",
+   "amount": 75000.0,
+   "category": "OPERATING",
+   "subAccount": "Transport & Freight"
+  },
+  {
+   "batch": "Batch 5",
+   "date": "2025-06-16",
+   "particulars": "Transport cost for moving coffee from Black House",
+   "direction": "out",
+   "amount": 45000.0,
+   "category": "OPERATING",
+   "subAccount": "Transport & Freight"
+  },
+  {
+   "batch": "Batch 5",
+   "date": "2025-06-16",
+   "particulars": "Loading and weighing coffee out",
+   "direction": "out",
+   "amount": 215000.0,
+   "category": "OPERATING",
+   "subAccount": "Loading & Handling"
+  },
+  {
+   "batch": "Batch 5",
+   "date": "2025-06-16",
+   "particulars": "Transport charge adn extra charge for overnight -UBF 262F",
+   "direction": "out",
+   "amount": 900000.0,
+   "category": "OPERATING",
+   "subAccount": "Transport & Freight"
+  },
+  {
+   "batch": "Batch 5",
+   "date": "2025-06-16",
+   "particulars": "Loading of undegrades and transportation from Transgaz to Platinum",
+   "direction": "out",
+   "amount": 60000.0,
+   "category": "OPERATING",
+   "subAccount": "Transport & Freight"
+  },
+  {
+   "batch": "Batch 5",
+   "date": "2025-06-16",
+   "particulars": "Loading of undergrades and handpicking charge",
+   "direction": "out",
+   "amount": 60000.0,
+   "category": "OPERATING",
+   "subAccount": "Loading & Handling"
+  },
+  {
+   "batch": "Batch 5",
+   "date": "2025-06-16",
+   "particulars": "Purchase of 203kgs of screen 18",
+   "direction": "out",
+   "amount": 2400000.0,
+   "category": "COGS"
+  },
+  {
+   "batch": "Batch 5",
+   "date": "2025-06-16",
+   "particulars": "Milling of undegrades",
+   "direction": "out",
+   "amount": 51600.0,
+   "category": "OPERATING",
+   "subAccount": "Milling & Processing"
+  },
+  {
+   "batch": "Batch 5",
+   "date": "2025-06-16",
+   "particulars": "Receipt of funds for coffee processing",
+   "direction": "in",
+   "amount": 3000000.0,
+   "category": "FUNDING_IN"
+  },
+  {
+   "batch": "Batch 5",
+   "date": "2025-06-16",
+   "particulars": "Transport fare for coffee to Ibero",
+   "direction": "out",
+   "amount": 500000.0,
+   "category": "OPERATING",
+   "subAccount": "Transport & Freight"
+  },
+  {
+   "batch": "Batch 5",
+   "date": "2025-06-16",
+   "particulars": "Allowance for Arnold to offload",
+   "direction": "out",
+   "amount": 100000.0,
+   "category": "OPERATING",
+   "subAccount": "Loading & Handling"
+  },
+  {
+   "batch": "Batch 5",
+   "date": "2025-06-16",
+   "particulars": "reprocessing charge at Platinum",
+   "direction": "out",
+   "amount": 3901260.0,
+   "category": "OPERATING",
+   "subAccount": "Milling & Processing"
+  },
+  {
+   "batch": "Batch 5",
+   "date": "2025-06-16",
+   "particulars": "Additional loading and offloading",
+   "direction": "out",
+   "amount": 20000.0,
+   "category": "OPERATING",
+   "subAccount": "Loading & Handling"
+  },
+  {
+   "batch": "Batch 5",
+   "date": "2025-06-16",
+   "particulars": "Tips for overtime at Platinum",
+   "direction": "out",
+   "amount": 40000.0,
+   "category": "OPERATING",
+   "subAccount": "Commissions & Facilitation"
+  },
+  {
+   "batch": "Batch 3",
+   "date": "2025-06-05",
+   "particulars": "Sale of SC 18 (Batch 3 graded output)",
+   "direction": "in",
+   "amount": 42104000.0,
+   "category": "REVENUE",
+   "grade": "SC 18",
+   "settledToBank": true
+  },
+  {
+   "batch": "Batch 3",
+   "date": "2025-06-05",
+   "particulars": "Sale of SC 15 (Batch 3 graded output)",
+   "direction": "in",
+   "amount": 151218000.0,
+   "category": "REVENUE",
+   "grade": "SC 15",
+   "settledToBank": true
+  },
+  {
+   "batch": "Batch 3",
+   "date": "2025-06-05",
+   "particulars": "Sale of SC 12 (Batch 3 graded output)",
+   "direction": "in",
+   "amount": 40750000.0,
+   "category": "REVENUE",
+   "grade": "SC 12",
+   "settledToBank": true
+  },
+  {
+   "batch": "Batch 3",
+   "date": "2025-06-05",
+   "particulars": "Sale of Black Beans (Batch 3 graded output)",
+   "direction": "in",
+   "amount": 8652000.0,
+   "category": "REVENUE",
+   "grade": "Black Beans",
+   "settledToBank": true
+  },
+  {
+   "batch": "Batch 3",
+   "date": "2025-06-05",
+   "particulars": "Sale of Husks (Batch 3 graded output)",
+   "direction": "in",
+   "amount": 142200.0,
+   "category": "REVENUE",
+   "grade": "Husks",
+   "settledToBank": true
+  },
+  {
+   "batch": "Batch 3",
+   "date": "2025-06-05",
+   "particulars": "Sale of Discoloured (Batch 3 graded output)",
+   "direction": "in",
+   "amount": 4164000.0,
+   "category": "REVENUE",
+   "grade": "Discoloured",
+   "settledToBank": true
+  },
+  {
+   "batch": "Batch 3",
+   "date": "2025-06-05",
+   "particulars": "Sale of Pods (Batch 3 graded output)",
+   "direction": "in",
+   "amount": 2486000.0,
+   "category": "REVENUE",
+   "grade": "Pods",
+   "settledToBank": true
+  },
+  {
+   "batch": "Batch 3",
+   "date": "2025-06-05",
+   "particulars": "Sale of Grade 1199 (Batch 3 graded output)",
+   "direction": "in",
+   "amount": 2887500.0,
+   "category": "REVENUE",
+   "grade": "Grade 1199",
+   "settledToBank": true
+  },
+  {
+   "batch": "Batch 3",
+   "date": "2025-06-05",
+   "particulars": "Sale of BHP (Batch 3 graded output)",
+   "direction": "in",
+   "amount": 6130000.0,
+   "category": "REVENUE",
+   "grade": "BHP",
+   "settledToBank": true
+  },
+  {
+   "batch": "Batch 3",
+   "date": "2025-06-05",
+   "particulars": "Sale of Sweeping (Batch 3 graded output)",
+   "direction": "in",
+   "amount": 890000.0,
+   "category": "REVENUE",
+   "grade": "Sweeping",
+   "settledToBank": true
+  },
+  {
+   "batch": "Batch 4",
+   "date": "2025-06-12",
+   "particulars": "Sale of SC 15 (Batch 4 graded output)",
+   "direction": "in",
+   "amount": 64395000.0,
+   "category": "REVENUE",
+   "grade": "SC 15",
+   "settledToBank": true
+  },
+  {
+   "batch": "Batch 4",
+   "date": "2025-06-12",
+   "particulars": "Sale of SC 18 (Batch 4 graded output)",
+   "direction": "in",
+   "amount": 19783000.0,
+   "category": "REVENUE",
+   "grade": "SC 18",
+   "settledToBank": true
+  },
+  {
+   "batch": "Batch 4",
+   "date": "2025-06-12",
+   "particulars": "Sale of SC 12 (Batch 4 graded output)",
+   "direction": "in",
+   "amount": 14268000.0,
+   "category": "REVENUE",
+   "grade": "SC 12",
+   "settledToBank": true
+  },
+  {
+   "batch": "Batch 4",
+   "date": "2025-06-12",
+   "particulars": "Sale of Black Beans (Batch 4 graded output)",
+   "direction": "in",
+   "amount": 4774000.0,
+   "category": "REVENUE",
+   "grade": "Black Beans",
+   "settledToBank": true
+  },
+  {
+   "batch": "Batch 4",
+   "date": "2025-06-12",
+   "particulars": "Sale of BHP (Batch 4 graded output)",
+   "direction": "in",
+   "amount": 3100000.0,
+   "category": "REVENUE",
+   "grade": "BHP",
+   "settledToBank": true
+  },
+  {
+   "batch": "Batch 4",
+   "date": "2025-06-12",
+   "particulars": "Sale of Discoloured (Batch 4 graded output)",
+   "direction": "in",
+   "amount": 1325000.0,
+   "category": "REVENUE",
+   "grade": "Discoloured",
+   "settledToBank": true
+  },
+  {
+   "batch": "Batch 5",
+   "date": "2025-06-17",
+   "particulars": "Sale of SC 18 (Batch 5 graded output)",
+   "direction": "in",
+   "amount": 70862200.0,
+   "category": "REVENUE",
+   "grade": "SC 18",
+   "settledToBank": true
+  },
+  {
+   "batch": "Batch 5",
+   "date": "2025-06-17",
+   "particulars": "Sale of SC 15 (Batch 5 graded output)",
+   "direction": "in",
+   "amount": 256074000.0,
+   "category": "REVENUE",
+   "grade": "SC 15",
+   "settledToBank": true
+  },
+  {
+   "batch": "Batch 5",
+   "date": "2025-06-17",
+   "particulars": "Sale of SC 12 (Batch 5 graded output)",
+   "direction": "in",
+   "amount": 57750000.0,
+   "category": "REVENUE",
+   "grade": "SC 12",
+   "settledToBank": true
+  },
+  {
+   "batch": "Batch 5",
+   "date": "2025-06-17",
+   "particulars": "Sale of Black Beans (Batch 5 graded output)",
+   "direction": "in",
+   "amount": 4213000.0,
+   "category": "REVENUE",
+   "grade": "Black Beans",
+   "settledToBank": true
+  },
+  {
+   "batch": "Batch 5",
+   "date": "2025-06-17",
+   "particulars": "Sale of Husks (Batch 5 graded output)",
+   "direction": "in",
+   "amount": 157000.0,
+   "category": "REVENUE",
+   "grade": "Husks",
+   "settledToBank": true
+  },
+  {
+   "batch": "Batch 5",
+   "date": "2025-06-17",
+   "particulars": "Sale of Pods (Batch 5 graded output)",
+   "direction": "in",
+   "amount": 513000.0,
+   "category": "REVENUE",
+   "grade": "Pods",
+   "settledToBank": true
+  },
+  {
+   "batch": "Batch 5",
+   "date": "2025-06-17",
+   "particulars": "Sale of BHP (Batch 5 graded output)",
+   "direction": "in",
+   "amount": 5332600.0,
+   "category": "REVENUE",
+   "grade": "BHP",
+   "settledToBank": true
+  },
+  {
+   "batch": "Batch 5",
+   "date": "2025-06-17",
+   "particulars": "Sale of Discoloured (Batch 5 graded output)",
+   "direction": "in",
+   "amount": 6000000.0,
+   "category": "REVENUE",
+   "grade": "Discoloured",
+   "settledToBank": true
+  }
+ ]
+}
