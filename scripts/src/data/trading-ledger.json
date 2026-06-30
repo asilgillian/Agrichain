@@ -1,0 +1,102 @@
+{
+  "meta": {
+    "source": "attached_assets/Mtandao_trading_ledger_revised_20052026_(1)_1782840478954.xlsx",
+    "description": "Cleaned MTANDEO 5-batch coffee trading ledger (May-June 2025). Suppliers, coffee purchases (deliveries), batch groupings, and graded sales of the milled output. Derived from the workbook's per-batch Purchases sheets and CASH ledger sheets; Excel serial dates decoded against the 1899-12-30 epoch.",
+    "currency": "UGX",
+    "cropType": "dried_robusta",
+    "assumptions": [
+      "cropType for all purchase deliveries is 'dried_robusta' (kiboko) - the commodity physically delivered before milling into export screen grades.",
+      "Deliveries are loaded in an 'approved' state (weight/QC/pricing approved) to mirror the closed historical trading record.",
+      "Batch 1 'Rubirizi' (16,366 kg) is a south-western Uganda district, not a seller; recorded under a placeholder supplier to be renamed when the real seller is confirmed (client-approved).",
+      "Batch 4 / Robert Samula: net 4,134 kg x 11,500 = 47,541,000 but only 46,987,600 was paid; per client the 553,400 difference is recorded as a quality discount (pricingDeductions), net value 46,987,600.",
+      "Export screen grades (SC18/SC15/SC12) and by-products are not in the commodity catalogue; they are stored as free-text grades on sales contracts.",
+      "Sales counterparty is unknown in the ledger; all sales use a single placeholder buyer 'Historical Ledger Buyer (TBC)'.",
+      "Batches 1 and 2 have no per-grade revenue breakdown in the source; recorded as single whole-batch sales.",
+      "Operating/expense cash-ledger lines (transport, processing, commissions, fuel, etc.) are OUT OF SCOPE here - they belong to the separate QuickBooks task."
+    ]
+  },
+  "suppliers": [
+    { "ref": "LGR-SUP-01", "sellerType": "individual", "firstName": "Julius", "lastName": "Kivumbi", "village": "Masaka", "status": "active" },
+    { "ref": "LGR-SUP-02", "sellerType": "individual", "firstName": "Rubirizi (SW Uganda)", "lastName": "- seller TBC", "village": "Rubirizi", "status": "active", "notes": "PLACEHOLDER: Batch 1 16,366kg recorded under the location 'Rubirizi'; actual seller unknown. Rename when confirmed." },
+    { "ref": "LGR-SUP-03", "sellerType": "individual", "firstName": "Natema", "lastName": "Betty", "village": "Masaka", "status": "active" },
+    { "ref": "LGR-SUP-04", "sellerType": "individual", "firstName": "Joseph", "lastName": "Segawa", "village": "Masaka", "status": "active", "notes": "Trades as Gurama Coffee Factory." },
+    { "ref": "LGR-SUP-05", "sellerType": "individual", "firstName": "Allan", "lastName": "Ssenyondo", "village": "Masaka", "status": "active" },
+    { "ref": "LGR-SUP-06", "sellerType": "individual", "firstName": "Robert", "lastName": "Samula", "village": "Masaka", "status": "active" },
+    { "ref": "LGR-SUP-07", "sellerType": "individual", "firstName": "Katwalo", "lastName": null, "village": "Masaka", "status": "active" },
+    { "ref": "LGR-SUP-08", "sellerType": "individual", "firstName": "Vicent", "lastName": "Kizza", "village": "Masaka", "status": "active" },
+    { "ref": "LGR-SUP-09", "sellerType": "individual", "firstName": "Kafeero", "lastName": "Baptist", "village": "Masaka", "status": "active" },
+    { "ref": "LGR-SUP-10", "sellerType": "individual", "firstName": "Katumba", "lastName": "Vincent", "village": "Masaka", "status": "active" },
+    { "ref": "LGR-SUP-11", "sellerType": "individual", "firstName": "Ddamulira", "lastName": "Eria", "village": "Masaka", "status": "active" },
+    { "ref": "LGR-SUP-12", "sellerType": "individual", "firstName": "Deus", "lastName": "Ntege", "village": "Masaka", "status": "active" },
+    { "ref": "LGR-SUP-13", "sellerType": "individual", "firstName": "Brendon", "lastName": null, "village": "Masaka", "status": "active" },
+    { "ref": "LGR-SUP-14", "sellerType": "individual", "firstName": "Ronald", "lastName": "Musoke", "village": "Masaka", "status": "active" }
+  ],
+  "batches": [
+    { "key": "B1", "batchTag": "B-LGR-1", "harvestDate": "2025-05-17", "ledgerPurchaseTotal": 294552000 },
+    { "key": "B2", "batchTag": "B-LGR-2", "harvestDate": "2025-05-20", "ledgerPurchaseTotal": 97291000 },
+    { "key": "B3", "batchTag": "B-LGR-3", "harvestDate": "2025-06-02", "ledgerPurchaseTotal": 243111750 },
+    { "key": "B4", "batchTag": "B-LGR-4", "harvestDate": "2025-06-14", "ledgerPurchaseTotal": 97599100 },
+    { "key": "B5", "batchTag": "B-LGR-5", "harvestDate": "2025-06-16", "ledgerPurchaseTotal": 385852600 }
+  ],
+  "deliveries": [
+    { "key": "B1-01", "batch": "B1", "supplierRef": "LGR-SUP-02", "date": "2025-05-17", "grossKg": null, "netKg": 16366, "pricePerKg": 12000, "totalValue": 196392000 },
+    { "key": "B1-02", "batch": "B1", "supplierRef": "LGR-SUP-01", "date": "2025-05-18", "grossKg": null, "netKg": 8180, "pricePerKg": 12000, "totalValue": 98160000 },
+
+    { "key": "B2-01", "batch": "B2", "supplierRef": "LGR-SUP-03", "date": "2025-05-20", "grossKg": 2454, "netKg": 2381, "pricePerKg": 11800, "totalValue": 28095800 },
+    { "key": "B2-02", "batch": "B2", "supplierRef": "LGR-SUP-04", "date": "2025-05-20", "grossKg": 1857, "netKg": 1838, "pricePerKg": 11800, "totalValue": 21688400 },
+    { "key": "B2-03", "batch": "B2", "supplierRef": "LGR-SUP-05", "date": "2025-05-21", "grossKg": 2355, "netKg": 2331, "pricePerKg": 11800, "totalValue": 27505800 },
+    { "key": "B2-04", "batch": "B2", "supplierRef": "LGR-SUP-06", "date": "2025-05-21", "grossKg": 1747, "netKg": 1695, "pricePerKg": 11800, "totalValue": 20001000 },
+
+    { "key": "B3-01", "batch": "B3", "supplierRef": "LGR-SUP-07", "date": "2025-06-02", "grossKg": 849, "netKg": 845, "pricePerKg": 11600, "totalValue": 9802000 },
+    { "key": "B3-02", "batch": "B3", "supplierRef": "LGR-SUP-08", "date": "2025-06-02", "grossKg": 3583, "netKg": 3512, "pricePerKg": 11500, "totalValue": 40388000 },
+    { "key": "B3-03", "batch": "B3", "supplierRef": "LGR-SUP-09", "date": "2025-06-02", "grossKg": 2223, "netKg": 2201, "pricePerKg": 11400, "totalValue": 25091400 },
+    { "key": "B3-04", "batch": "B3", "supplierRef": "LGR-SUP-01", "date": "2025-06-02", "grossKg": 3117, "netKg": 3086, "pricePerKg": 11600, "totalValue": 35797600 },
+    { "key": "B3-05", "batch": "B3", "supplierRef": "LGR-SUP-06", "date": "2025-06-02", "grossKg": 3179, "netKg": 3084, "pricePerKg": 11500, "totalValue": 35466000 },
+    { "key": "B3-06", "batch": "B3", "supplierRef": "LGR-SUP-10", "date": "2025-06-02", "grossKg": 4375, "netKg": 4333, "pricePerKg": 11600, "totalValue": 50262800 },
+    { "key": "B3-07", "batch": "B3", "supplierRef": "LGR-SUP-11", "date": "2025-06-02", "grossKg": 4099, "netKg": 4009, "pricePerKg": 11550, "totalValue": 46303950 },
+
+    { "key": "B4-01", "batch": "B4", "supplierRef": "LGR-SUP-06", "date": "2025-06-14", "grossKg": 4262, "netKg": 4134, "pricePerKg": 11500, "totalValue": 46987600, "qualityDiscount": 553400, "note": "Gross value 47,541,000 (4,134 x 11,500); 553,400 recorded as quality discount per client; net paid 46,987,600." },
+    { "key": "B4-02", "batch": "B4", "supplierRef": "LGR-SUP-10", "date": "2025-06-14", "grossKg": 4445, "netKg": 4401, "pricePerKg": 11500, "totalValue": 50611500 },
+
+    { "key": "B5-01", "batch": "B5", "supplierRef": "LGR-SUP-12", "date": "2025-06-16", "grossKg": 20038, "netKg": 20000, "pricePerKg": 12500, "totalValue": 250000000 },
+    { "key": "B5-02", "batch": "B5", "supplierRef": "LGR-SUP-01", "date": "2025-06-16", "grossKg": 6000, "netKg": 6000, "pricePerKg": 12000, "totalValue": 72000000 },
+    { "key": "B5-03", "batch": "B5", "supplierRef": "LGR-SUP-01", "date": "2025-06-16", "grossKg": 2308, "netKg": 2308, "pricePerKg": 12200, "totalValue": 28157600 },
+    { "key": "B5-04", "batch": "B5", "supplierRef": "LGR-SUP-13", "date": "2025-06-17", "grossKg": 2441, "netKg": 2417, "pricePerKg": 12100, "totalValue": 29245700 },
+    { "key": "B5-05", "batch": "B5", "supplierRef": "LGR-SUP-14", "date": "2025-06-17", "grossKg": 544, "netKg": 533, "pricePerKg": 12100, "totalValue": 6449300 }
+  ],
+  "sales": [
+    { "batch": "B1", "whole": true, "gradeCode": "WHOLE", "grade": null, "kg": 24546, "amount": 303029200 },
+    { "batch": "B2", "whole": true, "gradeCode": "WHOLE", "grade": null, "kg": 8245, "amount": 93978986.4 },
+
+    { "batch": "B3", "gradeCode": "SC18", "grade": "SC 18", "kg": 3040, "pricePerKg": 13850, "amount": 42104000 },
+    { "batch": "B3", "gradeCode": "SC15", "grade": "SC 15", "kg": 11160, "pricePerKg": 13550, "amount": 151218000 },
+    { "batch": "B3", "gradeCode": "SC12", "grade": "SC 12", "kg": 3260, "pricePerKg": 12500, "amount": 40750000 },
+    { "batch": "B3", "gradeCode": "BLACKBEANS", "grade": "Black Beans", "kg": 721, "pricePerKg": 12000, "amount": 8652000 },
+    { "batch": "B3", "gradeCode": "HUSKS", "grade": "Husks", "kg": 237, "pricePerKg": 600, "amount": 142200 },
+    { "batch": "B3", "gradeCode": "DISCOLOURED", "grade": "Discoloured", "kg": 347, "pricePerKg": 12000, "amount": 4164000 },
+    { "batch": "B3", "gradeCode": "PODS", "grade": "Pods", "kg": 226, "pricePerKg": 11000, "amount": 2486000 },
+    { "batch": "B3", "gradeCode": "P1199", "grade": "1199", "kg": 275, "pricePerKg": 10500, "amount": 2887500 },
+    { "batch": "B3", "gradeCode": "BHP", "grade": "BHP", "kg": 613, "pricePerKg": 10000, "amount": 6130000 },
+    { "batch": "B3", "gradeCode": "SWEEPING", "grade": "Sweeping", "kg": 89, "pricePerKg": 10000, "amount": 890000 },
+
+    { "batch": "B4", "gradeCode": "SC15", "grade": "SC 15", "kg": 4860, "pricePerKg": 13250, "amount": 64395000 },
+    { "batch": "B4", "gradeCode": "SC18", "grade": "SC 18", "kg": 1460, "pricePerKg": 13550, "amount": 19783000 },
+    { "batch": "B4", "gradeCode": "SC12", "grade": "SC 12", "kg": 1160, "pricePerKg": 12300, "amount": 14268000 },
+    { "batch": "B4", "gradeCode": "BLACKBEANS", "grade": "Black Beans", "kg": 434, "pricePerKg": 11000, "amount": 4774000 },
+    { "batch": "B4", "gradeCode": "BHP", "grade": "BHP", "kg": 310, "pricePerKg": 10000, "amount": 3100000 },
+    { "batch": "B4", "gradeCode": "DISCOLOURED", "grade": "Discoloured", "kg": 100, "pricePerKg": 13250, "amount": 1325000 },
+
+    { "batch": "B5", "gradeCode": "SC18", "grade": "SC 18", "kg": 5098, "pricePerKg": 13900, "amount": 70862200 },
+    { "batch": "B5", "gradeCode": "SC15", "grade": "SC 15", "kg": 18760, "pricePerKg": 13650, "amount": 256074000 },
+    { "batch": "B5", "gradeCode": "SC12", "grade": "SC 12", "kg": 4620, "pricePerKg": 12500, "amount": 57750000 },
+    { "batch": "B5", "gradeCode": "BLACKBEANS", "grade": "Black Beans", "kg": 383, "pricePerKg": 11000, "amount": 4213000 },
+    { "batch": "B5", "gradeCode": "HUSKS", "grade": "Husks", "kg": 157, "pricePerKg": 1000, "amount": 157000 },
+    { "batch": "B5", "gradeCode": "PODS", "grade": "Pods", "kg": 114, "pricePerKg": 4500, "amount": 513000 },
+    { "batch": "B5", "gradeCode": "BHP", "grade": "BHP", "kg": 586, "pricePerKg": 9100, "amount": 5332600 },
+    { "batch": "B5", "gradeCode": "DISCOLOURED", "grade": "Discoloured", "kg": 500, "pricePerKg": 12000, "amount": 6000000 }
+  ],
+  "expectedTotals": {
+    "purchasesByBatch": { "B1": 294552000, "B2": 97291000, "B3": 243111750, "B4": 97599100, "B5": 385852600 },
+    "revenueByBatch": { "B1": 303029200, "B2": 93978986.4, "B3": 259423700, "B4": 107645000, "B5": 400901800 }
+  }
+}

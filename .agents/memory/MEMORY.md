@@ -1,5 +1,1 @@
-- [api-server testing](api-server-testing.md) — vitest runs against the LIVE dev Postgres; DB tests must use randomized fixture names + afterAll cleanup; fileParallelism off.
-- [List response shapes inconsistent](paginated-list-endpoints.md) — some list endpoints return {data,total,page,limit}, others a bare array; verify per endpoint before consuming.
-- [Express routing & Drizzle param quirks](express-routing-quirks.md) — public-route-before-auth 401 fall-through; `eq(id, x as string)` cast needed; guard UUID lookups against non-UUID input.
-- [api-server typecheck pitfalls](api-server-typecheck.md) — keep `@types/express-serve-static-core` pinned 5.0.7; mockup-sandbox TS fail is unrelated dup @types/react.
-- [Calendar date representation](calendar-date-representation.md) — calendar dates are a `CalendarDate` string-pattern $ref (not `format: date`) so Zod stays string & matches DB; don't disable orval useDates.
+- [Ledger sales lot modeling](ledger-sales-lots.md) — graded sales model milled OUTPUT as synthetic per-grade lots, never allocate sale weight against raw delivery lots.
