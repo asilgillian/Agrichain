@@ -11,6 +11,7 @@ export interface GradingRun {
   runNumber: string;
   gradingProfileId: string;
   siloBatchId?: string | null;
+  siloBatchNumber?: string | null;
   inputCommodityTypeId: string;
   inputWeightKg: string;
   totalOutputKg: string;

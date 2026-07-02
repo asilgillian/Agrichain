@@ -33,6 +33,7 @@ import orgRegionsRouter from "./org-regions";
 import commoditiesRouter from "./commodities";
 import gradingRouter from "./grading";
 import samplesRouter from "./samples";
+import siloBatchesRouter from "./silo-batches";
 import suppliersRouter from "./suppliers";
 import paymentsWebhooksRouter from "./payments-webhooks";
 
@@ -73,6 +74,7 @@ router.use(regionsRouter);
 router.use(orgRegionsRouter);
 router.use(commoditiesRouter);
 router.use(gradingRouter);
+router.use(siloBatchesRouter);
 router.use(suppliersRouter);
 router.use(registrationTemplatesRouter);
 router.use(transactionAccessRouter);

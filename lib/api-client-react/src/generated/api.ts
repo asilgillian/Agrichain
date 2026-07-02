@@ -88,6 +88,8 @@ import type {
   ListPlotsParams,
   ListProcurementContractsParams,
   ListRegionsParams,
+  ListSiloBatchesParams,
+  ListSilosParams,
   ListSuppliersParams,
   ListSurveySubmissionsParams,
   ListUserExtraRoles200Item,
@@ -132,6 +134,10 @@ import type {
   ScheduleVisitBody,
   Shipment,
   ShipmentDetail,
+  Silo,
+  SiloBatch,
+  SiloBatchInput,
+  SiloInput,
   SubmitGapAssessmentBody,
   SubmitQcBody,
   SubmitSurveyBody,
@@ -11242,6 +11248,453 @@ export function useGetGradingRun<
   },
 ): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
   const queryOptions = getGetGradingRunQueryOptions(runId, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary List silos
+ */
+export const getListSilosUrl = (params?: ListSilosParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/silos?${stringifiedParams}`
+    : `/api/silos`;
+};
+
+export const listSilos = async (
+  params?: ListSilosParams,
+  options?: RequestInit,
+): Promise<Silo[]> => {
+  return customFetch<Silo[]>(getListSilosUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListSilosQueryKey = (params?: ListSilosParams) => {
+  return [`/api/silos`, ...(params ? [params] : [])] as const;
+};
+
+export const getListSilosQueryOptions = <
+  TData = Awaited<ReturnType<typeof listSilos>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: ListSilosParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listSilos>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getListSilosQueryKey(params);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof listSilos>>> = ({
+    signal,
+  }) => listSilos(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listSilos>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListSilosQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listSilos>>
+>;
+export type ListSilosQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List silos
+ */
+
+export function useListSilos<
+  TData = Awaited<ReturnType<typeof listSilos>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: ListSilosParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listSilos>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListSilosQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Create a silo
+ */
+export const getCreateSiloUrl = () => {
+  return `/api/silos`;
+};
+
+export const createSilo = async (
+  siloInput: SiloInput,
+  options?: RequestInit,
+): Promise<Silo> => {
+  return customFetch<Silo>(getCreateSiloUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(siloInput),
+  });
+};
+
+export const getCreateSiloMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createSilo>>,
+    TError,
+    { data: BodyType<SiloInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createSilo>>,
+  TError,
+  { data: BodyType<SiloInput> },
+  TContext
+> => {
+  const mutationKey = ["createSilo"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createSilo>>,
+    { data: BodyType<SiloInput> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return createSilo(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateSiloMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createSilo>>
+>;
+export type CreateSiloMutationBody = BodyType<SiloInput>;
+export type CreateSiloMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Create a silo
+ */
+export const useCreateSilo = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createSilo>>,
+    TError,
+    { data: BodyType<SiloInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createSilo>>,
+  TError,
+  { data: BodyType<SiloInput> },
+  TContext
+> => {
+  return useMutation(getCreateSiloMutationOptions(options));
+};
+
+/**
+ * @summary List silo batches with available (ungraded) weight
+ */
+export const getListSiloBatchesUrl = (params?: ListSiloBatchesParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/silo-batches?${stringifiedParams}`
+    : `/api/silo-batches`;
+};
+
+export const listSiloBatches = async (
+  params?: ListSiloBatchesParams,
+  options?: RequestInit,
+): Promise<SiloBatch[]> => {
+  return customFetch<SiloBatch[]>(getListSiloBatchesUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListSiloBatchesQueryKey = (params?: ListSiloBatchesParams) => {
+  return [`/api/silo-batches`, ...(params ? [params] : [])] as const;
+};
+
+export const getListSiloBatchesQueryOptions = <
+  TData = Awaited<ReturnType<typeof listSiloBatches>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: ListSiloBatchesParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listSiloBatches>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getListSiloBatchesQueryKey(params);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof listSiloBatches>>> = ({
+    signal,
+  }) => listSiloBatches(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listSiloBatches>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListSiloBatchesQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listSiloBatches>>
+>;
+export type ListSiloBatchesQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List silo batches with available (ungraded) weight
+ */
+
+export function useListSiloBatches<
+  TData = Awaited<ReturnType<typeof listSiloBatches>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: ListSiloBatchesParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listSiloBatches>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListSiloBatchesQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Create a silo batch
+ */
+export const getCreateSiloBatchUrl = () => {
+  return `/api/silo-batches`;
+};
+
+export const createSiloBatch = async (
+  siloBatchInput: SiloBatchInput,
+  options?: RequestInit,
+): Promise<SiloBatch> => {
+  return customFetch<SiloBatch>(getCreateSiloBatchUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(siloBatchInput),
+  });
+};
+
+export const getCreateSiloBatchMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createSiloBatch>>,
+    TError,
+    { data: BodyType<SiloBatchInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createSiloBatch>>,
+  TError,
+  { data: BodyType<SiloBatchInput> },
+  TContext
+> => {
+  const mutationKey = ["createSiloBatch"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createSiloBatch>>,
+    { data: BodyType<SiloBatchInput> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return createSiloBatch(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateSiloBatchMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createSiloBatch>>
+>;
+export type CreateSiloBatchMutationBody = BodyType<SiloBatchInput>;
+export type CreateSiloBatchMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Create a silo batch
+ */
+export const useCreateSiloBatch = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createSiloBatch>>,
+    TError,
+    { data: BodyType<SiloBatchInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createSiloBatch>>,
+  TError,
+  { data: BodyType<SiloBatchInput> },
+  TContext
+> => {
+  return useMutation(getCreateSiloBatchMutationOptions(options));
+};
+
+/**
+ * @summary Get a silo batch with available (ungraded) weight
+ */
+export const getGetSiloBatchUrl = (id: string) => {
+  return `/api/silo-batches/${id}`;
+};
+
+export const getSiloBatch = async (
+  id: string,
+  options?: RequestInit,
+): Promise<SiloBatch> => {
+  return customFetch<SiloBatch>(getGetSiloBatchUrl(id), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetSiloBatchQueryKey = (id: string) => {
+  return [`/api/silo-batches/${id}`] as const;
+};
+
+export const getGetSiloBatchQueryOptions = <
+  TData = Awaited<ReturnType<typeof getSiloBatch>>,
+  TError = ErrorType<void>,
+>(
+  id: string,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getSiloBatch>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetSiloBatchQueryKey(id);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getSiloBatch>>> = ({
+    signal,
+  }) => getSiloBatch(id, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!id,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getSiloBatch>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetSiloBatchQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getSiloBatch>>
+>;
+export type GetSiloBatchQueryError = ErrorType<void>;
+
+/**
+ * @summary Get a silo batch with available (ungraded) weight
+ */
+
+export function useGetSiloBatch<
+  TData = Awaited<ReturnType<typeof getSiloBatch>>,
+  TError = ErrorType<void>,
+>(
+  id: string,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getSiloBatch>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetSiloBatchQueryOptions(id, options);
 
   const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
     queryKey: QueryKey;

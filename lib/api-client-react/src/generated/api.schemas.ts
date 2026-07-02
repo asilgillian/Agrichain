@@ -681,6 +681,7 @@ export interface GradingRun {
   runNumber: string;
   gradingProfileId: string;
   siloBatchId?: string | null;
+  siloBatchNumber?: string | null;
   inputCommodityTypeId: string;
   inputWeightKg: string;
   totalOutputKg: string;
@@ -709,6 +710,49 @@ export interface GradingRunInput {
   /** @maxLength 2000 */
   notes?: string | null;
   outputs: GradingRunOutputInput[];
+}
+
+export interface Silo {
+  id: string;
+  name: string;
+  facilityId?: string | null;
+  stream: string;
+  commodityType?: string | null;
+  capacityKg?: string | null;
+  status: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface SiloInput {
+  name: string;
+  stream: string;
+  facilityId?: string | null;
+  commodityType?: string | null;
+  capacityKg?: number | null;
+  status?: string | null;
+}
+
+export interface SiloBatch {
+  id: string;
+  batchNumber: string;
+  siloId: string;
+  siloName?: string | null;
+  streams?: string[] | null;
+  status: string;
+  inputWeightKg: string;
+  outputWeightKg?: string | null;
+  consumedWeightKg: string;
+  availableWeightKg: string;
+  createdAt: string;
+  closedAt?: string | null;
+}
+
+export interface SiloBatchInput {
+  siloId: string;
+  streams?: string[] | null;
+  inputWeightKg: number;
+  status?: string | null;
 }
 
 export type FarmerSex = (typeof FarmerSex)[keyof typeof FarmerSex];
@@ -2528,4 +2572,13 @@ export const ListGradingProfilesStatus = {
 export type ListGradingRunsParams = {
   gradingProfileId?: string;
   siloBatchId?: string;
+};
+
+export type ListSilosParams = {
+  status?: string;
+};
+
+export type ListSiloBatchesParams = {
+  siloId?: string;
+  status?: string;
 };

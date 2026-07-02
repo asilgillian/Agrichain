@@ -5039,6 +5039,7 @@ export const ListGradingRunsResponseItem = zod.object({
   runNumber: zod.string(),
   gradingProfileId: zod.string().uuid(),
   siloBatchId: zod.string().uuid().nullish(),
+  siloBatchNumber: zod.string().nullish(),
   inputCommodityTypeId: zod.string().uuid(),
   inputWeightKg: zod.string(),
   totalOutputKg: zod.string(),
@@ -5082,6 +5083,7 @@ export const GetGradingRunResponse = zod
     runNumber: zod.string(),
     gradingProfileId: zod.string().uuid(),
     siloBatchId: zod.string().uuid().nullish(),
+    siloBatchNumber: zod.string().nullish(),
     inputCommodityTypeId: zod.string().uuid(),
     inputWeightKg: zod.string(),
     totalOutputKg: zod.string(),
@@ -5112,6 +5114,94 @@ export const GetGradingRunResponse = zod
       ),
     }),
   );
+
+/**
+ * @summary List silos
+ */
+export const ListSilosQueryParams = zod.object({
+  status: zod.coerce.string().optional(),
+});
+
+export const ListSilosResponseItem = zod.object({
+  id: zod.string().uuid(),
+  name: zod.string(),
+  facilityId: zod.string().nullish(),
+  stream: zod.string(),
+  commodityType: zod.string().nullish(),
+  capacityKg: zod.string().nullish(),
+  status: zod.string(),
+  createdAt: zod.coerce.date(),
+  updatedAt: zod.coerce.date(),
+});
+export const ListSilosResponse = zod.array(ListSilosResponseItem);
+
+/**
+ * @summary Create a silo
+ */
+export const CreateSiloBody = zod.object({
+  name: zod.string(),
+  stream: zod.string(),
+  facilityId: zod.string().nullish(),
+  commodityType: zod.string().nullish(),
+  capacityKg: zod.number().nullish(),
+  status: zod.string().nullish(),
+});
+
+/**
+ * @summary List silo batches with available (ungraded) weight
+ */
+export const ListSiloBatchesQueryParams = zod.object({
+  siloId: zod.coerce.string().uuid().optional(),
+  status: zod.coerce.string().optional(),
+});
+
+export const ListSiloBatchesResponseItem = zod.object({
+  id: zod.string().uuid(),
+  batchNumber: zod.string(),
+  siloId: zod.string().uuid(),
+  siloName: zod.string().nullish(),
+  streams: zod.array(zod.string()).nullish(),
+  status: zod.string(),
+  inputWeightKg: zod.string(),
+  outputWeightKg: zod.string().nullish(),
+  consumedWeightKg: zod.string(),
+  availableWeightKg: zod.string(),
+  createdAt: zod.coerce.date(),
+  closedAt: zod.coerce.date().nullish(),
+});
+export const ListSiloBatchesResponse = zod.array(ListSiloBatchesResponseItem);
+
+/**
+ * @summary Create a silo batch
+ */
+export const CreateSiloBatchBody = zod.object({
+  siloId: zod.string().uuid(),
+  streams: zod.array(zod.string()).nullish(),
+  inputWeightKg: zod.number(),
+  status: zod.string().nullish(),
+});
+
+/**
+ * @summary Get a silo batch with available (ungraded) weight
+ */
+export const GetSiloBatchParams = zod.object({
+  id: zod.coerce.string().uuid(),
+});
+
+export const GetSiloBatchResponse = zod.object({
+  id: zod.string().uuid(),
+  batchNumber: zod.string(),
+  siloId: zod.string().uuid(),
+  siloName: zod.string().nullish(),
+  streams: zod.array(zod.string()).nullish(),
+  status: zod.string(),
+  inputWeightKg: zod.string(),
+  outputWeightKg: zod.string().nullish(),
+  consumedWeightKg: zod.string(),
+  availableWeightKg: zod.string(),
+  createdAt: zod.coerce.date(),
+  closedAt: zod.coerce.date().nullish(),
+});
 
 /**
  * @summary Update loan product item

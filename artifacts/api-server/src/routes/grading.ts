@@ -8,6 +8,7 @@ import {
   gradingRunOutputsTable,
   commodityTypesTable,
   commodityStockMovementsTable,
+  siloBatchesTable,
   auditLogsTable,
 } from "@workspace/db";
 import { requirePermission, type AuthedRequest } from "../middlewares/auth";
@@ -258,7 +259,25 @@ router.get("/grading-runs", requirePermission("warehouse.read"), async (req, res
   const siloBatchId = typeof req.query.siloBatchId === "string" && isUuid(req.query.siloBatchId) ? req.query.siloBatchId : null;
   if (profileId) conds.push(eq(gradingRunsTable.gradingProfileId, profileId));
   if (siloBatchId) conds.push(eq(gradingRunsTable.siloBatchId, siloBatchId));
-  const rows = await db.select().from(gradingRunsTable)
+  const rows = await db
+    .select({
+      id: gradingRunsTable.id,
+      runNumber: gradingRunsTable.runNumber,
+      gradingProfileId: gradingRunsTable.gradingProfileId,
+      siloBatchId: gradingRunsTable.siloBatchId,
+      siloBatchNumber: siloBatchesTable.batchNumber,
+      inputCommodityTypeId: gradingRunsTable.inputCommodityTypeId,
+      inputWeightKg: gradingRunsTable.inputWeightKg,
+      totalOutputKg: gradingRunsTable.totalOutputKg,
+      lossKg: gradingRunsTable.lossKg,
+      lossPct: gradingRunsTable.lossPct,
+      status: gradingRunsTable.status,
+      notes: gradingRunsTable.notes,
+      runById: gradingRunsTable.runById,
+      createdAt: gradingRunsTable.createdAt,
+    })
+    .from(gradingRunsTable)
+    .leftJoin(siloBatchesTable, eq(gradingRunsTable.siloBatchId, siloBatchesTable.id))
     .where(conds.length ? and(...conds) : undefined)
     .orderBy(desc(gradingRunsTable.createdAt));
   res.json(rows);

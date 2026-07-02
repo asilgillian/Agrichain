@@ -2737,6 +2737,94 @@ paths:
         "404":
           description: Not found
 
+  /silos:
+    get:
+      operationId: listSilos
+      tags: [grading]
+      summary: List silos
+      parameters:
+        - in: query
+          name: status
+          schema: { type: string }
+      responses:
+        "200":
+          description: Silo list
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Silo" }
+    post:
+      operationId: createSilo
+      tags: [grading]
+      summary: Create a silo
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SiloInput" }
+      responses:
+        "201":
+          description: Silo created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Silo" }
+
+  /silo-batches:
+    get:
+      operationId: listSiloBatches
+      tags: [grading]
+      summary: List silo batches with available (ungraded) weight
+      parameters:
+        - in: query
+          name: siloId
+          schema: { type: string, format: uuid }
+        - in: query
+          name: status
+          schema: { type: string }
+      responses:
+        "200":
+          description: Silo batch list
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/SiloBatch" }
+    post:
+      operationId: createSiloBatch
+      tags: [grading]
+      summary: Create a silo batch
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SiloBatchInput" }
+      responses:
+        "201":
+          description: Silo batch created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SiloBatch" }
+
+  /silo-batches/{id}:
+    get:
+      operationId: getSiloBatch
+      tags: [grading]
+      summary: Get a silo batch with available (ungraded) weight
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Silo batch detail
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SiloBatch" }
+        "404":
+          description: Not found
+
   /loan-product-items/{itemId}:
     patch:
       operationId: updateLoanProductItem
@@ -3214,6 +3302,7 @@ components:
         runNumber: { type: string }
         gradingProfileId: { type: string, format: uuid }
         siloBatchId: { type: string, format: uuid, nullable: true }
+        siloBatchNumber: { type: string, nullable: true }
         inputCommodityTypeId: { type: string, format: uuid }
         inputWeightKg: { type: string }
         totalOutputKg: { type: string }
@@ -3254,6 +3343,63 @@ components:
           type: array
           items: { $ref: "#/components/schemas/GradingRunOutputInput" }
       required: [gradingProfileId, inputWeightKg, outputs]
+
+    Silo:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        facilityId: { type: string, nullable: true }
+        stream: { type: string }
+        commodityType: { type: string, nullable: true }
+        capacityKg: { type: string, nullable: true }
+        status: { type: string }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+      required: [id, name, stream, status, createdAt, updatedAt]
+
+    SiloInput:
+      type: object
+      properties:
+        name: { type: string }
+        stream: { type: string }
+        facilityId: { type: string, nullable: true }
+        commodityType: { type: string, nullable: true }
+        capacityKg: { type: number, nullable: true }
+        status: { type: string, nullable: true }
+      required: [name, stream]
+
+    SiloBatch:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        batchNumber: { type: string }
+        siloId: { type: string, format: uuid }
+        siloName: { type: string, nullable: true }
+        streams:
+          type: array
+          nullable: true
+          items: { type: string }
+        status: { type: string }
+        inputWeightKg: { type: string }
+        outputWeightKg: { type: string, nullable: true }
+        consumedWeightKg: { type: string }
+        availableWeightKg: { type: string }
+        createdAt: { type: string, format: date-time }
+        closedAt: { type: string, format: date-time, nullable: true }
+      required: [id, batchNumber, siloId, status, inputWeightKg, consumedWeightKg, availableWeightKg, createdAt]
+
+    SiloBatchInput:
+      type: object
+      properties:
+        siloId: { type: string, format: uuid }
+        streams:
+          type: array
+          nullable: true
+          items: { type: string }
+        inputWeightKg: { type: number }
+        status: { type: string, nullable: true }
+      required: [siloId, inputWeightKg]
 
     Farmer:
       type: object
