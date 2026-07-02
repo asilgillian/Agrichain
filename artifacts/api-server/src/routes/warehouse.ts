@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
-import { eq, and, sql } from "drizzle-orm";
-import { db, lotsTable } from "@workspace/db";
+import { eq, sql } from "drizzle-orm";
+import { db, lotsTable, commodityStockMovementsTable, commodityTypesTable, commoditiesTable } from "@workspace/db";
 import { ListLotsQueryParams } from "@workspace/api-zod";
 
 const router: IRouter = Router();
@@ -48,6 +48,28 @@ router.get("/warehouse/mass-balance", async (req, res): Promise<void> => {
     });
   });
 
+  // Graded commodity stock — the net balance per commodity type in the stock ledger. Grading runs
+  // book sellable outputs as positive stock and draw down consumed inputs as negative, so the sum
+  // reflects the post-grading warehouse stock of each graded/consumed commodity type.
+  const commodityStockRows = await db
+    .select({
+      commodityTypeId: commodityStockMovementsTable.commodityTypeId,
+      commodityTypeName: commodityTypesTable.name,
+      commodityName: commoditiesTable.name,
+      netStockKg: sql<string>`sum(${commodityStockMovementsTable.weightKg})`,
+    })
+    .from(commodityStockMovementsTable)
+    .innerJoin(commodityTypesTable, eq(commodityTypesTable.id, commodityStockMovementsTable.commodityTypeId))
+    .innerJoin(commoditiesTable, eq(commoditiesTable.id, commodityTypesTable.commodityId))
+    .groupBy(commodityStockMovementsTable.commodityTypeId, commodityTypesTable.name, commoditiesTable.name);
+
+  const commodityStock = commodityStockRows.map(r => ({
+    commodityTypeId: r.commodityTypeId,
+    commodityTypeName: r.commodityTypeName,
+    commodityName: r.commodityName,
+    netStockKg: parseFloat(r.netStockKg ?? "0"),
+  }));
+
   res.json({
     totalReceivedKg,
     totalProcessedKg: processedKg,
@@ -55,6 +77,7 @@ router.get("/warehouse/mass-balance", async (req, res): Promise<void> => {
     totalExportedKg: exportedKg,
     warehouseStockKg: totalReceivedKg - exportedKg,
     byStream: Object.entries(streamMap).map(([streamName, stockKg]) => ({ streamName, stockKg })),
+    commodityStock,
   });
 });
 

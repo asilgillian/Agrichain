@@ -71,6 +71,26 @@ export default function WarehousePage() {
         </Card>
       )}
 
+      {massBalance?.commodityStock && massBalance.commodityStock.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Graded Commodity Stock</CardTitle>
+            <p className="text-sm text-muted-foreground">Net stock per commodity type after grading (sellable output booked in, input drawn down)</p>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              {massBalance.commodityStock.map((c: any) => (
+                <div key={c.commodityTypeId} className="p-3 border rounded-lg" data-testid={`commodity-stock-${c.commodityTypeId}`}>
+                  <p className="font-medium text-sm">{c.commodityTypeName}</p>
+                  <p className="text-muted-foreground text-xs">{c.commodityName}</p>
+                  <p className={`font-bold ${Number(c.netStockKg) < 0 ? "text-destructive" : ""}`}>{fmtKg(c.netStockKg)}</p>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle>Lot Inventory</CardTitle>

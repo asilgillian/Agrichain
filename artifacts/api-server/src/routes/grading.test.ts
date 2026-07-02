@@ -8,6 +8,7 @@ import {
   gradingProfileOutputsTable,
   gradingRunsTable,
   gradingRunOutputsTable,
+  commodityStockMovementsTable,
   auditLogsTable,
 } from "@workspace/db";
 import gradingRouter from "./grading";
@@ -76,6 +77,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
   if (createdRunIds.length) {
+    await db.delete(commodityStockMovementsTable).where(inArray(commodityStockMovementsTable.gradingRunId, createdRunIds));
     await db.delete(gradingRunOutputsTable).where(inArray(gradingRunOutputsTable.gradingRunId, createdRunIds));
     await db.delete(gradingRunsTable).where(inArray(gradingRunsTable.id, createdRunIds));
   }
@@ -268,5 +270,66 @@ describe("POST /grading-runs — math + numbering", () => {
     const [, day2, seq2] = re.exec(second.body.runNumber)!;
     expect(day2).toBe(day1);
     expect(Number(seq2)).toBe(Number(seq1) + 1);
+  });
+});
+
+describe("POST /grading-runs — books commodity stock movements", () => {
+  let profileId: string;
+  let outputIds: { a: string; b: string; loss: string };
+
+  beforeAll(async () => {
+    const { status, body } = await jsonRequest(`${server.baseUrl}/grading-profiles`, {
+      method: "POST",
+      body: validProfileBody(),
+    });
+    expect(status).toBe(201);
+    profileId = body.id;
+    createdProfileIds.push(profileId);
+    outputIds = {
+      a: body.outputs.find((o: any) => o.outputCommodityTypeId?.toLowerCase() === sellableA.toLowerCase()).id,
+      b: body.outputs.find((o: any) => o.outputCommodityTypeId?.toLowerCase() === sellableB.toLowerCase()).id,
+      loss: body.outputs.find((o: any) => !o.isSellable).id,
+    };
+  });
+
+  it("draws down the input and books each sellable output as stock; excludes loss (201)", async () => {
+    const { status, body } = await jsonRequest(`${server.baseUrl}/grading-runs`, {
+      method: "POST",
+      body: {
+        gradingProfileId: profileId,
+        inputWeightKg: 200,
+        outputs: [
+          { gradingProfileOutputId: outputIds.a, actualWeightKg: 120 }, // sellable A
+          { gradingProfileOutputId: outputIds.b, actualWeightKg: 60 },  // sellable B
+          // loss row left unsubmitted → 0 kg, must NOT create a movement
+        ],
+      },
+    });
+    expect(status).toBe(201);
+    createdRunIds.push(body.id);
+
+    const movements = await db
+      .select()
+      .from(commodityStockMovementsTable)
+      .where(eq(commodityStockMovementsTable.gradingRunId, body.id));
+
+    // One negative input movement + two positive sellable outputs = 3 rows (loss excluded).
+    expect(movements).toHaveLength(3);
+
+    const input = movements.find(m => m.movementType === "grading_input")!;
+    expect(input).toBeTruthy();
+    expect(input.commodityTypeId.toLowerCase()).toBe(inputTypeId.toLowerCase());
+    expect(Number(input.weightKg)).toBeCloseTo(-200, 2); // drawn down
+
+    const outputs = movements.filter(m => m.movementType === "grading_output");
+    expect(outputs).toHaveLength(2);
+
+    const a = outputs.find(m => m.commodityTypeId.toLowerCase() === sellableA.toLowerCase())!;
+    const b = outputs.find(m => m.commodityTypeId.toLowerCase() === sellableB.toLowerCase())!;
+    expect(Number(a.weightKg)).toBeCloseTo(120, 2); // booked in
+    expect(Number(b.weightKg)).toBeCloseTo(60, 2);
+
+    // No movement should reference the (zero-weight) loss commodity — loss has no commodity type.
+    expect(outputs.every(m => m.gradingRunOutputId !== outputIds.loss)).toBe(true);
   });
 });

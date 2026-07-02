@@ -105,7 +105,37 @@ export const gradingRunOutputsTable = pgTable("grading_run_outputs", {
   index("grading_run_outputs_run_idx").on(t.gradingRunId),
 ]);
 
+// =================================================================================================
+// Commodity Stock Movements — the warehouse stock ledger keyed by commodity type. Completing a
+// grading run books REAL inventory rows here so graded coffee becomes tracked, sellable stock and
+// the consumed input is drawn down. Weights are SIGNED: positive = booked into stock, negative =
+// drawn down / consumed. The net balance per commodity type (sum of weightKg) is the current
+// warehouse stock of that type, surfaced on the warehouse mass-balance report.
+//   - 'grading_input'  : one negative row per run for the input commodity type (input consumed)
+//   - 'grading_output' : one positive row per sellable graded output (loss/byproduct excluded)
+// =================================================================================================
+export const commodityStockMovementsTable = pgTable("commodity_stock_movements", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  commodityTypeId: uuid("commodity_type_id").notNull().references(() => commodityTypesTable.id, { onDelete: "restrict" }),
+  // Signed: positive books stock in, negative draws it down.
+  weightKg: numeric("weight_kg", { precision: 14, scale: 2 }).notNull(),
+  // 'grading_input' | 'grading_output'
+  movementType: text("movement_type").notNull(),
+  // Provenance links. gradingRunId cascades so removing a run reverses its stock movements.
+  gradingRunId: uuid("grading_run_id").references(() => gradingRunsTable.id, { onDelete: "cascade" }),
+  gradingRunOutputId: uuid("grading_run_output_id"),
+  // Optional link to the source silo batch whose stock was graded.
+  siloBatchId: uuid("silo_batch_id"),
+  notes: text("notes"),
+  createdById: uuid("created_by_id"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("commodity_stock_movements_type_idx").on(t.commodityTypeId),
+  index("commodity_stock_movements_run_idx").on(t.gradingRunId),
+]);
+
 export type GradingProfile = typeof gradingProfilesTable.$inferSelect;
 export type GradingProfileOutput = typeof gradingProfileOutputsTable.$inferSelect;
 export type GradingRun = typeof gradingRunsTable.$inferSelect;
 export type GradingRunOutput = typeof gradingRunOutputsTable.$inferSelect;
+export type CommodityStockMovement = typeof commodityStockMovementsTable.$inferSelect;

@@ -3217,6 +3217,18 @@ export const GetWarehouseMassBalanceResponse = zod.object({
       stockKg: zod.number(),
     }),
   ),
+  commodityStock: zod
+    .array(
+      zod.object({
+        commodityTypeId: zod.string().uuid(),
+        commodityTypeName: zod.string(),
+        commodityName: zod.string(),
+        netStockKg: zod.number(),
+      }),
+    )
+    .describe(
+      "Net graded\/consumed stock per commodity type from the stock ledger.",
+    ),
 });
 
 /**

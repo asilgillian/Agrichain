@@ -7,6 +7,7 @@ import {
   gradingRunsTable,
   gradingRunOutputsTable,
   commodityTypesTable,
+  commodityStockMovementsTable,
   auditLogsTable,
 } from "@workspace/db";
 import { requirePermission, type AuthedRequest } from "../middlewares/auth";
@@ -335,7 +336,40 @@ router.post("/grading-runs", requirePermission("warehouse.write"), async (req: A
         variancePct: (actualPct - expectedPct).toFixed(3),
       };
     });
-    await tx.insert(gradingRunOutputsTable).values(runOutputs);
+    const insertedOutputs = await tx.insert(gradingRunOutputsTable).values(runOutputs).returning();
+
+    // Book graded coffee back into warehouse stock (real inventory rows in the commodity stock
+    // ledger). Draw down the input commodity type by the input weight, then book each sellable
+    // graded output as positive stock of its output commodity type. Loss/byproduct rows and
+    // zero-weight outputs are excluded from sellable stock.
+    const movements = [
+      {
+        commodityTypeId: detail.inputCommodityTypeId,
+        weightKg: (-input).toFixed(2),
+        movementType: "grading_input",
+        gradingRunId: run.id,
+        gradingRunOutputId: null as string | null,
+        siloBatchId: isUuid(siloBatchId) ? siloBatchId : null,
+        notes: `Input consumed by grading run ${run.runNumber}`,
+        createdById: req.authedUser?.id ?? null,
+      },
+    ];
+    for (const o of insertedOutputs) {
+      const actual = Number(o.actualWeightKg);
+      if (o.isSellable && isUuid(o.outputCommodityTypeId ?? undefined) && actual > 0) {
+        movements.push({
+          commodityTypeId: o.outputCommodityTypeId!,
+          weightKg: actual.toFixed(2),
+          movementType: "grading_output",
+          gradingRunId: run.id,
+          gradingRunOutputId: o.id,
+          siloBatchId: isUuid(siloBatchId) ? siloBatchId : null,
+          notes: `Graded ${o.label ?? "output"} from run ${run.runNumber}`,
+          createdById: req.authedUser?.id ?? null,
+        });
+      }
+    }
+    await tx.insert(commodityStockMovementsTable).values(movements);
     return run;
   });
 

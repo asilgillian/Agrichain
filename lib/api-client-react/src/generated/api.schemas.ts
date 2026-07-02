@@ -1620,6 +1620,13 @@ export type MassBalanceByStreamItem = {
   stockKg: number;
 };
 
+export type MassBalanceCommodityStockItem = {
+  commodityTypeId: string;
+  commodityTypeName: string;
+  commodityName: string;
+  netStockKg: number;
+};
+
 export interface MassBalance {
   totalReceivedKg: number;
   totalProcessedKg: number;
@@ -1627,6 +1634,8 @@ export interface MassBalance {
   totalExportedKg: number;
   warehouseStockKg: number;
   byStream: MassBalanceByStreamItem[];
+  /** Net graded/consumed stock per commodity type from the stock ledger. */
+  commodityStock: MassBalanceCommodityStockItem[];
 }
 
 export type PaymentPaymentMethod =

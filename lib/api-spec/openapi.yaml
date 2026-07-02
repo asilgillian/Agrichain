@@ -4311,7 +4311,23 @@ components:
               stockKg:
                 type: number
             required: [streamName, stockKg]
-      required: [totalReceivedKg, totalProcessedKg, totalAllocatedKg, totalExportedKg, warehouseStockKg, byStream]
+        commodityStock:
+          type: array
+          description: Net graded/consumed stock per commodity type from the stock ledger.
+          items:
+            type: object
+            properties:
+              commodityTypeId:
+                type: string
+                format: uuid
+              commodityTypeName:
+                type: string
+              commodityName:
+                type: string
+              netStockKg:
+                type: number
+            required: [commodityTypeId, commodityTypeName, commodityName, netStockKg]
+      required: [totalReceivedKg, totalProcessedKg, totalAllocatedKg, totalExportedKg, warehouseStockKg, byStream, commodityStock]
 
     # ============================================================
     # PAYMENTS

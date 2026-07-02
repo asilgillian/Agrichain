@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { MassBalanceByStreamItem } from "./massBalanceByStreamItem";
+import type { MassBalanceCommodityStockItem } from "./massBalanceCommodityStockItem";
 
 export interface MassBalance {
   totalReceivedKg: number;
@@ -14,4 +15,6 @@ export interface MassBalance {
   totalExportedKg: number;
   warehouseStockKg: number;
   byStream: MassBalanceByStreamItem[];
+  /** Net graded/consumed stock per commodity type from the stock ledger. */
+  commodityStock: MassBalanceCommodityStockItem[];
 }
