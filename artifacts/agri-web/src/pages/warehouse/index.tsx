@@ -243,6 +243,7 @@ function StockMovementsSection({ commodityStock }: { commodityStock: { commodity
 function GradingSection() {
   const { data: profiles } = useListGradingProfiles();
   const { data: batches } = useListSiloBatches();
+  const { data: massBalance } = useGetWarehouseMassBalance();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [presetBatchId, setPresetBatchId] = useState<string | undefined>(undefined);
   const [correctionPrefill, setCorrectionPrefill] = useState<RunCorrectionPrefill | null>(null);
@@ -337,6 +338,7 @@ function GradingSection() {
         <RunGradingDialog
           profiles={activeProfiles}
           batches={siloBatches}
+          commodityStock={(massBalance as any)?.commodityStock ?? []}
           presetBatchId={presetBatchId}
           prefill={correctionPrefill ?? undefined}
           onClose={() => { setDialogOpen(false); setCorrectionPrefill(null); }}
@@ -530,7 +532,7 @@ type RunCorrectionPrefill = {
   actuals: Record<string, string>;
 };
 
-function RunGradingDialog({ profiles, batches, presetBatchId, prefill, onClose }: { profiles: GradingProfile[]; batches: SiloBatch[]; presetBatchId?: string; prefill?: RunCorrectionPrefill; onClose: () => void }) {
+function RunGradingDialog({ profiles, batches, commodityStock, presetBatchId, prefill, onClose }: { profiles: GradingProfile[]; batches: SiloBatch[]; commodityStock: Array<{ commodityTypeId: string; netStockKg: number }>; presetBatchId?: string; prefill?: RunCorrectionPrefill; onClose: () => void }) {
   const { toast } = useToast();
   const qc = useQueryClient();
   const [profileId, setProfileId] = useState<string>(prefill?.profileId ?? "");
@@ -552,6 +554,15 @@ function RunGradingDialog({ profiles, batches, presetBatchId, prefill, onClose }
   const loss = Math.max(0, input - totalActual);
   const overInput = totalActual - input > 0.01;
   const overAvailable = !!selectedBatch && input - Number(selectedBatch.availableWeightKg) > 0.01;
+
+  // Net warehouse stock of the selected profile's input commodity type. The API rejects any run
+  // whose input exceeds this balance, so warn as the clerk types (server remains the enforcer —
+  // this figure can be a few seconds stale).
+  const selectedProfile = profiles.find(p => p.id === profileId);
+  const inputTypeStock = selectedProfile
+    ? Number(commodityStock.find(s => s.commodityTypeId === selectedProfile.inputCommodityTypeId)?.netStockKg ?? 0)
+    : null;
+  const overWarehouseStock = inputTypeStock != null && input - inputTypeStock > 0.005;
 
   const canSubmit = !!profileId && input > 0 && outputs.length > 0 && !overInput && !overAvailable &&
     outputs.every(o => actuals[o.id] !== undefined && actuals[o.id] !== "" && Number(actuals[o.id]) >= 0);
@@ -624,6 +635,13 @@ function RunGradingDialog({ profiles, batches, presetBatchId, prefill, onClose }
               {selectedBatch && (
                 <p className={`text-xs mt-1 ${overAvailable ? "text-destructive" : "text-muted-foreground"}`} data-testid="text-available-hint">
                   {overAvailable ? "Exceeds available!" : `Available: ${fmtKg(selectedBatch.availableWeightKg)}`}
+                </p>
+              )}
+              {inputTypeStock != null && (
+                <p className={`text-xs mt-1 ${overWarehouseStock ? "text-destructive font-medium" : "text-muted-foreground"}`} data-testid="text-warehouse-stock-hint">
+                  {overWarehouseStock
+                    ? `Exceeds warehouse stock (${fmtKg(inputTypeStock)} on hand) — the run will be rejected`
+                    : `Warehouse stock: ${fmtKg(inputTypeStock)}`}
                 </p>
               )}
             </div>

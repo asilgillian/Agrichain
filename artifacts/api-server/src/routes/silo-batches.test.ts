@@ -35,6 +35,7 @@ const createdProfileIds: string[] = [];
 const createdRunIds: string[] = [];
 const createdSiloIds: string[] = [];
 const createdBatchIds: string[] = [];
+const seededMovementIds: string[] = [];
 let profileId: string;
 let outputAId: string;
 
@@ -68,9 +69,22 @@ beforeAll(async () => {
   profileId = body.id;
   createdProfileIds.push(profileId);
   outputAId = body.outputs.find((o: any) => o.outputCommodityTypeId?.toLowerCase() === sellableA.toLowerCase()).id;
+
+  // POST /grading-runs now blocks runs whose input exceeds the input type's net stock in the
+  // commodity ledger, so seed generous opening stock before grading from batches.
+  const [opening] = await db.insert(commodityStockMovementsTable).values({
+    commodityTypeId: inputTypeId,
+    weightKg: "100000.00",
+    movementType: "adjustment",
+    notes: `${tag} opening stock`,
+  }).returning();
+  seededMovementIds.push(opening.id);
 });
 
 afterAll(async () => {
+  if (seededMovementIds.length) {
+    await db.delete(commodityStockMovementsTable).where(inArray(commodityStockMovementsTable.id, seededMovementIds));
+  }
   if (createdRunIds.length) {
     await db.delete(commodityStockMovementsTable).where(inArray(commodityStockMovementsTable.gradingRunId, createdRunIds));
     await db.delete(gradingRunOutputsTable).where(inArray(gradingRunOutputsTable.gradingRunId, createdRunIds));

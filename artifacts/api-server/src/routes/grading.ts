@@ -345,6 +345,10 @@ router.post("/grading-runs", requirePermission("warehouse.write"), async (req: A
       created = await createRun(runNumber);
       break;
     } catch (e: any) {
+      if (e instanceof InsufficientStockError) {
+        res.status(409).json({ error: e.message });
+        return;
+      }
       const pgCode = e?.code ?? e?.cause?.code;
       const pgConstraint = e?.constraint ?? e?.cause?.constraint;
       const isRunNumberCollision =
@@ -362,6 +366,25 @@ router.post("/grading-runs", requirePermission("warehouse.write"), async (req: A
 
   async function createRun(runNumber: string) {
     return db.transaction(async (tx) => {
+    // Guard: a run may not draw down more input than the warehouse actually holds. The available
+    // balance is the signed net of all commodity_stock_movements rows for the input type. The
+    // advisory lock (same key as drawDownCommodityStock in lib/commodity-stock.ts) serializes
+    // concurrent drawdowns of this commodity type — including sales/export dispatches — so two
+    // simultaneous transactions cannot both pass the balance check and jointly overdraw the
+    // stock. Lock is released at transaction end. Small tolerance mirrors the void guard (±5 g).
+    await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${detail.inputCommodityTypeId}::text))`);
+    const [{ net }] = await tx
+      .select({ net: sql<string>`coalesce(sum(${commodityStockMovementsTable.weightKg}), 0)` })
+      .from(commodityStockMovementsTable)
+      .where(eq(commodityStockMovementsTable.commodityTypeId, detail.inputCommodityTypeId));
+    const available = Number(net);
+    if (input - available > 0.005) {
+      const [t] = await tx.select({ name: commodityTypesTable.name }).from(commodityTypesTable).where(eq(commodityTypesTable.id, detail.inputCommodityTypeId));
+      throw new InsufficientStockError(
+        `Insufficient warehouse stock: only ${available.toFixed(2)} kg of ${t?.name ?? "the input commodity"} available, but this run needs ${input.toFixed(2)} kg. Book the intake first or reduce the input weight.`
+      );
+    }
+
     const [run] = await tx.insert(gradingRunsTable).values({
       runNumber,
       gradingProfileId,
@@ -494,5 +517,6 @@ router.delete("/grading-runs/:runId", requirePermission("warehouse.write"), asyn
 });
 
 class StockWouldGoNegativeError extends Error {}
+class InsufficientStockError extends Error {}
 
 export default router;

@@ -2758,6 +2758,8 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/GradingRunDetail" }
+        "409":
+          description: Input weight exceeds the input commodity type's available warehouse stock
 
   /grading-runs/{runId}:
     get:

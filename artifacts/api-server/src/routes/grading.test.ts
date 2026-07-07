@@ -35,6 +35,20 @@ let foreignTypeId: string; // belongs to otherCommodity
 
 const createdProfileIds: string[] = [];
 const createdRunIds: string[] = [];
+const seededMovementIds: string[] = [];
+
+// POST /grading-runs blocks any run whose input exceeds the input type's net warehouse stock, so
+// fixtures must book opening stock before grading can draw it down.
+async function seedOpeningStock(typeId: string, weightKg: number) {
+  const [row] = await db.insert(commodityStockMovementsTable).values({
+    commodityTypeId: typeId,
+    weightKg: weightKg.toFixed(2),
+    movementType: "adjustment",
+    notes: `${tag} opening stock`,
+  }).returning();
+  seededMovementIds.push(row.id);
+  return row;
+}
 
 beforeAll(async () => {
   server = await startTestServer([gradingRouter, warehouseRouter]);
@@ -74,9 +88,15 @@ beforeAll(async () => {
     .values({ commodityId: otherCommodityId, name: `${tag} Maize Grade A`, code: `${tag}_MGA`, stage: "finished" })
     .returning();
   foreignTypeId = foreign.id;
+
+  // Generous opening stock so the shared-fixture runs never trip the insufficient-stock guard.
+  await seedOpeningStock(inputTypeId, 100_000);
 });
 
 afterAll(async () => {
+  if (seededMovementIds.length) {
+    await db.delete(commodityStockMovementsTable).where(inArray(commodityStockMovementsTable.id, seededMovementIds));
+  }
   if (createdRunIds.length) {
     await db.delete(commodityStockMovementsTable).where(inArray(commodityStockMovementsTable.gradingRunId, createdRunIds));
     await db.delete(gradingRunOutputsTable).where(inArray(gradingRunOutputsTable.gradingRunId, createdRunIds));
@@ -362,6 +382,103 @@ describe("POST /grading-runs — books commodity stock movements", () => {
   });
 });
 
+describe("POST /grading-runs — insufficient-stock guard", () => {
+  // Block-local input type so the available balance is fully controlled here (the shared input
+  // type accumulates draws from other blocks).
+  let gInputTypeId: string;
+  let gProfileId: string;
+  let gOutputAId: string;
+  const gRunIds: string[] = [];
+
+  beforeAll(async () => {
+    const [input] = await db
+      .insert(commodityTypesTable)
+      .values({ commodityId, name: `${tag} Guarded Green`, code: `${tag}_GRD`, stage: "intermediate" })
+      .returning();
+    gInputTypeId = input.id;
+
+    const { status, body } = await jsonRequest(`${server.baseUrl}/grading-profiles`, {
+      method: "POST",
+      body: {
+        name: `${tag} Guarded Grading`,
+        inputCommodityTypeId: gInputTypeId,
+        outputs: [
+          { outputCommodityTypeId: sellableA, expectedYieldPct: 80, isSellable: true },
+          { label: "Process loss", expectedYieldPct: 20, isSellable: false },
+        ],
+      },
+    });
+    expect(status).toBe(201);
+    gProfileId = body.id;
+    gOutputAId = body.outputs.find((o: any) => o.isSellable).id;
+  });
+
+  afterAll(async () => {
+    // Fully block-local cleanup (movements → outputs → runs → profile → type) so the shared
+    // afterAll never trips FK restrictions on the block-local commodity type.
+    if (gRunIds.length) {
+      await db.delete(commodityStockMovementsTable).where(inArray(commodityStockMovementsTable.gradingRunId, gRunIds));
+      await db.delete(gradingRunOutputsTable).where(inArray(gradingRunOutputsTable.gradingRunId, gRunIds));
+      await db.delete(gradingRunsTable).where(inArray(gradingRunsTable.id, gRunIds));
+    }
+    await db.delete(commodityStockMovementsTable).where(eq(commodityStockMovementsTable.commodityTypeId, gInputTypeId));
+    await db.delete(gradingProfileOutputsTable).where(eq(gradingProfileOutputsTable.gradingProfileId, gProfileId));
+    await db.delete(gradingProfilesTable).where(eq(gradingProfilesTable.id, gProfileId));
+    await db.delete(auditLogsTable).where(inArray(auditLogsTable.entityId, [gProfileId, ...gRunIds]));
+    await db.delete(commodityTypesTable).where(eq(commodityTypesTable.id, gInputTypeId));
+  });
+
+  function runBody(inputKg: number, outputKg: number) {
+    return {
+      gradingProfileId: gProfileId,
+      inputWeightKg: inputKg,
+      outputs: [{ gradingProfileOutputId: gOutputAId, actualWeightKg: outputKg }],
+    };
+  }
+
+  it("rejects a run (409) when there is no stock at all, and books nothing", async () => {
+    const { status, body } = await jsonRequest(`${server.baseUrl}/grading-runs`, {
+      method: "POST",
+      body: runBody(50, 40),
+    });
+    expect(status).toBe(409);
+    expect(body.error).toMatch(/insufficient warehouse stock/i);
+    expect(body.error).toMatch(/0\.00 kg/); // reports the available balance
+    expect(body.error).toMatch(/50\.00 kg/); // and the requested input
+
+    // Nothing was created: no run rows for the profile, no movements for the type.
+    const runs = await db.select().from(gradingRunsTable).where(eq(gradingRunsTable.gradingProfileId, gProfileId));
+    expect(runs).toHaveLength(0);
+    const movs = await db.select().from(commodityStockMovementsTable).where(eq(commodityStockMovementsTable.commodityTypeId, gInputTypeId));
+    expect(movs).toHaveLength(0);
+  });
+
+  it("allows a run that consumes exactly the available balance, then blocks the next kilo", async () => {
+    await db.insert(commodityStockMovementsTable).values({
+      commodityTypeId: gInputTypeId,
+      weightKg: "100.00",
+      movementType: "adjustment",
+      notes: `${tag} guard opening stock`,
+    });
+
+    // Exactly-available passes (tolerance only forgives sub-5g float drift).
+    const ok = await jsonRequest(`${server.baseUrl}/grading-runs`, {
+      method: "POST",
+      body: runBody(100, 80),
+    });
+    expect(ok.status).toBe(201);
+    gRunIds.push(ok.body.id);
+
+    // Balance is now 0 — one more kilo is rejected.
+    const over = await jsonRequest(`${server.baseUrl}/grading-runs`, {
+      method: "POST",
+      body: runBody(1, 1),
+    });
+    expect(over.status).toBe(409);
+    expect(over.body.error).toMatch(/insufficient warehouse stock/i);
+  });
+});
+
 describe("DELETE /grading-runs/:runId — void a run and reverse its stock", () => {
   let profileId: string;
   let outputIds: { a: string; b: string };
@@ -541,6 +658,10 @@ describe("GET /warehouse/mass-balance — commodityStock nets across repeated gr
       x: body.outputs.find((o: any) => o.outputCommodityTypeId?.toLowerCase() === mbSellableX.toLowerCase()).id,
       y: body.outputs.find((o: any) => o.outputCommodityTypeId?.toLowerCase() === mbSellableY.toLowerCase()).id,
     };
+
+    // Opening stock: 1000 kg of wet beans. Runs below draw 100 + 200 + 50 against it, so nets
+    // stay positive and the insufficient-stock guard on POST /grading-runs is satisfied.
+    await seedOpeningStock(mbInputTypeId, 1000);
   });
 
   afterAll(async () => {
@@ -556,7 +677,11 @@ describe("GET /warehouse/mass-balance — commodityStock nets across repeated gr
       await db.delete(auditLogsTable).where(inArray(auditLogsTable.entityId, [mbProfileId, ...mbRunIds]));
     }
     const typeIds = [mbInputTypeId, mbSellableX, mbSellableY].filter(Boolean);
-    if (typeIds.length) await db.delete(commodityTypesTable).where(inArray(commodityTypesTable.id, typeIds));
+    if (typeIds.length) {
+      // Includes the seeded opening-stock movement, which must go before its commodity type.
+      await db.delete(commodityStockMovementsTable).where(inArray(commodityStockMovementsTable.commodityTypeId, typeIds));
+      await db.delete(commodityTypesTable).where(inArray(commodityTypesTable.id, typeIds));
+    }
     if (mbCommodityId) await db.delete(commoditiesTable).where(eq(commoditiesTable.id, mbCommodityId));
   });
 
@@ -598,8 +723,8 @@ describe("GET /warehouse/mass-balance — commodityStock nets across repeated gr
     expect(x).toBeTruthy();
     expect(y).toBeTruthy();
 
-    // Nothing was ever booked INTO the input type here, so its net goes negative.
-    expect(input.netStockKg).toBeCloseTo(-100, 2);
+    // 1000 kg opening stock − 100 kg drawn by the run.
+    expect(input.netStockKg).toBeCloseTo(900, 2);
     expect(x.netStockKg).toBeCloseTo(60, 2);
     expect(y.netStockKg).toBeCloseTo(30, 2);
 
@@ -613,8 +738,8 @@ describe("GET /warehouse/mass-balance — commodityStock nets across repeated gr
     await createRun(200, 110, 70);
 
     const byType = await fetchStockRows();
-    // Input drawdown accumulates: -100 + -200 = -300 (net negative deepens).
-    expect(byType.get(mbInputTypeId.toLowerCase())!.netStockKg).toBeCloseTo(-300, 2);
+    // Input drawdown accumulates: 1000 − 100 − 200 = 700.
+    expect(byType.get(mbInputTypeId.toLowerCase())!.netStockKg).toBeCloseTo(700, 2);
     // Sellable outputs sum across both runs: 60+110 and 30+70.
     expect(byType.get(mbSellableX.toLowerCase())!.netStockKg).toBeCloseTo(170, 2);
     expect(byType.get(mbSellableY.toLowerCase())!.netStockKg).toBeCloseTo(100, 2);
@@ -624,7 +749,7 @@ describe("GET /warehouse/mass-balance — commodityStock nets across repeated gr
     const third = await createRun(50, 30, 15);
 
     let byType = await fetchStockRows();
-    expect(byType.get(mbInputTypeId.toLowerCase())!.netStockKg).toBeCloseTo(-350, 2);
+    expect(byType.get(mbInputTypeId.toLowerCase())!.netStockKg).toBeCloseTo(650, 2);
     expect(byType.get(mbSellableX.toLowerCase())!.netStockKg).toBeCloseTo(200, 2);
 
     const { status } = await jsonRequest(`${server.baseUrl}/grading-runs/${third.id}`, { method: "DELETE" });
@@ -632,7 +757,7 @@ describe("GET /warehouse/mass-balance — commodityStock nets across repeated gr
     await db.delete(auditLogsTable).where(eq(auditLogsTable.entityId, third.id));
 
     byType = await fetchStockRows();
-    expect(byType.get(mbInputTypeId.toLowerCase())!.netStockKg).toBeCloseTo(-300, 2);
+    expect(byType.get(mbInputTypeId.toLowerCase())!.netStockKg).toBeCloseTo(700, 2);
     expect(byType.get(mbSellableX.toLowerCase())!.netStockKg).toBeCloseTo(170, 2);
     expect(byType.get(mbSellableY.toLowerCase())!.netStockKg).toBeCloseTo(100, 2);
   });

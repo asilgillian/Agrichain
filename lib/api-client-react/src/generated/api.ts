@@ -11301,7 +11301,7 @@ export const createGradingRun = async (
 };
 
 export const getCreateGradingRunMutationOptions = <
-  TError = ErrorType<unknown>,
+  TError = ErrorType<void>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
@@ -11342,13 +11342,13 @@ export type CreateGradingRunMutationResult = NonNullable<
   Awaited<ReturnType<typeof createGradingRun>>
 >;
 export type CreateGradingRunMutationBody = BodyType<GradingRunInput>;
-export type CreateGradingRunMutationError = ErrorType<unknown>;
+export type CreateGradingRunMutationError = ErrorType<void>;
 
 /**
  * @summary Execute a grading profile against an input quantity
  */
 export const useCreateGradingRun = <
-  TError = ErrorType<unknown>,
+  TError = ErrorType<void>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
