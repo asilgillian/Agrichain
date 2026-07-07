@@ -26,7 +26,10 @@ type FarmerDetailResponse = {
   lastName: string;
   referenceNumber: string;
   status: string;
-  registrationStage: "pre_registered" | "fully_registered";
+  // registrationStage may also be 'partially_registered' (any required field
+  // missing) under the active survey template — keep the type loose so badges
+  // render whatever the server returns.
+  registrationStage: "pre_registered" | "partially_registered" | "fully_registered" | (string & {});
   isEntrepreneur?: boolean;
   entrepreneurSince?: string | null;
   preRegisteredAt: string | null;
@@ -46,10 +49,6 @@ type FarmerDetailResponse = {
   // the admin-defined field key. Server returns the parsed values where it can
   // (numbers/dates) and strings otherwise; we render them as-is.
   customFieldValues?: Record<string, string | number | boolean | null>;
-  // registrationStage may also be 'partially_registered' (any required field
-  // missing) under the active survey template — keep the type loose so badges
-  // render whatever the server returns.
-  registrationStage?: "pre_registered" | "partially_registered" | "fully_registered" | string;
 };
 
 export default function FarmerDetail() {

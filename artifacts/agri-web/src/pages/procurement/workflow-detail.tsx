@@ -7,6 +7,7 @@ import {
   useUpdateWorkflowStage,
   useDeleteWorkflowStage,
   useReorderWorkflowStages,
+  type CreateWorkflowStageBodyStageKind,
 } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -125,7 +126,7 @@ export default function ProcurementWorkflowDetailPage() {
 
   // Add stage dialog
   const [addOpen, setAddOpen] = useState(false);
-  const [newStage, setNewStage] = useState({ stageKind: "INFO_CHECKPOINT", displayName: "", description: "" });
+  const [newStage, setNewStage] = useState<{ stageKind: CreateWorkflowStageBodyStageKind; displayName: string; description: string }>({ stageKind: "INFO_CHECKPOINT", displayName: "", description: "" });
   const submitNewStage = async () => {
     if (!newStage.displayName.trim()) {
       toast({ title: "Display name required", variant: "destructive" });
@@ -202,7 +203,7 @@ export default function ProcurementWorkflowDetailPage() {
                 <div className="space-y-3">
                   <div>
                     <Label>Stage Kind</Label>
-                    <Select value={newStage.stageKind} onValueChange={(v) => setNewStage({ ...newStage, stageKind: v })}>
+                    <Select value={newStage.stageKind} onValueChange={(v) => setNewStage({ ...newStage, stageKind: v as CreateWorkflowStageBodyStageKind })}>
                       <SelectTrigger data-testid="select-stage-kind"><SelectValue /></SelectTrigger>
                       <SelectContent>
                         {STAGE_KINDS.map((k) => <SelectItem key={k} value={k}>{k}</SelectItem>)}

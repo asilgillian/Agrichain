@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useListFarmers, type Farmer } from "@workspace/api-client-react";
+import { useListFarmers, getListFarmersQueryKey, type Farmer } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
@@ -23,10 +23,10 @@ export function FarmerLinkPicker({ value, currentLabel, onChange, disabled }: Pr
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
 
-  const { data, isLoading } = useListFarmers(
-    { ...(search.trim() ? { search: search.trim() } : {}), limit: 20 },
-    { query: { enabled: open } },
-  );
+  const listParams = { ...(search.trim() ? { search: search.trim() } : {}), limit: 20 };
+  const { data, isLoading } = useListFarmers(listParams, {
+    query: { enabled: open, queryKey: getListFarmersQueryKey(listParams) },
+  });
   const farmers = data?.data ?? [];
 
   const selectedInList = farmers.find((f) => f.id === value);

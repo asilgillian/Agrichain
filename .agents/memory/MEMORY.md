@@ -4,3 +4,4 @@
 - [Sequential reference numbers](sequential-ref-numbers.md) — derive `PREFIX-date-XXXXX` suffixes from max(suffix)+1, never count(*)+1; deletes make count-based numbers collide forever.
 - [e2e runTest timeouts](e2e-runtest-timeouts.md) — keep runTest plans to one lean flow with a single Verify block; broad conditional plans hit the subagent/notebook timeouts.
 - [Dialog prefill race](dialog-prefill-race.md) — prefills read from a lazily-enabled query cache race the load; enable the query on the host tab and backfill via effect.
+- [Stale Orval codegen](stale-orval-codegen.md) — phantom missing-export errors in web typecheck: regenerate the API client before hand-fixing; spec can lag the server.

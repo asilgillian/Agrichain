@@ -1351,6 +1351,42 @@ export interface Delivery {
   createdAt: string;
 }
 
+export type WorkflowStageStageKind =
+  (typeof WorkflowStageStageKind)[keyof typeof WorkflowStageStageKind];
+
+export const WorkflowStageStageKind = {
+  WEIGHT_SUBMIT: "WEIGHT_SUBMIT",
+  WEIGHT_APPROVE: "WEIGHT_APPROVE",
+  QC_SUBMIT: "QC_SUBMIT",
+  QC_APPROVE: "QC_APPROVE",
+  PRICING_PROPOSE: "PRICING_PROPOSE",
+  PRICING_APPROVE: "PRICING_APPROVE",
+  INFO_CHECKPOINT: "INFO_CHECKPOINT",
+} as const;
+
+export interface WorkflowStage {
+  id: string;
+  workflowId: string;
+  stageKind: WorkflowStageStageKind;
+  orderIdx: number;
+  displayName: string;
+  description?: string | null;
+  requiredPermission?: string | null;
+  slaHours?: number | null;
+  isActive: boolean;
+  isOptional: boolean;
+}
+
+/**
+ * Workflow pinned to this delivery at creation (null for legacy rows).
+ */
+export type DeliveryDetailWorkflow = {
+  id: string;
+  code: string;
+  name: string;
+  stages: WorkflowStage[];
+} | null;
+
 export type ProcurementContractContractType =
   (typeof ProcurementContractContractType)[keyof typeof ProcurementContractContractType];
 
@@ -1407,6 +1443,9 @@ export type DeliveryDetail = Delivery & {
   batch?: Batch;
   contract?: ProcurementContract;
   auditTrail?: AuditLogEntry[];
+  /** Workflow pinned to this delivery at creation (null for legacy rows). */
+  workflow?: DeliveryDetailWorkflow;
+  currentStage?: WorkflowStage | null;
 };
 
 /**
@@ -1543,32 +1582,6 @@ export interface ProcurementWorkflow {
   isDefault: boolean;
   stageCount?: number;
   createdAt: string;
-}
-
-export type WorkflowStageStageKind =
-  (typeof WorkflowStageStageKind)[keyof typeof WorkflowStageStageKind];
-
-export const WorkflowStageStageKind = {
-  WEIGHT_SUBMIT: "WEIGHT_SUBMIT",
-  WEIGHT_APPROVE: "WEIGHT_APPROVE",
-  QC_SUBMIT: "QC_SUBMIT",
-  QC_APPROVE: "QC_APPROVE",
-  PRICING_PROPOSE: "PRICING_PROPOSE",
-  PRICING_APPROVE: "PRICING_APPROVE",
-  INFO_CHECKPOINT: "INFO_CHECKPOINT",
-} as const;
-
-export interface WorkflowStage {
-  id: string;
-  workflowId: string;
-  stageKind: WorkflowStageStageKind;
-  orderIdx: number;
-  displayName: string;
-  description?: string | null;
-  requiredPermission?: string | null;
-  slaHours?: number | null;
-  isActive: boolean;
-  isOptional: boolean;
 }
 
 export type ProcurementWorkflowDetail = ProcurementWorkflow & {

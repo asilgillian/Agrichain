@@ -212,7 +212,7 @@ export default function ExportsPage() {
                       <TableCell className="capitalize">{c.cropType}</TableCell>
                       <TableCell>{fmtKg(c.quantityKg)}</TableCell>
                       <TableCell>{c.certificationRequired ? <Badge variant="outline">{c.certificationRequired}</Badge> : "—"}</TableCell>
-                      <TableCell><Badge variant={c.status === "active" ? "default" : "secondary"}>{c.status}</Badge></TableCell>
+                      <TableCell><Badge variant={c.status === "in_execution" || c.status === "confirmed" ? "default" : "secondary"}>{c.status}</Badge></TableCell>
                     </TableRow>
                   )) : (
                     <TableRow><TableCell colSpan={7} className="py-8 text-center text-muted-foreground">No contracts</TableCell></TableRow>

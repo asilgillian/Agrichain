@@ -8,10 +8,15 @@
 import type { AuditLogEntry } from "./auditLogEntry";
 import type { Batch } from "./batch";
 import type { Delivery } from "./delivery";
+import type { DeliveryDetailWorkflow } from "./deliveryDetailWorkflow";
 import type { ProcurementContract } from "./procurementContract";
+import type { WorkflowStage } from "./workflowStage";
 
 export type DeliveryDetail = Delivery & {
   batch?: Batch;
   contract?: ProcurementContract;
   auditTrail?: AuditLogEntry[];
+  /** Workflow pinned to this delivery at creation (null for legacy rows). */
+  workflow?: DeliveryDetailWorkflow;
+  currentStage?: WorkflowStage | null;
 };

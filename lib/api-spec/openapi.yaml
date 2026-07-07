@@ -4213,6 +4213,22 @@ components:
               type: array
               items:
                 $ref: "#/components/schemas/AuditLogEntry"
+            workflow:
+              type: object
+              nullable: true
+              description: Workflow pinned to this delivery at creation (null for legacy rows).
+              properties:
+                id: { type: string }
+                code: { type: string }
+                name: { type: string }
+                stages:
+                  type: array
+                  items: { $ref: "#/components/schemas/WorkflowStage" }
+              required: [id, code, name, stages]
+            currentStage:
+              nullable: true
+              allOf:
+                - $ref: "#/components/schemas/WorkflowStage"
 
     CreateDeliveryBody:
       type: object

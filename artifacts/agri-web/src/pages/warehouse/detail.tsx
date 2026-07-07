@@ -1,5 +1,5 @@
 import { useRoute, Link } from "wouter";
-import { useGetLot } from "@workspace/api-client-react";
+import { useGetLot, getGetLotQueryKey } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
@@ -9,7 +9,7 @@ import { format } from "date-fns";
 export default function LotDetail() {
   const [, params] = useRoute("/warehouse/:id");
   const id = params?.id ?? "";
-  const { data: lot, isLoading } = useGetLot(id, { query: { enabled: !!id } });
+  const { data: lot, isLoading } = useGetLot(id, { query: { enabled: !!id, queryKey: getGetLotQueryKey(id) } });
 
   if (isLoading) return <div className="space-y-4">{[1, 2].map(i => <Skeleton key={i} className="h-24 w-full" />)}</div>;
   if (!lot) return <div className="py-16 text-center text-muted-foreground">Lot not found</div>;

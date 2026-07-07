@@ -51,7 +51,7 @@ export default function Dashboard() {
                       <Activity className="h-4 w-4 text-muted-foreground" />
                     </div>
                     <div className="flex-1 space-y-1">
-                      <p className="text-sm font-medium leading-none">{item.summary}</p>
+                      <p className="text-sm font-medium leading-none">{item.description}</p>
                       <div className="flex items-center text-xs text-muted-foreground gap-2">
                         <span>{item.actorName}</span>
                         <span>·</span>

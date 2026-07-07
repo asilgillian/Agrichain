@@ -1832,6 +1832,60 @@ export const GetDeliveryResponse = zod
           }),
         )
         .optional(),
+      workflow: zod
+        .object({
+          id: zod.string(),
+          code: zod.string(),
+          name: zod.string(),
+          stages: zod.array(
+            zod.object({
+              id: zod.string(),
+              workflowId: zod.string(),
+              stageKind: zod.enum([
+                "WEIGHT_SUBMIT",
+                "WEIGHT_APPROVE",
+                "QC_SUBMIT",
+                "QC_APPROVE",
+                "PRICING_PROPOSE",
+                "PRICING_APPROVE",
+                "INFO_CHECKPOINT",
+              ]),
+              orderIdx: zod.number(),
+              displayName: zod.string(),
+              description: zod.string().nullish(),
+              requiredPermission: zod.string().nullish(),
+              slaHours: zod.number().nullish(),
+              isActive: zod.boolean(),
+              isOptional: zod.boolean(),
+            }),
+          ),
+        })
+        .nullish()
+        .describe(
+          "Workflow pinned to this delivery at creation (null for legacy rows).",
+        ),
+      currentStage: zod
+        .object({
+          id: zod.string(),
+          workflowId: zod.string(),
+          stageKind: zod.enum([
+            "WEIGHT_SUBMIT",
+            "WEIGHT_APPROVE",
+            "QC_SUBMIT",
+            "QC_APPROVE",
+            "PRICING_PROPOSE",
+            "PRICING_APPROVE",
+            "INFO_CHECKPOINT",
+          ]),
+          orderIdx: zod.number(),
+          displayName: zod.string(),
+          description: zod.string().nullish(),
+          requiredPermission: zod.string().nullish(),
+          slaHours: zod.number().nullish(),
+          isActive: zod.boolean(),
+          isOptional: zod.boolean(),
+        })
+        .nullish(),
     }),
   );
 
