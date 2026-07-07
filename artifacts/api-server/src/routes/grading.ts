@@ -300,9 +300,10 @@ router.post("/grading-runs", requirePermission("warehouse.write"), async (req: A
   if (!Number.isFinite(input) || input <= 0) { res.status(400).json({ error: "inputWeightKg must be a positive number" }); return; }
   if (!Array.isArray(outputs) || outputs.length === 0) { res.status(400).json({ error: "outputs required" }); return; }
 
-  const detail = await loadProfileDetail(gradingProfileId);
-  if (!detail) { res.status(404).json({ error: "Grading profile not found" }); return; }
-  if (detail.status !== "active") { res.status(400).json({ error: "Grading profile is inactive" }); return; }
+  const loaded = await loadProfileDetail(gradingProfileId);
+  if (!loaded) { res.status(404).json({ error: "Grading profile not found" }); return; }
+  if (loaded.status !== "active") { res.status(400).json({ error: "Grading profile is inactive" }); return; }
+  const detail = loaded;
 
   const outputById = new Map(detail.outputs.map(o => [o.id, o]));
   const actualByOutputId = new Map<string, number>();
@@ -322,9 +323,35 @@ router.post("/grading-runs", requirePermission("warehouse.write"), async (req: A
   const lossKg = Math.max(0, input - totalOutput);
   const lossPct = input > 0 ? (lossKg / input) * 100 : 0;
 
-  const runNumber = await generateRunNumber();
+  // Run numbers are derived from a per-day row count, so two concurrent creations can compute the
+  // same suffix and collide on grading_runs_run_number_uniq. Retry a few times with a freshly
+  // regenerated number instead of surfacing a 500. Note: inside db.transaction() the pg error code
+  // moves to e.cause (see .agents/memory/drizzle-tx-error-unwrap.md), so unwrap both levels.
+  const MAX_RUN_NUMBER_ATTEMPTS = 5;
+  let created: typeof gradingRunsTable.$inferSelect | undefined;
+  for (let attempt = 0; attempt < MAX_RUN_NUMBER_ATTEMPTS; attempt++) {
+    const runNumber = await generateRunNumber();
+    try {
+      created = await createRun(runNumber);
+      break;
+    } catch (e: any) {
+      const pgCode = e?.code ?? e?.cause?.code;
+      const pgConstraint = e?.constraint ?? e?.cause?.constraint;
+      const isRunNumberCollision =
+        pgCode === "23505" &&
+        (pgConstraint === "grading_runs_run_number_uniq" || String(e?.cause?.detail ?? e?.detail ?? "").includes("run_number"));
+      if (isRunNumberCollision && attempt < MAX_RUN_NUMBER_ATTEMPTS - 1) continue;
+      throw e;
+    }
+  }
+  if (!created) { res.status(500).json({ error: "Could not allocate a unique run number, please retry" }); return; }
 
-  const created = await db.transaction(async (tx) => {
+  await audit("grading_run", created.id, "grading_run.create", req.authedUser, null, created);
+  const runOutputs = await db.select().from(gradingRunOutputsTable).where(eq(gradingRunOutputsTable.gradingRunId, created.id));
+  res.status(201).json({ ...created, profileName: detail.name, outputs: runOutputs });
+
+  async function createRun(runNumber: string) {
+    return db.transaction(async (tx) => {
     const [run] = await tx.insert(gradingRunsTable).values({
       runNumber,
       gradingProfileId,
@@ -390,11 +417,8 @@ router.post("/grading-runs", requirePermission("warehouse.write"), async (req: A
     }
     await tx.insert(commodityStockMovementsTable).values(movements);
     return run;
-  });
-
-  await audit("grading_run", created.id, "grading_run.create", req.authedUser, null, created);
-  const runOutputs = await db.select().from(gradingRunOutputsTable).where(eq(gradingRunOutputsTable.gradingRunId, created.id));
-  res.status(201).json({ ...created, profileName: detail.name, outputs: runOutputs });
+    });
+  }
 });
 
 export default router;

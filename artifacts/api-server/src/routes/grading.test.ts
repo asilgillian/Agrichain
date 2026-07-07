@@ -271,6 +271,33 @@ describe("POST /grading-runs — math + numbering", () => {
     expect(day2).toBe(day1);
     expect(Number(seq2)).toBe(Number(seq1) + 1);
   });
+
+  it("survives concurrent run creations with distinct run numbers (no 500)", async () => {
+    // Two runs fired at the same instant compute the same per-day suffix; without retry the second
+    // insert would violate grading_runs_run_number_uniq and return a 500. Both must now succeed.
+    const makeBody = () => ({
+      gradingProfileId: profileId,
+      inputWeightKg: 40,
+      outputs: [{ gradingProfileOutputId: outputIds.a, actualWeightKg: 20 }],
+    });
+
+    const results = await Promise.all([
+      jsonRequest(`${server.baseUrl}/grading-runs`, { method: "POST", body: makeBody() }),
+      jsonRequest(`${server.baseUrl}/grading-runs`, { method: "POST", body: makeBody() }),
+    ]);
+
+    for (const r of results) {
+      expect(r.status).toBe(201);
+      createdRunIds.push(r.body.id);
+    }
+
+    const re = /^GRD-(\d{8})-(\d{5})$/;
+    const [a, b] = results;
+    expect(a.body.runNumber).toMatch(re);
+    expect(b.body.runNumber).toMatch(re);
+    // Distinct run numbers despite the concurrent creation.
+    expect(a.body.runNumber).not.toBe(b.body.runNumber);
+  });
 });
 
 describe("POST /grading-runs — books commodity stock movements", () => {
