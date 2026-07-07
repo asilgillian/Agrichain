@@ -12,6 +12,7 @@ import {
   auditLogsTable,
 } from "@workspace/db";
 import gradingRouter from "./grading";
+import warehouseRouter from "./warehouse";
 import { startTestServer, jsonRequest, type TestServer } from "../test-helpers/test-server";
 
 // Integration coverage for the grading math + validation invariants:
@@ -36,7 +37,7 @@ const createdProfileIds: string[] = [];
 const createdRunIds: string[] = [];
 
 beforeAll(async () => {
-  server = await startTestServer([gradingRouter]);
+  server = await startTestServer([gradingRouter, warehouseRouter]);
 
   const [commodity] = await db
     .insert(commoditiesTable)
@@ -483,5 +484,156 @@ describe("DELETE /grading-runs/:runId — void a run and reverse its stock", () 
     } finally {
       await db.delete(commodityStockMovementsTable).where(eq(commodityStockMovementsTable.id, drawdown.id)).catch(() => {});
     }
+  });
+});
+
+describe("GET /warehouse/mass-balance — commodityStock nets across repeated grading runs", () => {
+  // Block-local fixtures so the aggregated nets start from a clean zero baseline —
+  // the shared types above already accumulate movements from earlier tests.
+  let mbCommodityId: string;
+  let mbInputTypeId: string;
+  let mbSellableX: string;
+  let mbSellableY: string;
+  let mbProfileId: string;
+  let mbOutputIds: { x: string; y: string };
+  const mbRunIds: string[] = [];
+
+  beforeAll(async () => {
+    const [commodity] = await db
+      .insert(commoditiesTable)
+      .values({ name: `${tag} MB Cocoa`, code: `${tag}_MBC` })
+      .returning();
+    mbCommodityId = commodity.id;
+
+    const [input] = await db
+      .insert(commodityTypesTable)
+      .values({ commodityId: mbCommodityId, name: `${tag} MB Wet Beans`, code: `${tag}_MBW`, stage: "intermediate" })
+      .returning();
+    mbInputTypeId = input.id;
+
+    const [x] = await db
+      .insert(commodityTypesTable)
+      .values({ commodityId: mbCommodityId, name: `${tag} MB Grade X`, code: `${tag}_MBX`, stage: "finished" })
+      .returning();
+    mbSellableX = x.id;
+
+    const [y] = await db
+      .insert(commodityTypesTable)
+      .values({ commodityId: mbCommodityId, name: `${tag} MB Grade Y`, code: `${tag}_MBY`, stage: "finished" })
+      .returning();
+    mbSellableY = y.id;
+
+    const { status, body } = await jsonRequest(`${server.baseUrl}/grading-profiles`, {
+      method: "POST",
+      body: {
+        name: `${tag} MB Cocoa Grading`,
+        inputCommodityTypeId: mbInputTypeId,
+        outputs: [
+          { outputCommodityTypeId: mbSellableX, expectedYieldPct: 60, isSellable: true },
+          { outputCommodityTypeId: mbSellableY, expectedYieldPct: 30, isSellable: true },
+          { label: "Process loss", expectedYieldPct: 10, isSellable: false },
+        ],
+      },
+    });
+    expect(status).toBe(201);
+    mbProfileId = body.id;
+    mbOutputIds = {
+      x: body.outputs.find((o: any) => o.outputCommodityTypeId?.toLowerCase() === mbSellableX.toLowerCase()).id,
+      y: body.outputs.find((o: any) => o.outputCommodityTypeId?.toLowerCase() === mbSellableY.toLowerCase()).id,
+    };
+  });
+
+  afterAll(async () => {
+    // Clean up everything block-local in dependency order (movements → outputs → runs → profile → types → commodity).
+    if (mbRunIds.length) {
+      await db.delete(commodityStockMovementsTable).where(inArray(commodityStockMovementsTable.gradingRunId, mbRunIds));
+      await db.delete(gradingRunOutputsTable).where(inArray(gradingRunOutputsTable.gradingRunId, mbRunIds));
+      await db.delete(gradingRunsTable).where(inArray(gradingRunsTable.id, mbRunIds));
+    }
+    if (mbProfileId) {
+      await db.delete(gradingProfileOutputsTable).where(eq(gradingProfileOutputsTable.gradingProfileId, mbProfileId));
+      await db.delete(gradingProfilesTable).where(eq(gradingProfilesTable.id, mbProfileId));
+      await db.delete(auditLogsTable).where(inArray(auditLogsTable.entityId, [mbProfileId, ...mbRunIds]));
+    }
+    const typeIds = [mbInputTypeId, mbSellableX, mbSellableY].filter(Boolean);
+    if (typeIds.length) await db.delete(commodityTypesTable).where(inArray(commodityTypesTable.id, typeIds));
+    if (mbCommodityId) await db.delete(commoditiesTable).where(eq(commoditiesTable.id, mbCommodityId));
+  });
+
+  async function createRun(inputKg: number, xKg: number, yKg: number) {
+    const { status, body } = await jsonRequest(`${server.baseUrl}/grading-runs`, {
+      method: "POST",
+      body: {
+        gradingProfileId: mbProfileId,
+        inputWeightKg: inputKg,
+        outputs: [
+          { gradingProfileOutputId: mbOutputIds.x, actualWeightKg: xKg },
+          { gradingProfileOutputId: mbOutputIds.y, actualWeightKg: yKg },
+        ],
+      },
+    });
+    expect(status).toBe(201);
+    mbRunIds.push(body.id);
+    return body;
+  }
+
+  async function fetchStockRows() {
+    const { status, body } = await jsonRequest(`${server.baseUrl}/warehouse/mass-balance`);
+    expect(status).toBe(200);
+    const rows: any[] = body.commodityStock;
+    expect(Array.isArray(rows)).toBe(true);
+    const byType = new Map<string, any>(rows.map(r => [String(r.commodityTypeId).toLowerCase(), r]));
+    return byType;
+  }
+
+  it("nets input drawdown and sellable outputs correctly after one run", async () => {
+    await createRun(100, 60, 30);
+
+    const byType = await fetchStockRows();
+    const input = byType.get(mbInputTypeId.toLowerCase())!;
+    const x = byType.get(mbSellableX.toLowerCase())!;
+    const y = byType.get(mbSellableY.toLowerCase())!;
+
+    expect(input).toBeTruthy();
+    expect(x).toBeTruthy();
+    expect(y).toBeTruthy();
+
+    // Nothing was ever booked INTO the input type here, so its net goes negative.
+    expect(input.netStockKg).toBeCloseTo(-100, 2);
+    expect(x.netStockKg).toBeCloseTo(60, 2);
+    expect(y.netStockKg).toBeCloseTo(30, 2);
+
+    // Rows carry the joined display names.
+    expect(input.commodityTypeName).toBe(`${tag} MB Wet Beans`);
+    expect(input.commodityName).toBe(`${tag} MB Cocoa`);
+    expect(x.commodityTypeName).toBe(`${tag} MB Grade X`);
+  });
+
+  it("accumulates across a second run on the same input type: drawdown deepens, outputs sum", async () => {
+    await createRun(200, 110, 70);
+
+    const byType = await fetchStockRows();
+    // Input drawdown accumulates: -100 + -200 = -300 (net negative deepens).
+    expect(byType.get(mbInputTypeId.toLowerCase())!.netStockKg).toBeCloseTo(-300, 2);
+    // Sellable outputs sum across both runs: 60+110 and 30+70.
+    expect(byType.get(mbSellableX.toLowerCase())!.netStockKg).toBeCloseTo(170, 2);
+    expect(byType.get(mbSellableY.toLowerCase())!.netStockKg).toBeCloseTo(100, 2);
+  });
+
+  it("voiding one run rolls the aggregated nets back to the single-run figures", async () => {
+    const third = await createRun(50, 30, 15);
+
+    let byType = await fetchStockRows();
+    expect(byType.get(mbInputTypeId.toLowerCase())!.netStockKg).toBeCloseTo(-350, 2);
+    expect(byType.get(mbSellableX.toLowerCase())!.netStockKg).toBeCloseTo(200, 2);
+
+    const { status } = await jsonRequest(`${server.baseUrl}/grading-runs/${third.id}`, { method: "DELETE" });
+    expect(status).toBe(204);
+    await db.delete(auditLogsTable).where(eq(auditLogsTable.entityId, third.id));
+
+    byType = await fetchStockRows();
+    expect(byType.get(mbInputTypeId.toLowerCase())!.netStockKg).toBeCloseTo(-300, 2);
+    expect(byType.get(mbSellableX.toLowerCase())!.netStockKg).toBeCloseTo(170, 2);
+    expect(byType.get(mbSellableY.toLowerCase())!.netStockKg).toBeCloseTo(100, 2);
   });
 });
