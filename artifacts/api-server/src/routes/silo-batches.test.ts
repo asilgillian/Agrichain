@@ -131,6 +131,27 @@ describe("POST /silo-batches — creation + available weight", () => {
     expect(status).toBe(400);
     expect(body.error).toMatch(/positive number/i);
   });
+
+  it("survives concurrent batch creations with distinct batch numbers (no 500)", async () => {
+    // Two batches fired at the same instant compute the same per-day suffix; without retry the
+    // second insert would violate the batch_number unique constraint and return a 500.
+    const silo = await createSilo();
+    const results = await Promise.all([
+      jsonRequest(`${server.baseUrl}/silo-batches`, { method: "POST", body: { siloId: silo.id, inputWeightKg: 100 } }),
+      jsonRequest(`${server.baseUrl}/silo-batches`, { method: "POST", body: { siloId: silo.id, inputWeightKg: 200 } }),
+    ]);
+
+    for (const r of results) {
+      expect(r.status).toBe(201);
+      createdBatchIds.push(r.body.id);
+    }
+
+    const re = /^SB-\d{8}-\d{5}$/;
+    const [a, b] = results;
+    expect(a.body.batchNumber).toMatch(re);
+    expect(b.body.batchNumber).toMatch(re);
+    expect(a.body.batchNumber).not.toBe(b.body.batchNumber);
+  });
 });
 
 describe("Grading from a silo batch draws down available weight", () => {

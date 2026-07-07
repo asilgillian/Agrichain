@@ -557,13 +557,33 @@ router.post("/admin/bulk-upload", requirePermission("admin.bulk_upload"), async 
         const [g] = await db.insert(groupsTable).values(parsed.data as any).returning();
         created.push(g);
       } else if (entityType === "farmers") {
-        const referenceNumber = await generateFarmerReferenceNumber();
         const data = parsed.data as any;
-        const [f] = await db.insert(farmersTable).values({
-          ...data,
-          referenceNumber,
-          dateOfBirth: data.dateOfBirth instanceof Date ? data.dateOfBirth.toISOString().slice(0, 10) : data.dateOfBirth,
-        }).returning();
+        // Retry on reference-number unique violations so two simultaneous uploads (or a rare
+        // random-suffix collision) both succeed with a regenerated number instead of failing the
+        // row. Note: inside db.transaction() the pg error code moves to e.cause
+        // (see .agents/memory/drizzle-tx-error-unwrap.md), so unwrap both levels.
+        const MAX_REF_NUMBER_ATTEMPTS = 5;
+        let f: any;
+        for (let attempt = 0; attempt < MAX_REF_NUMBER_ATTEMPTS; attempt++) {
+          const referenceNumber = await generateFarmerReferenceNumber();
+          try {
+            [f] = await db.insert(farmersTable).values({
+              ...data,
+              referenceNumber,
+              dateOfBirth: data.dateOfBirth instanceof Date ? data.dateOfBirth.toISOString().slice(0, 10) : data.dateOfBirth,
+            }).returning();
+            break;
+          } catch (e: any) {
+            const pgCode = e?.code ?? e?.cause?.code;
+            const pgConstraint = String(e?.constraint ?? e?.cause?.constraint ?? "");
+            const detail = String(e?.cause?.detail ?? e?.detail ?? "");
+            const isRefCollision =
+              pgCode === "23505" && (pgConstraint.includes("reference_number") || detail.includes("reference_number"));
+            if (isRefCollision && attempt < MAX_REF_NUMBER_ATTEMPTS - 1) continue;
+            throw e;
+          }
+        }
+        if (!f) throw new Error("Could not allocate a unique farmer reference number, please retry");
         created.push(f);
       } else if (entityType === "org_regions") {
         const [r] = await db.insert(orgRegionsTable).values(stripUndefined(parsed.data) as any).returning();

@@ -25,16 +25,18 @@ async function audit(entityType: string, entityId: string, action: string, user:
   });
 }
 
-// Batch-number generator: SB-YYYYMMDD-XXXXX. Per-day monotonic counter derived from the existing
-// row count for that day. Race-tolerant via the unique index + retry inside the create handler.
+// Batch-number generator: SB-YYYYMMDD-XXXXX. Per-day monotonic counter derived from the highest
+// existing suffix for that day (NOT the row count — deletions would make a count-based suffix
+// collide with surviving higher-numbered batches and never resolve on retry).
+// Race-tolerant via the unique constraint + retry inside the create handler.
 async function generateBatchNumber(): Promise<string> {
   const today = new Date().toISOString().slice(0, 10).replace(/-/g, "");
   const prefix = `SB-${today}-`;
-  const [{ count }] = await db
-    .select({ count: sql<number>`count(*)::int` })
+  const [{ maxSuffix }] = await db
+    .select({ maxSuffix: sql<number>`coalesce(max(right(${siloBatchesTable.batchNumber}, 5)::int), 0)` })
     .from(siloBatchesTable)
     .where(sql`${siloBatchesTable.batchNumber} LIKE ${prefix + "%"}`);
-  return `${prefix}${String(Number(count) + 1).padStart(5, "0")}`;
+  return `${prefix}${String(Number(maxSuffix) + 1).padStart(5, "0")}`;
 }
 
 // Sum the input weight already consumed by grading runs for a set of silo batches. Grading is the
@@ -169,9 +171,12 @@ router.post("/silo-batches", requirePermission("warehouse.write"), async (req: A
   }
   if (!streamList || streamList.length === 0) streamList = silo.stream ? [silo.stream] : null;
 
+  // Retry on batch-number unique violations so two agents saving at the same instant both succeed
+  // with the regenerated number instead of surfacing a 500. Note: inside db.transaction() the pg
+  // error code moves to e.cause (see .agents/memory/drizzle-tx-error-unwrap.md), so unwrap both levels.
+  const MAX_BATCH_NUMBER_ATTEMPTS = 5;
   let created: any;
-  let lastErr: any;
-  for (let i = 0; i < 5; i++) {
+  for (let attempt = 0; attempt < MAX_BATCH_NUMBER_ATTEMPTS; attempt++) {
     const batchNumber = await generateBatchNumber();
     try {
       [created] = await db.insert(siloBatchesTable).values({
@@ -183,13 +188,16 @@ router.post("/silo-batches", requirePermission("warehouse.write"), async (req: A
       }).returning();
       break;
     } catch (e: any) {
-      lastErr = e;
-      const msg = String(e?.message || e?.cause?.message || "");
-      if (msg.includes("silo_batches_batch_number") || msg.includes("batch_number")) continue;
+      const pgCode = e?.code ?? e?.cause?.code;
+      const pgConstraint = e?.constraint ?? e?.cause?.constraint;
+      const isBatchNumberCollision =
+        pgCode === "23505" &&
+        (String(pgConstraint ?? "").includes("batch_number") || String(e?.cause?.detail ?? e?.detail ?? "").includes("batch_number"));
+      if (isBatchNumberCollision && attempt < MAX_BATCH_NUMBER_ATTEMPTS - 1) continue;
       throw e;
     }
   }
-  if (!created) throw lastErr ?? new Error("Failed to allocate batch number");
+  if (!created) { res.status(500).json({ error: "Could not allocate a unique batch number, please retry" }); return; }
 
   await audit("silo_batch", created.id, "silo_batch.create", req.authedUser, null, created);
   res.status(201).json({ ...created, siloName: silo.name, consumedWeightKg: "0.00", availableWeightKg: input.toFixed(2) });

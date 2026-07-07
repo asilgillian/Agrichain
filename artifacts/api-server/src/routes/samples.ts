@@ -40,18 +40,18 @@ async function audit(entityType: string, entityId: string, action: string, user:
   });
 }
 
-// Sample-code generator: SMP-YYYY-NNNNNN. Uses a per-year monotonic counter derived from the
-// existing row count to keep codes short and human-friendly. Race-tolerant via unique index +
-// retry. We attempt up to 5 candidate codes before bailing.
+// Sample-code generator: SMP-YYYY-NNNNNN. Per-year monotonic counter derived from the highest
+// existing suffix for that year (NOT the row count — deletions would make a count-based suffix
+// collide with surviving higher-numbered samples and never resolve on retry). Race-tolerant via
+// unique index + retry. We attempt up to 5 candidate codes before bailing.
 async function generateSampleCode(): Promise<string> {
   const year = new Date().getUTCFullYear();
   const prefix = `SMP-${year}-`;
-  const [{ count }] = await db
-    .select({ count: sql<number>`count(*)::int` })
+  const [{ maxSuffix }] = await db
+    .select({ maxSuffix: sql<number>`coalesce(max(right(${samplesTable.sampleCode}, 6)::int), 0)` })
     .from(samplesTable)
     .where(sql`${samplesTable.sampleCode} LIKE ${prefix + "%"}`);
-  const start = Number(count) + 1;
-  return `${prefix}${String(start).padStart(6, "0")}`;
+  return `${prefix}${String(Number(maxSuffix) + 1).padStart(6, "0")}`;
 }
 
 // =================================================================================================
@@ -173,10 +173,12 @@ router.post("/samples", requirePermission("commodities.write"), async (req: Auth
   const subN = Number.isInteger(subSampleCount) && subSampleCount > 0 ? subSampleCount : 1;
   const photos = Array.isArray(photoUrls) ? photoUrls.filter((u) => typeof u === "string" && u.trim()) : [];
 
-  // Race-tolerant code generation: try up to 5 codes before giving up.
+  // Race-tolerant code generation: retry on 23505 unique violations so two collectors saving at
+  // the same instant both succeed. Note: inside db.transaction() the pg error code moves to
+  // e.cause (see .agents/memory/drizzle-tx-error-unwrap.md), so unwrap both levels.
+  const MAX_SAMPLE_CODE_ATTEMPTS = 5;
   let created;
-  let lastErr: any;
-  for (let i = 0; i < 5; i++) {
+  for (let attempt = 0; attempt < MAX_SAMPLE_CODE_ATTEMPTS; attempt++) {
     const sampleCode = await generateSampleCode();
     try {
       [created] = await db.insert(samplesTable).values({
@@ -205,20 +207,23 @@ router.post("/samples", requirePermission("commodities.write"), async (req: Auth
       }).returning();
       break;
     } catch (e: any) {
-      lastErr = e;
-      const msg = String(e?.message || "");
+      const pgCode = e?.code ?? e?.cause?.code;
+      const pgConstraint = String(e?.constraint ?? e?.cause?.constraint ?? "");
+      const detail = String(e?.cause?.detail ?? e?.detail ?? "");
       // Race winner on clientGeneratedId — fetch and return the row that won the insert race.
       // Makes offline retry safe even under concurrent device sync.
-      if (msg.includes("samples_client_id_uniq") && clientGeneratedId) {
+      if (pgCode === "23505" && (pgConstraint === "samples_client_id_uniq" || detail.includes("client_generated_id")) && clientGeneratedId) {
         const [existing] = await db.select().from(samplesTable).where(eq(samplesTable.clientGeneratedId, clientGeneratedId));
         if (existing) { res.status(200).json(existing); return; }
       }
       // Code collision — retry with the next sequence number.
-      if (msg.includes("samples_code_uniq")) continue;
+      const isCodeCollision =
+        pgCode === "23505" && (pgConstraint === "samples_code_uniq" || detail.includes("sample_code"));
+      if (isCodeCollision && attempt < MAX_SAMPLE_CODE_ATTEMPTS - 1) continue;
       throw e;
     }
   }
-  if (!created) throw lastErr ?? new Error("Failed to allocate sample code");
+  if (!created) { res.status(500).json({ error: "Could not allocate a unique sample code, please retry" }); return; }
 
   await audit("sample", created.id, "sample.create", req.authedUser, null, created);
   res.status(201).json(created);
