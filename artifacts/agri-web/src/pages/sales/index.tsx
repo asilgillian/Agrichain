@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { customFetch } from "@workspace/api-client-react";
@@ -50,19 +50,19 @@ export default function SalesPage() {
   const params = new URLSearchParams({ page: String(page), limit: "20" });
   if (status !== "all") params.set("status", status);
 
-  const { data: contracts, isLoading: contractsLoading } = useQuery({
+  const { data: contracts, isLoading: contractsLoading } = useQuery<any>({
     queryKey: ["/api/sales/contracts", status, page],
     queryFn: () => customFetch(`${API_BASE}/api/sales/contracts?${params}`),
     enabled: tab === "contracts",
   });
 
-  const { data: dispatches, isLoading: dispatchesLoading } = useQuery({
+  const { data: dispatches, isLoading: dispatchesLoading } = useQuery<any>({
     queryKey: ["/api/dispatches"],
     queryFn: () => customFetch(`${API_BASE}/api/dispatches?limit=20&page=${page}`),
     enabled: tab === "dispatches",
   });
 
-  const { data: invoices, isLoading: invoicesLoading } = useQuery({
+  const { data: invoices, isLoading: invoicesLoading } = useQuery<any>({
     queryKey: ["/api/invoices"],
     queryFn: () => customFetch(`${API_BASE}/api/invoices?limit=20&page=${page}`),
     enabled: tab === "invoices",
@@ -84,6 +84,12 @@ export default function SalesPage() {
   const [dispatchOpen, setDispatchOpen] = useState(false);
   const [dispatchForm, setDispatchForm] = useState(emptyDispatchForm);
 
+  // Invoice-from-dispatch dialog state
+  const [invoiceDispatch, setInvoiceDispatch] = useState<any>(null);
+  const [invoiceMode, setInvoiceMode] = useState<"create" | "attach">("create");
+  const [invoiceForm, setInvoiceForm] = useState({ contractId: "", pricePerKg: "", taxAmount: "", currency: "USD", dueDate: "", notes: "" });
+  const [attachInvoiceId, setAttachInvoiceId] = useState("");
+
   // Graded commodity stock balances (net kg per commodity type) — the sellable inventory booked by
   // grading runs. Used both for the dispatch dialog picker and to label dispatch rows.
   const { data: massBalance } = useQuery<any>({
@@ -98,8 +104,96 @@ export default function SalesPage() {
   const { data: contractsForDispatch } = useQuery<any>({
     queryKey: ["/api/sales/contracts", "for-dispatch"],
     queryFn: () => customFetch(`${API_BASE}/api/sales/contracts?limit=100`),
-    enabled: dispatchOpen,
+    enabled: dispatchOpen || !!invoiceDispatch || tab === "dispatches",
   });
+  const contractById = Object.fromEntries(((contractsForDispatch?.data ?? []) as any[]).map((c: any) => [c.id, c]));
+
+  const { data: unattachedInvoices } = useQuery<any>({
+    queryKey: ["/api/invoices", "unattached"],
+    queryFn: () => customFetch(`${API_BASE}/api/invoices?unattached=true&limit=100`),
+    enabled: !!invoiceDispatch && invoiceMode === "attach",
+  });
+
+  const openInvoiceDialog = (d: any) => {
+    const contract = d.contractId ? contractById[d.contractId] : null;
+    setInvoiceMode("create");
+    setAttachInvoiceId("");
+    setInvoiceForm({
+      contractId: d.contractId ?? "",
+      pricePerKg: contract?.agreedPricePerKg ? String(Number(contract.agreedPricePerKg)) : "",
+      taxAmount: "",
+      currency: contract?.currency ?? "USD",
+      dueDate: "",
+      notes: "",
+    });
+    setInvoiceDispatch(d);
+  };
+
+  // Backfill the price/currency prefill if the contracts list finishes loading after the
+  // dialog was opened (opening the dialog on a fresh page load races the contracts query).
+  useEffect(() => {
+    if (!invoiceDispatch || invoiceMode !== "create") return;
+    const contract = invoiceForm.contractId ? contractById[invoiceForm.contractId] : null;
+    if (contract && invoiceForm.pricePerKg === "" && contract.agreedPricePerKg) {
+      setInvoiceForm(f => ({
+        ...f,
+        pricePerKg: String(Number(contract.agreedPricePerKg)),
+        currency: contract.currency ?? f.currency,
+      }));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [contractsForDispatch, invoiceDispatch]);
+
+  // Keep price/currency in sync when the user picks a contract inside the dialog.
+  const onInvoiceContractChange = (contractId: string) => {
+    const contract = contractId ? contractById[contractId] : null;
+    setInvoiceForm(f => ({
+      ...f,
+      contractId,
+      pricePerKg: contract?.agreedPricePerKg ? String(Number(contract.agreedPricePerKg)) : f.pricePerKg,
+      currency: contract?.currency ?? f.currency,
+    }));
+  };
+
+  const invoiceDone = () => {
+    queryClient.invalidateQueries({ queryKey: ["/api/dispatches"] });
+    queryClient.invalidateQueries({ queryKey: ["/api/invoices"] });
+    setInvoiceDispatch(null);
+  };
+
+  const createInvoiceMutation = useMutation({
+    mutationFn: (body: any) => customFetch(`${API_BASE}/api/dispatches/${invoiceDispatch?.id}/invoice`, {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
+    }),
+    onSuccess: (inv: any) => { toast({ title: "Invoice created", description: `${inv.invoiceNumber} linked to dispatch ${invoiceDispatch?.dispatchNumber}` }); invoiceDone(); },
+    onError: (e: any) => toast({ title: "Failed to create invoice", description: e?.data?.error ?? e.message, variant: "destructive" }),
+  });
+
+  const attachInvoiceMutation = useMutation({
+    mutationFn: (body: any) => customFetch(`${API_BASE}/api/dispatches/${invoiceDispatch?.id}/attach-invoice`, {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
+    }),
+    onSuccess: (inv: any) => { toast({ title: "Invoice attached", description: `${inv.invoiceNumber} linked to dispatch ${invoiceDispatch?.dispatchNumber}` }); invoiceDone(); },
+    onError: (e: any) => toast({ title: "Failed to attach invoice", description: e?.data?.error ?? e.message, variant: "destructive" }),
+  });
+
+  const submitInvoice = () => {
+    if (invoiceMode === "attach") {
+      if (!attachInvoiceId) { toast({ title: "Select an invoice to attach", variant: "destructive" }); return; }
+      attachInvoiceMutation.mutate({ invoiceId: attachInvoiceId });
+      return;
+    }
+    const price = Number(invoiceForm.pricePerKg);
+    if (!Number.isFinite(price) || price <= 0) { toast({ title: "Price per kg must be a positive number", variant: "destructive" }); return; }
+    createInvoiceMutation.mutate({
+      contractId: invoiceForm.contractId || undefined,
+      pricePerKg: price,
+      taxAmount: invoiceForm.taxAmount ? Number(invoiceForm.taxAmount) : undefined,
+      currency: invoiceForm.currency,
+      dueDate: invoiceForm.dueDate || undefined,
+      notes: invoiceForm.notes.trim() || undefined,
+    });
+  };
 
   const createDispatchMutation = useMutation({
     mutationFn: (body: any) => customFetch(`${API_BASE}/api/dispatches`, {
@@ -411,15 +505,16 @@ export default function SalesPage() {
                   <TableHead>Driver</TableHead>
                   <TableHead>Weight (kg)</TableHead>
                   <TableHead>Status</TableHead>
+                  <TableHead>Billing</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {dispatchesLoading ? Array.from({ length: 4 }).map((_, i) => (
-                  <TableRow key={i}>{Array.from({ length: 7 }).map((_, j) => <TableCell key={j}><Skeleton className="h-4 w-full" /></TableCell>)}</TableRow>
+                  <TableRow key={i}>{Array.from({ length: 8 }).map((_, j) => <TableCell key={j}><Skeleton className="h-4 w-full" /></TableCell>)}</TableRow>
                 )) : dispatches?.data?.length === 0 ? (
-                  <TableRow><TableCell colSpan={7} className="text-center py-12 text-muted-foreground">No dispatches found</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={8} className="text-center py-12 text-muted-foreground">No dispatches found</TableCell></TableRow>
                 ) : dispatches?.data?.map((d: any) => (
-                  <TableRow key={d.id}>
+                  <TableRow key={d.id} data-testid={`dispatch-row-${d.dispatchNumber}`}>
                     <TableCell className="font-mono font-semibold">{d.dispatchNumber}</TableCell>
                     <TableCell>{d.commodityTypeId ? (stockById[d.commodityTypeId]?.commodityTypeName ?? "Graded stock") : "—"}</TableCell>
                     <TableCell>{d.containerNumber ?? "—"}</TableCell>
@@ -427,11 +522,139 @@ export default function SalesPage() {
                     <TableCell>{d.driverName ?? "—"}</TableCell>
                     <TableCell className="font-mono">{d.dispatchWeightKg ? Number(d.dispatchWeightKg).toLocaleString() : "—"}</TableCell>
                     <TableCell><Badge variant="outline">{d.status}</Badge></TableCell>
+                    <TableCell>
+                      {d.invoice ? (
+                        <div className="flex items-center gap-2" data-testid={`billing-billed-${d.dispatchNumber}`}>
+                          <Badge className="bg-green-100 text-green-800 border-0 text-xs">Billed</Badge>
+                          <span className="font-mono text-xs text-muted-foreground">{d.invoice.invoiceNumber}</span>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-2" data-testid={`billing-unbilled-${d.dispatchNumber}`}>
+                          <Badge className="bg-amber-100 text-amber-800 border-0 text-xs">Unbilled</Badge>
+                          <Button size="sm" variant="outline" className="h-7 px-2 text-xs gap-1" onClick={() => openInvoiceDialog(d)} data-testid={`invoice-btn-${d.dispatchNumber}`}>
+                            <Receipt className="h-3 w-3" /> Invoice
+                          </Button>
+                        </div>
+                      )}
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
             </Table>
           </Card>
+
+          <Dialog open={!!invoiceDispatch} onOpenChange={(o) => { if (!o) setInvoiceDispatch(null); }}>
+            <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>Invoice Dispatch {invoiceDispatch?.dispatchNumber}</DialogTitle>
+                <DialogDescription>
+                  Bill this dispatch — create a new invoice or attach an existing one.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="flex gap-1 rounded-md bg-muted p-1">
+                <button className={`flex-1 rounded px-3 py-1.5 text-sm font-medium transition-colors ${invoiceMode === "create" ? "bg-background shadow" : "text-muted-foreground"}`}
+                  onClick={() => setInvoiceMode("create")} data-testid="invoice-mode-create">Create new</button>
+                <button className={`flex-1 rounded px-3 py-1.5 text-sm font-medium transition-colors ${invoiceMode === "attach" ? "bg-background shadow" : "text-muted-foreground"}`}
+                  onClick={() => setInvoiceMode("attach")} data-testid="invoice-mode-attach">Attach existing</button>
+              </div>
+
+              {invoiceMode === "create" ? (
+                <div className="space-y-3">
+                  <div>
+                    <Label>Sales Contract {invoiceDispatch?.contractId ? "" : "(optional)"}</Label>
+                    <Select value={invoiceForm.contractId || "none"} onValueChange={v => onInvoiceContractChange(v === "none" ? "" : v)}>
+                      <SelectTrigger data-testid="input-invoice-contract"><SelectValue placeholder="No contract" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">No contract</SelectItem>
+                        {((contractsForDispatch?.data ?? []) as any[]).map((c: any) => (
+                          <SelectItem key={c.id} value={c.id}>{c.contractNumber}{c.buyerName ? ` — ${c.buyerName}` : ""}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {invoiceForm.contractId && contractById[invoiceForm.contractId]?.buyerName && (
+                      <p className="text-xs text-muted-foreground mt-1" data-testid="invoice-buyer-name">
+                        Buyer: {contractById[invoiceForm.contractId].buyerName}
+                      </p>
+                    )}
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <Label>Weight (kg)</Label>
+                      <Input value={invoiceDispatch?.dispatchWeightKg ? Number(invoiceDispatch.dispatchWeightKg).toLocaleString() : "—"} disabled data-testid="input-invoice-weight" />
+                    </div>
+                    <div>
+                      <Label>Price per kg *</Label>
+                      <Input type="number" step="0.01" min="0" value={invoiceForm.pricePerKg}
+                        onChange={e => setInvoiceForm({ ...invoiceForm, pricePerKg: e.target.value })}
+                        placeholder="4.50" data-testid="input-invoice-price" />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <Label>Tax Amount</Label>
+                      <Input type="number" step="0.01" min="0" value={invoiceForm.taxAmount}
+                        onChange={e => setInvoiceForm({ ...invoiceForm, taxAmount: e.target.value })}
+                        placeholder="0" data-testid="input-invoice-tax" />
+                    </div>
+                    <div>
+                      <Label>Currency</Label>
+                      <Select value={invoiceForm.currency} onValueChange={v => setInvoiceForm({ ...invoiceForm, currency: v })}>
+                        <SelectTrigger data-testid="input-invoice-currency"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="USD">USD</SelectItem>
+                          <SelectItem value="EUR">EUR</SelectItem>
+                          <SelectItem value="UGX">UGX</SelectItem>
+                          <SelectItem value="GBP">GBP</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  <div><Label>Due Date</Label><Input type="date" value={invoiceForm.dueDate} onChange={e => setInvoiceForm({ ...invoiceForm, dueDate: e.target.value })} data-testid="input-invoice-due" /></div>
+                  <div><Label>Notes</Label><Textarea value={invoiceForm.notes} onChange={e => setInvoiceForm({ ...invoiceForm, notes: e.target.value })} rows={2} data-testid="input-invoice-notes" /></div>
+                  {(() => {
+                    const wt = Number(invoiceDispatch?.dispatchWeightKg ?? 0);
+                    const price = Number(invoiceForm.pricePerKg);
+                    const tax = Number(invoiceForm.taxAmount || 0);
+                    if (!Number.isFinite(wt) || !Number.isFinite(price) || wt <= 0 || price <= 0) return null;
+                    const total = wt * price + (Number.isFinite(tax) ? tax : 0);
+                    return (
+                      <p className="text-sm font-medium" data-testid="invoice-total-preview">
+                        Total: {invoiceForm.currency} {total.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                      </p>
+                    );
+                  })()}
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <div>
+                    <Label>Unbilled Invoice *</Label>
+                    <Select value={attachInvoiceId} onValueChange={setAttachInvoiceId}>
+                      <SelectTrigger data-testid="input-attach-invoice"><SelectValue placeholder={((unattachedInvoices?.data ?? []) as any[]).length ? "Select invoice" : "No unattached invoices"} /></SelectTrigger>
+                      <SelectContent>
+                        {((unattachedInvoices?.data ?? []) as any[]).map((inv: any) => (
+                          <SelectItem key={inv.id} value={inv.id}>
+                            {inv.invoiceNumber} — {inv.currency} {inv.totalAmount ? Number(inv.totalAmount).toLocaleString() : "0"} ({inv.status})
+                          </SelectItem>
+                        ))}
+                        {((unattachedInvoices?.data ?? []) as any[]).length === 0 && (
+                          <div className="px-2 py-1 text-xs text-muted-foreground">Every invoice is already linked to a dispatch</div>
+                        )}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              )}
+
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setInvoiceDispatch(null)}>Cancel</Button>
+                <Button onClick={submitInvoice} disabled={createInvoiceMutation.isPending || attachInvoiceMutation.isPending} data-testid="submit-invoice">
+                  {createInvoiceMutation.isPending || attachInvoiceMutation.isPending
+                    ? "Saving..."
+                    : invoiceMode === "create" ? "Create Invoice" : "Attach Invoice"}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
         </>
       )}
 

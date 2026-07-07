@@ -80,7 +80,8 @@ export const dispatchesTable = pgTable("dispatches", {
 export const invoicesTable = pgTable("invoices", {
   id: uuid("id").primaryKey().defaultRandom(),
   invoiceNumber: text("invoice_number").notNull().unique(),
-  contractId: uuid("contract_id").notNull(),
+  // Nullable: an invoice can be raised directly from a dispatch that has no sales contract.
+  contractId: uuid("contract_id"),
   dispatchId: uuid("dispatch_id"),
   dispatchWeightKg: numeric("dispatch_weight_kg", { precision: 14, scale: 2 }),
   pricePerKg: numeric("price_per_kg", { precision: 10, scale: 4 }),
