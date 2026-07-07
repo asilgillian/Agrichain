@@ -11,6 +11,7 @@ import {
   useGetGradingRun,
   useDeleteGradingRun,
   getListGradingRunsQueryKey,
+  getListSiloBatchesQueryKey,
   useListSiloBatches,
   useListSilos,
   useCreateSilo,
@@ -244,6 +245,7 @@ function GradingSection() {
   const { data: batches } = useListSiloBatches();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [presetBatchId, setPresetBatchId] = useState<string | undefined>(undefined);
+  const [correctionPrefill, setCorrectionPrefill] = useState<RunCorrectionPrefill | null>(null);
   const [viewRunId, setViewRunId] = useState<string | null>(null);
   const [filterBatchId, setFilterBatchId] = useState<string>("all");
 
@@ -336,11 +338,21 @@ function GradingSection() {
           profiles={activeProfiles}
           batches={siloBatches}
           presetBatchId={presetBatchId}
-          onClose={() => setDialogOpen(false)}
+          prefill={correctionPrefill ?? undefined}
+          onClose={() => { setDialogOpen(false); setCorrectionPrefill(null); }}
         />
       )}
       {viewRunId && (
-        <RunResultsDialog runId={viewRunId} onClose={() => setViewRunId(null)} />
+        <RunResultsDialog
+          runId={viewRunId}
+          onClose={() => setViewRunId(null)}
+          onCorrect={(prefill) => {
+            setViewRunId(null);
+            setCorrectionPrefill(prefill);
+            setPresetBatchId(undefined);
+            setDialogOpen(true);
+          }}
+        />
       )}
     </>
   );
@@ -509,14 +521,24 @@ function NewSiloBatchDialog({ onClose, onNeedSilo }: { onClose: () => void; onNe
   );
 }
 
-function RunGradingDialog({ profiles, batches, presetBatchId, onClose }: { profiles: GradingProfile[]; batches: SiloBatch[]; presetBatchId?: string; onClose: () => void }) {
+type RunCorrectionPrefill = {
+  correctedRunNumber: string;
+  profileId: string;
+  siloBatchId?: string;
+  inputWeightKg: string;
+  notes: string;
+  actuals: Record<string, string>;
+};
+
+function RunGradingDialog({ profiles, batches, presetBatchId, prefill, onClose }: { profiles: GradingProfile[]; batches: SiloBatch[]; presetBatchId?: string; prefill?: RunCorrectionPrefill; onClose: () => void }) {
   const { toast } = useToast();
-  const [profileId, setProfileId] = useState<string>("");
+  const qc = useQueryClient();
+  const [profileId, setProfileId] = useState<string>(prefill?.profileId ?? "");
   const presetBatch = useMemo(() => batches.find(b => b.id === presetBatchId), [batches, presetBatchId]);
-  const [siloBatchId, setSiloBatchId] = useState<string>(presetBatchId ?? "none");
-  const [inputWeightKg, setInputWeightKg] = useState(presetBatch ? presetBatch.availableWeightKg : "");
-  const [notes, setNotes] = useState("");
-  const [actuals, setActuals] = useState<Record<string, string>>({});
+  const [siloBatchId, setSiloBatchId] = useState<string>(prefill?.siloBatchId ?? presetBatchId ?? "none");
+  const [inputWeightKg, setInputWeightKg] = useState(prefill ? prefill.inputWeightKg : (presetBatch ? presetBatch.availableWeightKg : ""));
+  const [notes, setNotes] = useState(prefill?.notes ?? "");
+  const [actuals, setActuals] = useState<Record<string, string>>(prefill?.actuals ?? {});
 
   const { data: detail } = useGetGradingProfile(profileId, {
     query: { enabled: !!profileId, queryKey: ["getGradingProfile", profileId] },
@@ -552,7 +574,13 @@ function RunGradingDialog({ profiles, batches, presetBatchId, onClose }: { profi
         },
       },
       {
-        onSuccess: () => { toast({ title: "Grading run recorded" }); onClose(); },
+        onSuccess: () => {
+          toast({ title: "Grading run recorded" });
+          qc.invalidateQueries({ queryKey: getListGradingRunsQueryKey() });
+          qc.invalidateQueries({ queryKey: getListSiloBatchesQueryKey() });
+          qc.invalidateQueries({ queryKey: ["/api/warehouse/mass-balance"] });
+          onClose();
+        },
         onError: (e: any) => toast({ title: "Failed", description: e?.message ?? "Could not record run", variant: "destructive" }),
       },
     );
@@ -561,7 +589,12 @@ function RunGradingDialog({ profiles, batches, presetBatchId, onClose }: { profi
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-w-3xl">
-        <DialogHeader><DialogTitle>Run grading</DialogTitle></DialogHeader>
+        <DialogHeader><DialogTitle>{prefill ? `Correct grading run ${prefill.correctedRunNumber}` : "Run grading"}</DialogTitle></DialogHeader>
+        {prefill && (
+          <p className="text-sm text-muted-foreground" data-testid="text-correction-banner">
+            {prefill.correctedRunNumber} has been voided and its stock movements reversed. Adjust the values below and record the corrected run.
+          </p>
+        )}
         <div className="space-y-4">
           <div className="grid grid-cols-3 gap-2">
             <div className="col-span-1">
@@ -578,7 +611,7 @@ function RunGradingDialog({ profiles, batches, presetBatchId, onClose }: { profi
                 <SelectContent>
                   <SelectItem value="none">Ad-hoc (no batch)</SelectItem>
                   {batches.map(b => (
-                    <SelectItem key={b.id} value={b.id} disabled={Number(b.availableWeightKg) <= 0 && b.id !== presetBatchId}>
+                    <SelectItem key={b.id} value={b.id} disabled={Number(b.availableWeightKg) <= 0 && b.id !== presetBatchId && b.id !== prefill?.siloBatchId}>
                       {b.batchNumber} · {fmtKg(b.availableWeightKg)} avail
                     </SelectItem>
                   ))}
@@ -637,24 +670,57 @@ function RunGradingDialog({ profiles, batches, presetBatchId, onClose }: { profi
   );
 }
 
-function RunResultsDialog({ runId, onClose }: { runId: string; onClose: () => void }) {
+function RunResultsDialog({ runId, onClose, onCorrect }: { runId: string; onClose: () => void; onCorrect: (prefill: RunCorrectionPrefill) => void }) {
   const { data: run, isLoading } = useGetGradingRun(runId);
   const { toast } = useToast();
   const qc = useQueryClient();
   const del = useDeleteGradingRun();
   const [confirmVoid, setConfirmVoid] = useState(false);
+  const [confirmCorrect, setConfirmCorrect] = useState(false);
+
+  const invalidateAfterVoid = () => {
+    qc.invalidateQueries({ queryKey: getListGradingRunsQueryKey() });
+    qc.invalidateQueries({ queryKey: getListSiloBatchesQueryKey() });
+    qc.invalidateQueries({ queryKey: ["/api/warehouse/mass-balance"] });
+  };
 
   const voidRun = () => {
     del.mutate({ runId }, {
       onSuccess: () => {
         toast({ title: "Grading run voided", description: "Stock movements reversed" });
-        qc.invalidateQueries({ queryKey: getListGradingRunsQueryKey() });
-        qc.invalidateQueries({ queryKey: ["/api/warehouse/mass-balance"] });
+        invalidateAfterVoid();
         onClose();
       },
       onError: (e: any) => {
         toast({ title: "Cannot void run", description: e?.data?.error ?? e?.message ?? "Void failed", variant: "destructive" });
         setConfirmVoid(false);
+      },
+    });
+  };
+
+  const correctRun = () => {
+    if (!run) return;
+    del.mutate({ runId }, {
+      onSuccess: () => {
+        toast({ title: `Run ${run.runNumber} voided`, description: "Enter the corrected values" });
+        invalidateAfterVoid();
+        const actuals: Record<string, string> = {};
+        for (const o of run.outputs as GradingRunOutput[]) {
+          if (o.gradingProfileOutputId) actuals[o.gradingProfileOutputId] = String(Number(o.actualWeightKg));
+        }
+        const origNotes = (run.notes ?? "").trim();
+        onCorrect({
+          correctedRunNumber: run.runNumber,
+          profileId: run.gradingProfileId,
+          siloBatchId: run.siloBatchId ?? undefined,
+          inputWeightKg: String(Number(run.inputWeightKg)),
+          notes: `Correction of voided run ${run.runNumber}${origNotes ? ` — ${origNotes}` : ""}`,
+          actuals,
+        });
+      },
+      onError: (e: any) => {
+        toast({ title: "Cannot correct run", description: e?.data?.error ?? e?.message ?? "Void failed", variant: "destructive" });
+        setConfirmCorrect(false);
       },
     });
   };
@@ -707,10 +773,23 @@ function RunResultsDialog({ runId, onClose }: { runId: string; onClose: () => vo
                 {del.isPending ? "Voiding…" : "Yes, void run"}
               </Button>
             </>
+          ) : confirmCorrect ? (
+            <>
+              <span className="text-sm text-muted-foreground mr-auto">Void this run and re-enter it with the old values pre-filled?</span>
+              <Button variant="ghost" size="sm" onClick={() => setConfirmCorrect(false)} disabled={del.isPending} data-testid="btn-cancel-correct-run">Keep run</Button>
+              <Button size="sm" onClick={correctRun} disabled={del.isPending} data-testid="btn-confirm-correct-run">
+                {del.isPending ? "Voiding…" : "Yes, void & correct"}
+              </Button>
+            </>
           ) : (
-            <Button variant="outline" size="sm" className="mr-auto text-destructive" onClick={() => setConfirmVoid(true)} data-testid="btn-void-run">
-              Void run
-            </Button>
+            <div className="mr-auto flex items-center gap-2">
+              <Button variant="outline" size="sm" className="text-destructive" onClick={() => setConfirmVoid(true)} data-testid="btn-void-run">
+                Void run
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => setConfirmCorrect(true)} data-testid="btn-correct-run">
+                Correct run
+              </Button>
+            </div>
           ))}
           <Button variant="ghost" onClick={onClose}>Close</Button>
         </DialogFooter>

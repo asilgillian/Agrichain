@@ -35,9 +35,12 @@ async function audit(entityType: string, entityId: string, action: string, user:
 }
 
 // Run-number generator: GRD-YYYYMMDD-XXXXX. Per-day monotonic counter derived from the highest
-// existing suffix for that day (NOT the row count — runs can be voided/deleted, which would make a
-// count-based suffix collide with surviving higher-numbered runs and never resolve on retry).
-// Race-tolerant via the unique index + retry inside the create handler.
+// suffix EVER ISSUED that day, not just the highest surviving row. Voiding a run hard-deletes it,
+// so looking only at grading_runs would re-issue the voided number to the next run — which breaks
+// correction traceability (notes say "Correction of voided run GRD-X" and the new run must NOT
+// itself become GRD-X). Every creation writes an immutable grading_run.create audit row, so the
+// audit trail is the authoritative record of issued numbers. Race-tolerant via the unique index +
+// retry inside the create handler.
 async function generateRunNumber(): Promise<string> {
   const today = new Date().toISOString().slice(0, 10).replace(/-/g, "");
   const prefix = `GRD-${today}-`;
@@ -45,7 +48,12 @@ async function generateRunNumber(): Promise<string> {
     .select({ maxSuffix: sql<number>`coalesce(max(right(${gradingRunsTable.runNumber}, 5)::int), 0)` })
     .from(gradingRunsTable)
     .where(sql`${gradingRunsTable.runNumber} LIKE ${prefix + "%"}`);
-  return `${prefix}${String(Number(maxSuffix) + 1).padStart(5, "0")}`;
+  const [{ maxAuditSuffix }] = await db
+    .select({ maxAuditSuffix: sql<number>`coalesce(max(right(${auditLogsTable.after}->>'runNumber', 5)::int), 0)` })
+    .from(auditLogsTable)
+    .where(sql`${auditLogsTable.entityType} = 'grading_run' AND ${auditLogsTable.after}->>'runNumber' LIKE ${prefix + "%"}`);
+  const next = Math.max(Number(maxSuffix), Number(maxAuditSuffix)) + 1;
+  return `${prefix}${String(next).padStart(5, "0")}`;
 }
 
 // Validate + normalise a list of profile output rows. Returns the cleaned rows or an error string.
