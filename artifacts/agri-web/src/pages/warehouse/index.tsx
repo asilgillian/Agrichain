@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   useListLots,
   useGetWarehouseMassBalance,
@@ -7,6 +8,8 @@ import {
   useListGradingRuns,
   useCreateGradingRun,
   useGetGradingRun,
+  useDeleteGradingRun,
+  getListGradingRunsQueryKey,
   useListSiloBatches,
   useListSilos,
   useCreateSilo,
@@ -545,6 +548,25 @@ function RunGradingDialog({ profiles, batches, presetBatchId, onClose }: { profi
 
 function RunResultsDialog({ runId, onClose }: { runId: string; onClose: () => void }) {
   const { data: run, isLoading } = useGetGradingRun(runId);
+  const { toast } = useToast();
+  const qc = useQueryClient();
+  const del = useDeleteGradingRun();
+  const [confirmVoid, setConfirmVoid] = useState(false);
+
+  const voidRun = () => {
+    del.mutate({ runId }, {
+      onSuccess: () => {
+        toast({ title: "Grading run voided", description: "Stock movements reversed" });
+        qc.invalidateQueries({ queryKey: getListGradingRunsQueryKey() });
+        qc.invalidateQueries({ queryKey: ["/api/warehouse/mass-balance"] });
+        onClose();
+      },
+      onError: (e: any) => {
+        toast({ title: "Cannot void run", description: e?.data?.error ?? e?.message ?? "Void failed", variant: "destructive" });
+        setConfirmVoid(false);
+      },
+    });
+  };
 
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
@@ -585,7 +607,22 @@ function RunResultsDialog({ runId, onClose }: { runId: string; onClose: () => vo
             {run.notes && <p className="text-sm text-muted-foreground">Notes: {run.notes}</p>}
           </div>
         )}
-        <DialogFooter><Button variant="ghost" onClick={onClose}>Close</Button></DialogFooter>
+        <DialogFooter className="items-center gap-2">
+          {run && (confirmVoid ? (
+            <>
+              <span className="text-sm text-muted-foreground mr-auto">Void this run and reverse its stock movements?</span>
+              <Button variant="ghost" size="sm" onClick={() => setConfirmVoid(false)} disabled={del.isPending} data-testid="btn-cancel-void-run">Keep run</Button>
+              <Button variant="destructive" size="sm" onClick={voidRun} disabled={del.isPending} data-testid="btn-confirm-void-run">
+                {del.isPending ? "Voiding…" : "Yes, void run"}
+              </Button>
+            </>
+          ) : (
+            <Button variant="outline" size="sm" className="mr-auto text-destructive" onClick={() => setConfirmVoid(true)} data-testid="btn-void-run">
+              Void run
+            </Button>
+          ))}
+          <Button variant="ghost" onClick={onClose}>Close</Button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );

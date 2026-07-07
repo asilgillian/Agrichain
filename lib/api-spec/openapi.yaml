@@ -2756,6 +2756,22 @@ paths:
               schema: { $ref: "#/components/schemas/GradingRunDetail" }
         "404":
           description: Not found
+    delete:
+      operationId: deleteGradingRun
+      tags: [grading]
+      summary: Void a grading run, reversing its booked stock movements
+      parameters:
+        - in: path
+          name: runId
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "204":
+          description: Run voided; stock movements reversed
+        "404":
+          description: Not found
+        "409":
+          description: Graded output stock from this run was already consumed downstream
 
   /silos:
     get:

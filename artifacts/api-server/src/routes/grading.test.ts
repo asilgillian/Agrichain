@@ -360,3 +360,128 @@ describe("POST /grading-runs — books commodity stock movements", () => {
     expect(outputs.every(m => m.gradingRunOutputId !== outputIds.loss)).toBe(true);
   });
 });
+
+describe("DELETE /grading-runs/:runId — void a run and reverse its stock", () => {
+  let profileId: string;
+  let outputIds: { a: string; b: string };
+
+  beforeAll(async () => {
+    const { status, body } = await jsonRequest(`${server.baseUrl}/grading-profiles`, {
+      method: "POST",
+      body: validProfileBody(),
+    });
+    expect(status).toBe(201);
+    profileId = body.id;
+    createdProfileIds.push(profileId);
+    outputIds = {
+      a: body.outputs.find((o: any) => o.outputCommodityTypeId?.toLowerCase() === sellableA.toLowerCase()).id,
+      b: body.outputs.find((o: any) => o.outputCommodityTypeId?.toLowerCase() === sellableB.toLowerCase()).id,
+    };
+  });
+
+  async function netStock(typeId: string): Promise<number> {
+    const rows = await db
+      .select()
+      .from(commodityStockMovementsTable)
+      .where(eq(commodityStockMovementsTable.commodityTypeId, typeId));
+    return rows.reduce((s, r) => s + Number(r.weightKg), 0);
+  }
+
+  async function createRun(inputKg: number, aKg: number, bKg: number) {
+    const { status, body } = await jsonRequest(`${server.baseUrl}/grading-runs`, {
+      method: "POST",
+      body: {
+        gradingProfileId: profileId,
+        inputWeightKg: inputKg,
+        outputs: [
+          { gradingProfileOutputId: outputIds.a, actualWeightKg: aKg },
+          { gradingProfileOutputId: outputIds.b, actualWeightKg: bKg },
+        ],
+      },
+    });
+    expect(status).toBe(201);
+    return body;
+  }
+
+  it("returns 404 for an unknown run", async () => {
+    const { status } = await jsonRequest(
+      `${server.baseUrl}/grading-runs/00000000-0000-4000-8000-000000000000`,
+      { method: "DELETE" },
+    );
+    expect(status).toBe(404);
+  });
+
+  it("voids a run: movements reversed, stock returns to pre-run values, run + outputs gone, audited", async () => {
+    const beforeInput = await netStock(inputTypeId);
+    const beforeA = await netStock(sellableA);
+    const beforeB = await netStock(sellableB);
+
+    const run = await createRun(100, 60, 30);
+
+    // Sanity: run booked movements.
+    expect(await netStock(inputTypeId)).toBeCloseTo(beforeInput - 100, 2);
+    expect(await netStock(sellableA)).toBeCloseTo(beforeA + 60, 2);
+
+    const { status } = await jsonRequest(`${server.baseUrl}/grading-runs/${run.id}`, { method: "DELETE" });
+    expect(status).toBe(204);
+
+    // Stock figures are back to their pre-run values.
+    expect(await netStock(inputTypeId)).toBeCloseTo(beforeInput, 2);
+    expect(await netStock(sellableA)).toBeCloseTo(beforeA, 2);
+    expect(await netStock(sellableB)).toBeCloseTo(beforeB, 2);
+
+    // Run, outputs, and movements are gone.
+    const runs = await db.select().from(gradingRunsTable).where(eq(gradingRunsTable.id, run.id));
+    expect(runs).toHaveLength(0);
+    const outs = await db.select().from(gradingRunOutputsTable).where(eq(gradingRunOutputsTable.gradingRunId, run.id));
+    expect(outs).toHaveLength(0);
+    const movs = await db.select().from(commodityStockMovementsTable).where(eq(commodityStockMovementsTable.gradingRunId, run.id));
+    expect(movs).toHaveLength(0);
+
+    // Audit trail records the void with a full before-snapshot.
+    const logs = await db.select().from(auditLogsTable).where(eq(auditLogsTable.entityId, run.id));
+    const del = logs.find(l => l.action === "grading_run.delete");
+    expect(del).toBeTruthy();
+    expect((del!.before as any).run.runNumber).toBe(run.runNumber);
+    expect((del!.before as any).movements.length).toBeGreaterThan(0);
+    await db.delete(auditLogsTable).where(eq(auditLogsTable.entityId, run.id));
+
+    // GET now 404s.
+    const after = await jsonRequest(`${server.baseUrl}/grading-runs/${run.id}`, { method: "GET" });
+    expect(after.status).toBe(404);
+  });
+
+  it("blocks the void (409) when graded output stock was already consumed downstream", async () => {
+    const run = await createRun(100, 50, 40);
+    createdRunIds.push(run.id);
+
+    // Simulate a downstream dispatch consuming ALL of sellable A stock.
+    const currentA = await netStock(sellableA);
+    const [drawdown] = await db.insert(commodityStockMovementsTable).values({
+      commodityTypeId: sellableA,
+      weightKg: (-currentA).toFixed(2),
+      movementType: "sale_dispatch",
+      notes: `${tag} simulated dispatch`,
+    }).returning();
+
+    try {
+      const { status, body } = await jsonRequest(`${server.baseUrl}/grading-runs/${run.id}`, { method: "DELETE" });
+      expect(status).toBe(409);
+      expect(body.error).toMatch(/already been consumed/i);
+
+      // Nothing was deleted.
+      const runs = await db.select().from(gradingRunsTable).where(eq(gradingRunsTable.id, run.id));
+      expect(runs).toHaveLength(1);
+      const movs = await db.select().from(commodityStockMovementsTable).where(eq(commodityStockMovementsTable.gradingRunId, run.id));
+      expect(movs.length).toBeGreaterThan(0);
+
+      // Once the drawdown is removed, the void succeeds.
+      await db.delete(commodityStockMovementsTable).where(eq(commodityStockMovementsTable.id, drawdown.id));
+      const retry = await jsonRequest(`${server.baseUrl}/grading-runs/${run.id}`, { method: "DELETE" });
+      expect(retry.status).toBe(204);
+      await db.delete(auditLogsTable).where(eq(auditLogsTable.entityId, run.id));
+    } finally {
+      await db.delete(commodityStockMovementsTable).where(eq(commodityStockMovementsTable.id, drawdown.id)).catch(() => {});
+    }
+  });
+});

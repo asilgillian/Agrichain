@@ -11344,6 +11344,90 @@ export function useGetGradingRun<
 }
 
 /**
+ * @summary Void a grading run, reversing its booked stock movements
+ */
+export const getDeleteGradingRunUrl = (runId: string) => {
+  return `/api/grading-runs/${runId}`;
+};
+
+export const deleteGradingRun = async (
+  runId: string,
+  options?: RequestInit,
+): Promise<void> => {
+  return customFetch<void>(getDeleteGradingRunUrl(runId), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getDeleteGradingRunMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteGradingRun>>,
+    TError,
+    { runId: string },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof deleteGradingRun>>,
+  TError,
+  { runId: string },
+  TContext
+> => {
+  const mutationKey = ["deleteGradingRun"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof deleteGradingRun>>,
+    { runId: string }
+  > = (props) => {
+    const { runId } = props ?? {};
+
+    return deleteGradingRun(runId, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DeleteGradingRunMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deleteGradingRun>>
+>;
+
+export type DeleteGradingRunMutationError = ErrorType<void>;
+
+/**
+ * @summary Void a grading run, reversing its booked stock movements
+ */
+export const useDeleteGradingRun = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteGradingRun>>,
+    TError,
+    { runId: string },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof deleteGradingRun>>,
+  TError,
+  { runId: string },
+  TContext
+> => {
+  return useMutation(getDeleteGradingRunMutationOptions(options));
+};
+
+/**
  * @summary List silos
  */
 export const getListSilosUrl = (params?: ListSilosParams) => {

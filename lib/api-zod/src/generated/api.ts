@@ -5148,6 +5148,13 @@ export const GetGradingRunResponse = zod
   );
 
 /**
+ * @summary Void a grading run, reversing its booked stock movements
+ */
+export const DeleteGradingRunParams = zod.object({
+  runId: zod.coerce.string().uuid(),
+});
+
+/**
  * @summary List silos
  */
 export const ListSilosQueryParams = zod.object({

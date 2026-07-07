@@ -34,16 +34,18 @@ async function audit(entityType: string, entityId: string, action: string, user:
   });
 }
 
-// Run-number generator: GRD-YYYYMMDD-XXXXX. Per-day monotonic counter derived from the existing
-// row count for that day. Race-tolerant via the unique index + retry inside the create handler.
+// Run-number generator: GRD-YYYYMMDD-XXXXX. Per-day monotonic counter derived from the highest
+// existing suffix for that day (NOT the row count — runs can be voided/deleted, which would make a
+// count-based suffix collide with surviving higher-numbered runs and never resolve on retry).
+// Race-tolerant via the unique index + retry inside the create handler.
 async function generateRunNumber(): Promise<string> {
   const today = new Date().toISOString().slice(0, 10).replace(/-/g, "");
   const prefix = `GRD-${today}-`;
-  const [{ count }] = await db
-    .select({ count: sql<number>`count(*)::int` })
+  const [{ maxSuffix }] = await db
+    .select({ maxSuffix: sql<number>`coalesce(max(right(${gradingRunsTable.runNumber}, 5)::int), 0)` })
     .from(gradingRunsTable)
     .where(sql`${gradingRunsTable.runNumber} LIKE ${prefix + "%"}`);
-  return `${prefix}${String(Number(count) + 1).padStart(5, "0")}`;
+  return `${prefix}${String(Number(maxSuffix) + 1).padStart(5, "0")}`;
 }
 
 // Validate + normalise a list of profile output rows. Returns the cleaned rows or an error string.
@@ -420,5 +422,69 @@ router.post("/grading-runs", requirePermission("warehouse.write"), async (req: A
     });
   }
 });
+
+// Void a grading run: reverse its booked stock movements (input restored, graded outputs removed)
+// and delete the run + its per-grade results. Blocked (409) when any of the run's graded output
+// stock has already been consumed downstream — i.e. when removing the run's positive output
+// movements would drive that commodity type's net warehouse balance negative.
+router.delete("/grading-runs/:runId", requirePermission("warehouse.write"), async (req: AuthedRequest, res) => {
+  const { runId } = req.params;
+  if (!isUuid(runId)) { res.status(400).json({ error: "Invalid runId" }); return; }
+  const [run] = await db.select().from(gradingRunsTable).where(eq(gradingRunsTable.id, runId));
+  if (!run) { res.status(404).json({ error: "Grading run not found" }); return; }
+
+  try {
+    const snapshot = await db.transaction(async (tx) => {
+      // Snapshot for the audit trail before anything is removed.
+      const outputs = await tx.select().from(gradingRunOutputsTable).where(eq(gradingRunOutputsTable.gradingRunId, runId));
+      const movements = await tx.select().from(commodityStockMovementsTable).where(eq(commodityStockMovementsTable.gradingRunId, runId));
+
+      // Net effect of THIS run per commodity type (input negative, outputs positive).
+      const runNetByType = new Map<string, number>();
+      for (const m of movements) {
+        runNetByType.set(m.commodityTypeId, (runNetByType.get(m.commodityTypeId) ?? 0) + Number(m.weightKg));
+      }
+      const typeIds = Array.from(runNetByType.keys());
+      if (typeIds.length > 0) {
+        const balances = await tx
+          .select({
+            commodityTypeId: commodityStockMovementsTable.commodityTypeId,
+            net: sql<string>`coalesce(sum(${commodityStockMovementsTable.weightKg}), 0)`,
+          })
+          .from(commodityStockMovementsTable)
+          .where(inArray(commodityStockMovementsTable.commodityTypeId, typeIds))
+          .groupBy(commodityStockMovementsTable.commodityTypeId);
+        const netByType = new Map(balances.map(b => [b.commodityTypeId, Number(b.net)]));
+        for (const [typeId, runNet] of runNetByType) {
+          // Only types this run ADDED stock to can go negative when reversed. Reversing the
+          // input drawdown only puts stock back, so it can never invalidate the ledger.
+          if (runNet <= 0) continue;
+          const after = (netByType.get(typeId) ?? 0) - runNet;
+          if (after < -0.005) {
+            const [t] = await tx.select({ name: commodityTypesTable.name }).from(commodityTypesTable).where(eq(commodityTypesTable.id, typeId));
+            throw new StockWouldGoNegativeError(
+              `Cannot void run ${run.runNumber}: ${(t?.name ?? "a graded output")} stock from this run has already been consumed downstream (balance would go to ${after.toFixed(2)} kg)`
+            );
+          }
+        }
+      }
+
+      await tx.delete(commodityStockMovementsTable).where(eq(commodityStockMovementsTable.gradingRunId, runId));
+      await tx.delete(gradingRunOutputsTable).where(eq(gradingRunOutputsTable.gradingRunId, runId));
+      await tx.delete(gradingRunsTable).where(eq(gradingRunsTable.id, runId));
+      return { run, outputs, movements };
+    });
+    await audit("grading_run", runId, "grading_run.delete", req.authedUser, snapshot, null);
+    res.status(204).end();
+  } catch (e) {
+    if (e instanceof StockWouldGoNegativeError) {
+      res.status(409).json({ error: e.message });
+      return;
+    }
+    throw e;
+  }
+});
+
+class StockWouldGoNegativeError extends Error {}
 
 export default router;
