@@ -3,6 +3,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import {
   useListLots,
   useGetWarehouseMassBalance,
+  useListCommodityStockMovements,
   useListGradingProfiles,
   useGetGradingProfile,
   useListGradingRuns,
@@ -100,6 +101,8 @@ export default function WarehousePage() {
         </Card>
       )}
 
+      <StockMovementsSection commodityStock={massBalance?.commodityStock ?? []} />
+
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle>Lot Inventory</CardTitle>
@@ -145,6 +148,94 @@ export default function WarehousePage() {
 
       <GradingSection />
     </div>
+  );
+}
+
+const MOVEMENT_TYPE_LABELS: Record<string, string> = {
+  grading_input: "Grading input",
+  grading_output: "Grading output",
+  sale_dispatch: "Sale dispatch",
+  export_shipment: "Export shipment",
+};
+
+function StockMovementsSection({ commodityStock }: { commodityStock: { commodityTypeId: string; commodityTypeName: string; commodityName: string }[] }) {
+  const [filterTypeId, setFilterTypeId] = useState<string>("all");
+  const { data: movements, isLoading } = useListCommodityStockMovements(
+    filterTypeId !== "all" ? { commodityTypeId: filterTypeId } : undefined,
+    { query: { queryKey: ["listCommodityStockMovements", filterTypeId] } },
+  );
+
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between">
+        <div>
+          <CardTitle>Stock Movement History</CardTitle>
+          <p className="text-sm text-muted-foreground mt-1">Every graded-stock booking and drawdown — grading runs, sale dispatches, export shipments</p>
+        </div>
+        <Select value={filterTypeId} onValueChange={setFilterTypeId}>
+          <SelectTrigger className="w-[240px]" data-testid="select-movement-commodity-type"><SelectValue placeholder="Filter by commodity type" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All commodity types</SelectItem>
+            {commodityStock.map(c => (
+              <SelectItem key={c.commodityTypeId} value={c.commodityTypeId}>{c.commodityTypeName}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </CardHeader>
+      <CardContent className="p-0">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Date</TableHead>
+              <TableHead>Commodity type</TableHead>
+              <TableHead>Movement</TableHead>
+              <TableHead className="text-right">Weight (kg)</TableHead>
+              <TableHead>Reference</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {isLoading ? (
+              <TableRow><TableCell colSpan={5}><Skeleton className="h-12 w-full" /></TableCell></TableRow>
+            ) : movements && movements.length > 0 ? movements.map(m => {
+              const weight = Number(m.weightKg);
+              const isDrawdown = weight < 0;
+              return (
+                <TableRow key={m.id} data-testid={`stock-movement-row-${m.id}`}>
+                  <TableCell className="text-sm text-muted-foreground whitespace-nowrap">{m.createdAt?.slice(0, 10)}</TableCell>
+                  <TableCell className="text-sm">
+                    <span className="font-medium">{m.commodityTypeName}</span>
+                    <span className="text-muted-foreground text-xs ml-1">({m.commodityName})</span>
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant={isDrawdown ? "outline" : "secondary"} className="text-xs">
+                      {MOVEMENT_TYPE_LABELS[m.movementType] ?? m.movementType}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className={`text-right font-medium tabular-nums ${isDrawdown ? "text-destructive" : "text-emerald-700 dark:text-emerald-400"}`} data-testid={`stock-movement-weight-${m.id}`}>
+                    {isDrawdown ? "" : "+"}{weight.toLocaleString()}
+                  </TableCell>
+                  <TableCell className="font-mono text-sm">
+                    {m.reference ? (
+                      m.movementType === "sale_dispatch" && m.dispatchContractId ? (
+                        <Link href={`/sales/${m.dispatchContractId}`} className="text-primary hover:underline" data-testid={`stock-movement-ref-${m.id}`}>{m.reference}</Link>
+                      ) : m.movementType === "export_shipment" ? (
+                        <Link href="/exports" className="text-primary hover:underline" data-testid={`stock-movement-ref-${m.id}`}>{m.reference}</Link>
+                      ) : (
+                        <span data-testid={`stock-movement-ref-${m.id}`}>{m.reference}</span>
+                      )
+                    ) : (
+                      <span className="text-muted-foreground">—</span>
+                    )}
+                  </TableCell>
+                </TableRow>
+              );
+            }) : (
+              <TableRow><TableCell colSpan={5} className="py-12 text-center text-muted-foreground">No stock movements yet. Grading runs, sale dispatches, and export shipments will appear here.</TableCell></TableRow>
+            )}
+          </TableBody>
+        </Table>
+      </CardContent>
+    </Card>
   );
 }
 

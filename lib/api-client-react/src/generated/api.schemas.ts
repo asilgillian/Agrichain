@@ -1682,6 +1682,37 @@ export interface MassBalance {
   commodityStock: MassBalanceCommodityStockItem[];
 }
 
+export type CommodityStockMovementEntryMovementType =
+  (typeof CommodityStockMovementEntryMovementType)[keyof typeof CommodityStockMovementEntryMovementType];
+
+export const CommodityStockMovementEntryMovementType = {
+  grading_input: "grading_input",
+  grading_output: "grading_output",
+  sale_dispatch: "sale_dispatch",
+  export_shipment: "export_shipment",
+} as const;
+
+/**
+ * One signed row of the commodity stock ledger with provenance references.
+ */
+export interface CommodityStockMovementEntry {
+  id: string;
+  commodityTypeId: string;
+  commodityTypeName: string;
+  commodityName: string;
+  movementType: CommodityStockMovementEntryMovementType;
+  /** Signed weight — positive books stock in, negative draws it down. */
+  weightKg: number;
+  /** Human-readable reference — grading run number, dispatch number, or shipment container/vessel. */
+  reference?: string | null;
+  gradingRunId?: string | null;
+  dispatchId?: string | null;
+  dispatchContractId?: string | null;
+  shipmentId?: string | null;
+  notes?: string | null;
+  createdAt: string;
+}
+
 export type PaymentPaymentMethod =
   (typeof PaymentPaymentMethod)[keyof typeof PaymentPaymentMethod];
 
@@ -2426,6 +2457,10 @@ export const ListLotsStatus = {
   allocated: "allocated",
   exported: "exported",
 } as const;
+
+export type ListCommodityStockMovementsParams = {
+  commodityTypeId?: string;
+};
 
 export type ListPaymentsParams = {
   farmerId?: string;

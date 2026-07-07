@@ -1468,6 +1468,27 @@ paths:
               schema:
                 $ref: "#/components/schemas/MassBalance"
 
+  /warehouse/stock-movements:
+    get:
+      operationId: listCommodityStockMovements
+      tags: [warehouse]
+      summary: Commodity stock ledger movement history (grading, sales, exports)
+      parameters:
+        - in: query
+          name: commodityTypeId
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Stock movements, newest first
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CommodityStockMovementEntry"
+
   # ============================================================
   # PAYMENTS
   # ============================================================
@@ -4510,6 +4531,54 @@ components:
                 type: number
             required: [commodityTypeId, commodityTypeName, commodityName, netStockKg]
       required: [totalReceivedKg, totalProcessedKg, totalAllocatedKg, totalExportedKg, warehouseStockKg, byStream, commodityStock]
+
+    CommodityStockMovementEntry:
+      type: object
+      description: One signed row of the commodity stock ledger with provenance references.
+      properties:
+        id:
+          type: string
+          format: uuid
+        commodityTypeId:
+          type: string
+          format: uuid
+        commodityTypeName:
+          type: string
+        commodityName:
+          type: string
+        movementType:
+          type: string
+          enum: [grading_input, grading_output, sale_dispatch, export_shipment]
+        weightKg:
+          type: number
+          description: Signed weight — positive books stock in, negative draws it down.
+        reference:
+          type: string
+          nullable: true
+          description: Human-readable reference — grading run number, dispatch number, or shipment container/vessel.
+        gradingRunId:
+          type: string
+          format: uuid
+          nullable: true
+        dispatchId:
+          type: string
+          format: uuid
+          nullable: true
+        dispatchContractId:
+          type: string
+          format: uuid
+          nullable: true
+        shipmentId:
+          type: string
+          format: uuid
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+      required: [id, commodityTypeId, commodityTypeName, commodityName, movementType, weightKg, createdAt]
 
     # ============================================================
     # PAYMENTS

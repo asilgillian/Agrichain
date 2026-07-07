@@ -3232,6 +3232,50 @@ export const GetWarehouseMassBalanceResponse = zod.object({
 });
 
 /**
+ * @summary Commodity stock ledger movement history (grading, sales, exports)
+ */
+export const ListCommodityStockMovementsQueryParams = zod.object({
+  commodityTypeId: zod.coerce.string().uuid().optional(),
+});
+
+export const ListCommodityStockMovementsResponseItem = zod
+  .object({
+    id: zod.string().uuid(),
+    commodityTypeId: zod.string().uuid(),
+    commodityTypeName: zod.string(),
+    commodityName: zod.string(),
+    movementType: zod.enum([
+      "grading_input",
+      "grading_output",
+      "sale_dispatch",
+      "export_shipment",
+    ]),
+    weightKg: zod
+      .number()
+      .describe(
+        "Signed weight — positive books stock in, negative draws it down.",
+      ),
+    reference: zod
+      .string()
+      .nullish()
+      .describe(
+        "Human-readable reference — grading run number, dispatch number, or shipment container\/vessel.",
+      ),
+    gradingRunId: zod.string().uuid().nullish(),
+    dispatchId: zod.string().uuid().nullish(),
+    dispatchContractId: zod.string().uuid().nullish(),
+    shipmentId: zod.string().uuid().nullish(),
+    notes: zod.string().nullish(),
+    createdAt: zod.coerce.date(),
+  })
+  .describe(
+    "One signed row of the commodity stock ledger with provenance references.",
+  );
+export const ListCommodityStockMovementsResponse = zod.array(
+  ListCommodityStockMovementsResponseItem,
+);
+
+/**
  * @summary List farmer payments
  */
 export const listPaymentsQueryDateFromRegExp = new RegExp(

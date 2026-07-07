@@ -1,7 +1,8 @@
 import { Router, type IRouter } from "express";
-import { eq, sql } from "drizzle-orm";
-import { db, lotsTable, commodityStockMovementsTable, commodityTypesTable, commoditiesTable } from "@workspace/db";
+import { desc, eq, sql } from "drizzle-orm";
+import { db, lotsTable, commodityStockMovementsTable, commodityTypesTable, commoditiesTable, gradingRunsTable, dispatchesTable, shipmentsTable } from "@workspace/db";
 import { ListLotsQueryParams } from "@workspace/api-zod";
+import { z } from "zod";
 
 const router: IRouter = Router();
 
@@ -79,6 +80,66 @@ router.get("/warehouse/mass-balance", async (req, res): Promise<void> => {
     byStream: Object.entries(streamMap).map(([streamName, stockKg]) => ({ streamName, stockKg })),
     commodityStock,
   });
+});
+
+// Commodity stock ledger movement history. Each row is one signed movement (grading in/out, sale
+// dispatch, export shipment) joined to its provenance record for a human-readable reference.
+const ListStockMovementsQuery = z.object({ commodityTypeId: z.string().uuid().optional() });
+
+router.get("/warehouse/stock-movements", async (req, res): Promise<void> => {
+  const parsed = ListStockMovementsQuery.safeParse(req.query);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.message });
+    return;
+  }
+  const { commodityTypeId } = parsed.data;
+
+  const baseQuery = db
+    .select({
+      id: commodityStockMovementsTable.id,
+      commodityTypeId: commodityStockMovementsTable.commodityTypeId,
+      commodityTypeName: commodityTypesTable.name,
+      commodityName: commoditiesTable.name,
+      movementType: commodityStockMovementsTable.movementType,
+      weightKg: commodityStockMovementsTable.weightKg,
+      gradingRunId: commodityStockMovementsTable.gradingRunId,
+      runNumber: gradingRunsTable.runNumber,
+      dispatchId: commodityStockMovementsTable.dispatchId,
+      dispatchNumber: dispatchesTable.dispatchNumber,
+      dispatchContractId: dispatchesTable.contractId,
+      shipmentId: commodityStockMovementsTable.shipmentId,
+      shipmentContainer: shipmentsTable.containerNumber,
+      shipmentVessel: shipmentsTable.vesselName,
+      notes: commodityStockMovementsTable.notes,
+      createdAt: commodityStockMovementsTable.createdAt,
+    })
+    .from(commodityStockMovementsTable)
+    .innerJoin(commodityTypesTable, eq(commodityTypesTable.id, commodityStockMovementsTable.commodityTypeId))
+    .innerJoin(commoditiesTable, eq(commoditiesTable.id, commodityTypesTable.commodityId))
+    .leftJoin(gradingRunsTable, eq(gradingRunsTable.id, commodityStockMovementsTable.gradingRunId))
+    .leftJoin(dispatchesTable, eq(dispatchesTable.id, commodityStockMovementsTable.dispatchId))
+    .leftJoin(shipmentsTable, eq(shipmentsTable.id, commodityStockMovementsTable.shipmentId))
+    .orderBy(desc(commodityStockMovementsTable.createdAt), desc(commodityStockMovementsTable.id));
+
+  const rows = commodityTypeId
+    ? await baseQuery.where(eq(commodityStockMovementsTable.commodityTypeId, commodityTypeId))
+    : await baseQuery;
+
+  res.json(rows.map(r => ({
+    id: r.id,
+    commodityTypeId: r.commodityTypeId,
+    commodityTypeName: r.commodityTypeName,
+    commodityName: r.commodityName,
+    movementType: r.movementType,
+    weightKg: parseFloat(r.weightKg ?? "0"),
+    reference: r.runNumber ?? r.dispatchNumber ?? r.shipmentContainer ?? r.shipmentVessel ?? null,
+    gradingRunId: r.gradingRunId,
+    dispatchId: r.dispatchId,
+    dispatchContractId: r.dispatchContractId,
+    shipmentId: r.shipmentId,
+    notes: r.notes,
+    createdAt: r.createdAt,
+  })));
 });
 
 export default router;

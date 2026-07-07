@@ -27,6 +27,7 @@ import type {
   BatchDetail,
   CertificationEnrolment,
   CertificationStream,
+  CommodityStockMovementEntry,
   ComplianceOverview,
   CountryHierarchy,
   CreateActivityFundRequestBody,
@@ -75,6 +76,7 @@ import type {
   ListAssetsParams,
   ListAuditLogsParams,
   ListBatchesParams,
+  ListCommodityStockMovementsParams,
   ListDeliveriesParams,
   ListEnrolmentsParams,
   ListFarmersParams,
@@ -6001,6 +6003,115 @@ export function useGetWarehouseMassBalance<
   request?: SecondParameter<typeof customFetch>;
 }): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
   const queryOptions = getGetWarehouseMassBalanceQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Commodity stock ledger movement history (grading, sales, exports)
+ */
+export const getListCommodityStockMovementsUrl = (
+  params?: ListCommodityStockMovementsParams,
+) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/warehouse/stock-movements?${stringifiedParams}`
+    : `/api/warehouse/stock-movements`;
+};
+
+export const listCommodityStockMovements = async (
+  params?: ListCommodityStockMovementsParams,
+  options?: RequestInit,
+): Promise<CommodityStockMovementEntry[]> => {
+  return customFetch<CommodityStockMovementEntry[]>(
+    getListCommodityStockMovementsUrl(params),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getListCommodityStockMovementsQueryKey = (
+  params?: ListCommodityStockMovementsParams,
+) => {
+  return [
+    `/api/warehouse/stock-movements`,
+    ...(params ? [params] : []),
+  ] as const;
+};
+
+export const getListCommodityStockMovementsQueryOptions = <
+  TData = Awaited<ReturnType<typeof listCommodityStockMovements>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: ListCommodityStockMovementsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listCommodityStockMovements>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getListCommodityStockMovementsQueryKey(params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listCommodityStockMovements>>
+  > = ({ signal }) =>
+    listCommodityStockMovements(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listCommodityStockMovements>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListCommodityStockMovementsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listCommodityStockMovements>>
+>;
+export type ListCommodityStockMovementsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Commodity stock ledger movement history (grading, sales, exports)
+ */
+
+export function useListCommodityStockMovements<
+  TData = Awaited<ReturnType<typeof listCommodityStockMovements>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: ListCommodityStockMovementsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listCommodityStockMovements>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListCommodityStockMovementsQueryOptions(
+    params,
+    options,
+  );
 
   const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
     queryKey: QueryKey;
