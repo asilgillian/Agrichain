@@ -111,21 +111,26 @@ export const gradingRunOutputsTable = pgTable("grading_run_outputs", {
 // the consumed input is drawn down. Weights are SIGNED: positive = booked into stock, negative =
 // drawn down / consumed. The net balance per commodity type (sum of weightKg) is the current
 // warehouse stock of that type, surfaced on the warehouse mass-balance report.
-//   - 'grading_input'  : one negative row per run for the input commodity type (input consumed)
-//   - 'grading_output' : one positive row per sellable graded output (loss/byproduct excluded)
+//   - 'grading_input'   : one negative row per run for the input commodity type (input consumed)
+//   - 'grading_output'  : one positive row per sellable graded output (loss/byproduct excluded)
+//   - 'sale_dispatch'   : one negative row per sales dispatch that draws graded stock down
+//   - 'export_shipment' : one negative row per export shipment that draws graded stock down
 // =================================================================================================
 export const commodityStockMovementsTable = pgTable("commodity_stock_movements", {
   id: uuid("id").primaryKey().defaultRandom(),
   commodityTypeId: uuid("commodity_type_id").notNull().references(() => commodityTypesTable.id, { onDelete: "restrict" }),
   // Signed: positive books stock in, negative draws it down.
   weightKg: numeric("weight_kg", { precision: 14, scale: 2 }).notNull(),
-  // 'grading_input' | 'grading_output'
+  // 'grading_input' | 'grading_output' | 'sale_dispatch' | 'export_shipment'
   movementType: text("movement_type").notNull(),
   // Provenance links. gradingRunId cascades so removing a run reverses its stock movements.
   gradingRunId: uuid("grading_run_id").references(() => gradingRunsTable.id, { onDelete: "cascade" }),
   gradingRunOutputId: uuid("grading_run_output_id"),
   // Optional link to the source silo batch whose stock was graded.
   siloBatchId: uuid("silo_batch_id"),
+  // Provenance for stock drawdowns: the sales dispatch or export shipment that consumed the stock.
+  dispatchId: uuid("dispatch_id"),
+  shipmentId: uuid("shipment_id"),
   notes: text("notes"),
   createdById: uuid("created_by_id"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),

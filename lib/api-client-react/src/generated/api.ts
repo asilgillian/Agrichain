@@ -42,6 +42,7 @@ import type {
   CreateProcurementWorkflowBody,
   CreateRegionBody,
   CreateRoleBody,
+  CreateShipmentBody,
   CreateSurveyTemplateBody,
   CreateTrainingSessionBody,
   CreateUserBody,
@@ -7090,6 +7091,92 @@ export function useListShipments<
 
   return { ...query, queryKey: queryOptions.queryKey };
 }
+
+/**
+ * @summary Create an export shipment (optionally drawing down graded commodity stock)
+ */
+export const getCreateShipmentUrl = () => {
+  return `/api/exports/shipments`;
+};
+
+export const createShipment = async (
+  createShipmentBody: CreateShipmentBody,
+  options?: RequestInit,
+): Promise<Shipment> => {
+  return customFetch<Shipment>(getCreateShipmentUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(createShipmentBody),
+  });
+};
+
+export const getCreateShipmentMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createShipment>>,
+    TError,
+    { data: BodyType<CreateShipmentBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createShipment>>,
+  TError,
+  { data: BodyType<CreateShipmentBody> },
+  TContext
+> => {
+  const mutationKey = ["createShipment"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createShipment>>,
+    { data: BodyType<CreateShipmentBody> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return createShipment(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateShipmentMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createShipment>>
+>;
+export type CreateShipmentMutationBody = BodyType<CreateShipmentBody>;
+export type CreateShipmentMutationError = ErrorType<void>;
+
+/**
+ * @summary Create an export shipment (optionally drawing down graded commodity stock)
+ */
+export const useCreateShipment = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createShipment>>,
+    TError,
+    { data: BodyType<CreateShipmentBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createShipment>>,
+  TError,
+  { data: BodyType<CreateShipmentBody> },
+  TContext
+> => {
+  return useMutation(getCreateShipmentMutationOptions(options));
+};
 
 /**
  * @summary Get shipment details

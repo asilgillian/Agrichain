@@ -58,6 +58,9 @@ export const dispatchesTable = pgTable("dispatches", {
   id: uuid("id").primaryKey().defaultRandom(),
   dispatchNumber: text("dispatch_number").notNull().unique(),
   contractId: uuid("contract_id"),
+  // Optional link to a graded commodity type. When set, creating the dispatch draws the dispatch
+  // weight down from the commodity stock ledger (commodity_stock_movements, 'sale_dispatch').
+  commodityTypeId: uuid("commodity_type_id"),
   containerNumber: text("container_number"),
   sealNumber: text("seal_number"),
   truckReg: text("truck_reg"),

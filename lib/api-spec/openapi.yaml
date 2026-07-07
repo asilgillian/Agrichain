@@ -1719,6 +1719,26 @@ paths:
                 items:
                   $ref: "#/components/schemas/Shipment"
 
+    post:
+      operationId: createShipment
+      tags: [exports]
+      summary: Create an export shipment (optionally drawing down graded commodity stock)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateShipmentBody"
+      responses:
+        "201":
+          description: Shipment created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Shipment"
+        "409":
+          description: Requested weight exceeds available graded stock
+
   /exports/shipments/{shipmentId}:
     get:
       operationId: getShipment
@@ -4762,6 +4782,9 @@ components:
           type: string
         contractId:
           type: string
+        commodityTypeId:
+          type: string
+          nullable: true
         containerNumber:
           type: string
         vesselName:
@@ -4781,6 +4804,32 @@ components:
           type: string
           format: date-time
       required: [id, contractId, status, createdAt]
+
+    CreateShipmentBody:
+      type: object
+      properties:
+        contractId:
+          type: string
+          format: uuid
+        commodityTypeId:
+          type: string
+          format: uuid
+          description: >
+            Optional graded commodity type to export. When set, totalWeightKg is drawn down from the
+            commodity stock ledger (rejected with 409 when the request exceeds available stock).
+        containerNumber:
+          type: string
+        vesselName:
+          type: string
+        portOfLoading:
+          type: string
+        portOfDestination:
+          type: string
+        shipmentDate:
+          $ref: '#/components/schemas/CalendarDate'
+        totalWeightKg:
+          type: number
+      required: [contractId]
 
     ShipmentDetail:
       allOf:

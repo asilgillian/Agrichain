@@ -20,6 +20,9 @@ export const exportContractsTable = pgTable("export_contracts", {
 export const shipmentsTable = pgTable("shipments", {
   id: uuid("id").primaryKey().defaultRandom(),
   contractId: uuid("contract_id").notNull(),
+  // Optional link to a graded commodity type. When set, creating the shipment draws the shipment
+  // weight down from the commodity stock ledger (commodity_stock_movements, 'export_shipment').
+  commodityTypeId: uuid("commodity_type_id"),
   containerNumber: text("container_number"),
   vesselName: text("vessel_name"),
   portOfLoading: text("port_of_loading"),

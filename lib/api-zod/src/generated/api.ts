@@ -3563,6 +3563,7 @@ export const listShipmentsResponseShipmentDateRegExp = new RegExp(
 export const ListShipmentsResponseItem = zod.object({
   id: zod.string(),
   contractId: zod.string(),
+  commodityTypeId: zod.string().nullish(),
   containerNumber: zod.string().optional(),
   vesselName: zod.string().optional(),
   portOfLoading: zod.string().optional(),
@@ -3581,6 +3582,36 @@ export const ListShipmentsResponseItem = zod.object({
 export const ListShipmentsResponse = zod.array(ListShipmentsResponseItem);
 
 /**
+ * @summary Create an export shipment (optionally drawing down graded commodity stock)
+ */
+export const createShipmentBodyShipmentDateRegExp = new RegExp(
+  "^\\d{4}-\\d{2}-\\d{2}$",
+);
+
+export const CreateShipmentBody = zod.object({
+  contractId: zod.string().uuid(),
+  commodityTypeId: zod
+    .string()
+    .uuid()
+    .optional()
+    .describe(
+      "Optional graded commodity type to export. When set, totalWeightKg is drawn down from the commodity stock ledger (rejected with 409 when the request exceeds available stock).\n",
+    ),
+  containerNumber: zod.string().optional(),
+  vesselName: zod.string().optional(),
+  portOfLoading: zod.string().optional(),
+  portOfDestination: zod.string().optional(),
+  shipmentDate: zod
+    .string()
+    .regex(createShipmentBodyShipmentDateRegExp)
+    .optional()
+    .describe(
+      "A calendar date with no time component, formatted as YYYY-MM-DD.",
+    ),
+  totalWeightKg: zod.number().optional(),
+});
+
+/**
  * @summary Get shipment details
  */
 export const GetShipmentParams = zod.object({
@@ -3595,6 +3626,7 @@ export const GetShipmentResponse = zod
   .object({
     id: zod.string(),
     contractId: zod.string(),
+    commodityTypeId: zod.string().nullish(),
     containerNumber: zod.string().optional(),
     vesselName: zod.string().optional(),
     portOfLoading: zod.string().optional(),

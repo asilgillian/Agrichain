@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { useListExportContracts, useListShipments } from "@workspace/api-client-react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useListExportContracts, useListShipments, customFetch } from "@workspace/api-client-react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
@@ -23,6 +23,8 @@ function fmtKg(v?: number | null) {
 }
 
 const emptyForm = { contractNumber: "", buyer: "", destination: "", cropType: "coffee", quantityKg: "", pricePerKg: "", certificationRequired: "", deliveryDate: "" };
+
+const emptyShipmentForm = { contractId: "", commodityTypeId: "", totalWeightKg: "", containerNumber: "", vesselName: "", portOfLoading: "", portOfDestination: "", shipmentDate: "" };
 
 export default function ExportsPage() {
   const { data: contracts, isLoading: isLoadingContracts } = useListExportContracts();
@@ -55,6 +57,57 @@ export default function ExportsPage() {
     if (form.certificationRequired) body.certificationRequired = form.certificationRequired;
     if (form.deliveryDate) body.deliveryDate = form.deliveryDate;
     createMut.mutate(body);
+  };
+
+  const [shipmentOpen, setShipmentOpen] = useState(false);
+  const [shipmentForm, setShipmentForm] = useState(emptyShipmentForm);
+
+  // Graded commodity stock balances — the sellable inventory booked by grading runs. Shipping
+  // against a graded commodity type draws the shipped weight down from this stock.
+  const { data: massBalance } = useQuery<any>({
+    queryKey: ["/api/warehouse/mass-balance"],
+    queryFn: () => customFetch(`${API_BASE}/api/warehouse/mass-balance`),
+    enabled: shipmentOpen,
+  });
+  const gradedStock: any[] = massBalance?.commodityStock ?? [];
+  const selectedStock = shipmentForm.commodityTypeId ? gradedStock.find((s: any) => s.commodityTypeId === shipmentForm.commodityTypeId) : null;
+
+  const createShipmentMut = useMutation({
+    mutationFn: (body: any) => customFetch(`${API_BASE}/api/exports/shipments`, {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
+    }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["/api/exports/shipments"] });
+      qc.invalidateQueries({ queryKey: ["/api/warehouse/mass-balance"] });
+      toast({ title: "Shipment created", description: shipmentForm.commodityTypeId ? "Graded stock has been drawn down." : undefined });
+      setShipmentOpen(false);
+      setShipmentForm(emptyShipmentForm);
+    },
+    onError: (e: any) => {
+      const msg = e?.data?.error ?? e.message;
+      toast({ title: "Failed to create shipment", description: msg, variant: "destructive" });
+    },
+  });
+
+  const submitShipment = () => {
+    if (!shipmentForm.contractId) { toast({ title: "Select an export contract", variant: "destructive" }); return; }
+    const weight = Number(shipmentForm.totalWeightKg);
+    if (shipmentForm.commodityTypeId) {
+      if (!Number.isFinite(weight) || weight <= 0) { toast({ title: "Weight must be a positive number when shipping graded stock", variant: "destructive" }); return; }
+      if (selectedStock && weight > selectedStock.netStockKg) {
+        toast({ title: "Not enough graded stock", description: `Only ${selectedStock.netStockKg.toLocaleString()} kg of ${selectedStock.commodityTypeName} in stock`, variant: "destructive" });
+        return;
+      }
+    }
+    const body: any = { contractId: shipmentForm.contractId };
+    if (shipmentForm.commodityTypeId) body.commodityTypeId = shipmentForm.commodityTypeId;
+    if (shipmentForm.totalWeightKg) body.totalWeightKg = weight;
+    if (shipmentForm.containerNumber.trim()) body.containerNumber = shipmentForm.containerNumber.trim();
+    if (shipmentForm.vesselName.trim()) body.vesselName = shipmentForm.vesselName.trim();
+    if (shipmentForm.portOfLoading.trim()) body.portOfLoading = shipmentForm.portOfLoading.trim();
+    if (shipmentForm.portOfDestination.trim()) body.portOfDestination = shipmentForm.portOfDestination.trim();
+    if (shipmentForm.shipmentDate) body.shipmentDate = shipmentForm.shipmentDate;
+    createShipmentMut.mutate(body);
   };
 
   return (
@@ -171,6 +224,70 @@ export default function ExportsPage() {
         </TabsContent>
 
         <TabsContent value="shipments" className="mt-4">
+          <div className="flex justify-end mb-4">
+            <Dialog open={shipmentOpen} onOpenChange={setShipmentOpen}>
+              <DialogTrigger asChild>
+                <Button className="gap-2" data-testid="new-shipment-btn"><Plus className="h-4 w-4" /> New Shipment</Button>
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
+                <DialogHeader>
+                  <DialogTitle>New Shipment</DialogTitle>
+                  <DialogDescription>Optionally ship graded commodity stock directly — the shipped weight is drawn down from warehouse graded stock.</DialogDescription>
+                </DialogHeader>
+                <div className="space-y-3">
+                  <div>
+                    <Label>Export Contract *</Label>
+                    <Select value={shipmentForm.contractId} onValueChange={v => setShipmentForm({ ...shipmentForm, contractId: v })}>
+                      <SelectTrigger data-testid="input-shipment-contract"><SelectValue placeholder="Select contract" /></SelectTrigger>
+                      <SelectContent>
+                        {(contracts ?? []).map(c => (
+                          <SelectItem key={c.id} value={c.id}>{c.contractNumber} — {c.buyer}</SelectItem>
+                        ))}
+                        {(contracts ?? []).length === 0 && <div className="px-2 py-1 text-xs text-muted-foreground">No contracts — create one first</div>}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label>Graded Commodity (optional)</Label>
+                    <Select value={shipmentForm.commodityTypeId || "none"} onValueChange={v => setShipmentForm({ ...shipmentForm, commodityTypeId: v === "none" ? "" : v })}>
+                      <SelectTrigger data-testid="input-shipment-commodity"><SelectValue placeholder="No graded stock drawdown" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">No graded stock drawdown</SelectItem>
+                        {gradedStock.filter((s: any) => s.netStockKg > 0).map((s: any) => (
+                          <SelectItem key={s.commodityTypeId} value={s.commodityTypeId}>
+                            {s.commodityTypeName} — {s.netStockKg.toLocaleString()} kg in stock
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {selectedStock && (
+                      <p className="text-xs text-muted-foreground mt-1" data-testid="shipment-available-stock">
+                        Available: {selectedStock.netStockKg.toLocaleString()} kg
+                      </p>
+                    )}
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div><Label>Weight (kg){shipmentForm.commodityTypeId ? " *" : ""}</Label><Input type="number" min="0" value={shipmentForm.totalWeightKg} onChange={e => setShipmentForm({ ...shipmentForm, totalWeightKg: e.target.value })} placeholder="19200" data-testid="input-shipment-weight" /></div>
+                    <div><Label>Shipment Date</Label><Input type="date" value={shipmentForm.shipmentDate} onChange={e => setShipmentForm({ ...shipmentForm, shipmentDate: e.target.value })} data-testid="input-shipment-date" /></div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div><Label>Container No.</Label><Input value={shipmentForm.containerNumber} onChange={e => setShipmentForm({ ...shipmentForm, containerNumber: e.target.value })} data-testid="input-shipment-container" /></div>
+                    <div><Label>Vessel</Label><Input value={shipmentForm.vesselName} onChange={e => setShipmentForm({ ...shipmentForm, vesselName: e.target.value })} data-testid="input-shipment-vessel" /></div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div><Label>Port of Loading</Label><Input value={shipmentForm.portOfLoading} onChange={e => setShipmentForm({ ...shipmentForm, portOfLoading: e.target.value })} placeholder="Mombasa" data-testid="input-shipment-pol" /></div>
+                    <div><Label>Port of Destination</Label><Input value={shipmentForm.portOfDestination} onChange={e => setShipmentForm({ ...shipmentForm, portOfDestination: e.target.value })} placeholder="Hamburg" data-testid="input-shipment-pod" /></div>
+                  </div>
+                </div>
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setShipmentOpen(false)}>Cancel</Button>
+                  <Button onClick={submitShipment} disabled={createShipmentMut.isPending} data-testid="submit-shipment">
+                    {createShipmentMut.isPending ? "Saving..." : "Create Shipment"}
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          </div>
           <Card>
             <CardHeader>
               <div className="flex items-center justify-between">

@@ -33,6 +33,11 @@ const emptyForm = {
   deliveryWindowStart: "", deliveryWindowEnd: "", incoterms: "FOB", certificationRequired: "", notes: "",
 };
 
+const emptyDispatchForm = {
+  contractId: "", commodityTypeId: "", dispatchWeightKg: "",
+  containerNumber: "", truckReg: "", driverName: "", notes: "",
+};
+
 export default function SalesPage() {
   const [status, setStatus] = useState("all");
   const [tab, setTab] = useState<"contracts" | "dispatches" | "invoices">("contracts");
@@ -75,6 +80,61 @@ export default function SalesPage() {
     enabled: open,
   });
   const commodities = Array.isArray(commoditiesData) ? commoditiesData : [];
+
+  const [dispatchOpen, setDispatchOpen] = useState(false);
+  const [dispatchForm, setDispatchForm] = useState(emptyDispatchForm);
+
+  // Graded commodity stock balances (net kg per commodity type) — the sellable inventory booked by
+  // grading runs. Used both for the dispatch dialog picker and to label dispatch rows.
+  const { data: massBalance } = useQuery<any>({
+    queryKey: ["/api/warehouse/mass-balance"],
+    queryFn: () => customFetch(`${API_BASE}/api/warehouse/mass-balance`),
+    enabled: dispatchOpen || tab === "dispatches",
+  });
+  const gradedStock: any[] = massBalance?.commodityStock ?? [];
+  const stockById = Object.fromEntries(gradedStock.map((s: any) => [s.commodityTypeId, s]));
+  const selectedStock = dispatchForm.commodityTypeId ? stockById[dispatchForm.commodityTypeId] : null;
+
+  const { data: contractsForDispatch } = useQuery<any>({
+    queryKey: ["/api/sales/contracts", "for-dispatch"],
+    queryFn: () => customFetch(`${API_BASE}/api/sales/contracts?limit=100`),
+    enabled: dispatchOpen,
+  });
+
+  const createDispatchMutation = useMutation({
+    mutationFn: (body: any) => customFetch(`${API_BASE}/api/dispatches`, {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
+    }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/dispatches"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/warehouse/mass-balance"] });
+      toast({ title: "Dispatch created", description: "Graded stock has been drawn down." });
+      setDispatchOpen(false); setDispatchForm(emptyDispatchForm);
+    },
+    onError: (e: any) => {
+      const msg = e?.data?.error ?? e.message;
+      toast({ title: "Failed to create dispatch", description: msg, variant: "destructive" });
+    },
+  });
+
+  const submitDispatch = () => {
+    if (!dispatchForm.commodityTypeId) { toast({ title: "Select a graded commodity to dispatch", variant: "destructive" }); return; }
+    const weight = Number(dispatchForm.dispatchWeightKg);
+    if (!Number.isFinite(weight) || weight <= 0) { toast({ title: "Weight must be a positive number", variant: "destructive" }); return; }
+    if (selectedStock && weight > selectedStock.netStockKg) {
+      toast({ title: "Not enough graded stock", description: `Only ${selectedStock.netStockKg.toLocaleString()} kg of ${selectedStock.commodityTypeName} in stock`, variant: "destructive" });
+      return;
+    }
+    createDispatchMutation.mutate({
+      contractId: dispatchForm.contractId || undefined,
+      commodityTypeId: dispatchForm.commodityTypeId,
+      dispatchWeightKg: weight,
+      containerNumber: dispatchForm.containerNumber.trim() || undefined,
+      truckReg: dispatchForm.truckReg.trim() || undefined,
+      driverName: dispatchForm.driverName.trim() || undefined,
+      notes: dispatchForm.notes.trim() || undefined,
+    });
+  };
 
   const createMutation = useMutation({
     mutationFn: (body: any) => customFetch(`${API_BASE}/api/sales/contracts`, {
@@ -273,36 +333,106 @@ export default function SalesPage() {
       )}
 
       {tab === "dispatches" && (
-        <Card>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Dispatch No.</TableHead>
-                <TableHead>Container</TableHead>
-                <TableHead>Truck Reg</TableHead>
-                <TableHead>Driver</TableHead>
-                <TableHead>Weight (kg)</TableHead>
-                <TableHead>Status</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {dispatchesLoading ? Array.from({ length: 4 }).map((_, i) => (
-                <TableRow key={i}>{Array.from({ length: 6 }).map((_, j) => <TableCell key={j}><Skeleton className="h-4 w-full" /></TableCell>)}</TableRow>
-              )) : dispatches?.data?.length === 0 ? (
-                <TableRow><TableCell colSpan={6} className="text-center py-12 text-muted-foreground">No dispatches found</TableCell></TableRow>
-              ) : dispatches?.data?.map((d: any) => (
-                <TableRow key={d.id}>
-                  <TableCell className="font-mono font-semibold">{d.dispatchNumber}</TableCell>
-                  <TableCell>{d.containerNumber ?? "—"}</TableCell>
-                  <TableCell>{d.truckReg ?? "—"}</TableCell>
-                  <TableCell>{d.driverName ?? "—"}</TableCell>
-                  <TableCell className="font-mono">{d.dispatchWeightKg ? Number(d.dispatchWeightKg).toLocaleString() : "—"}</TableCell>
-                  <TableCell><Badge variant="outline">{d.status}</Badge></TableCell>
+        <>
+          <div className="flex justify-end">
+            <Dialog open={dispatchOpen} onOpenChange={setDispatchOpen}>
+              <DialogTrigger asChild>
+                <Button className="gap-2" data-testid="new-dispatch-btn"><Plus className="h-4 w-4" /> New Dispatch</Button>
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
+                <DialogHeader>
+                  <DialogTitle>Dispatch Graded Stock</DialogTitle>
+                  <DialogDescription>Sell graded commodity stock directly — the dispatched weight is drawn down from warehouse graded stock.</DialogDescription>
+                </DialogHeader>
+                <div className="space-y-3">
+                  <div>
+                    <Label>Graded Commodity *</Label>
+                    <Select value={dispatchForm.commodityTypeId} onValueChange={v => setDispatchForm({ ...dispatchForm, commodityTypeId: v })}>
+                      <SelectTrigger data-testid="input-dispatch-commodity"><SelectValue placeholder={gradedStock.length ? "Select graded stock" : "No graded stock available"} /></SelectTrigger>
+                      <SelectContent>
+                        {gradedStock.filter((s: any) => s.netStockKg > 0).map((s: any) => (
+                          <SelectItem key={s.commodityTypeId} value={s.commodityTypeId}>
+                            {s.commodityTypeName} — {s.netStockKg.toLocaleString()} kg in stock
+                          </SelectItem>
+                        ))}
+                        {gradedStock.filter((s: any) => s.netStockKg > 0).length === 0 && (
+                          <div className="px-2 py-1 text-xs text-muted-foreground">No graded stock — run grading first</div>
+                        )}
+                      </SelectContent>
+                    </Select>
+                    {selectedStock && (
+                      <p className="text-xs text-muted-foreground mt-1" data-testid="dispatch-available-stock">
+                        Available: {selectedStock.netStockKg.toLocaleString()} kg
+                      </p>
+                    )}
+                  </div>
+                  <div>
+                    <Label>Weight (kg) *</Label>
+                    <Input type="number" min="0" value={dispatchForm.dispatchWeightKg}
+                      onChange={e => setDispatchForm({ ...dispatchForm, dispatchWeightKg: e.target.value })}
+                      placeholder="5000" data-testid="input-dispatch-weight" />
+                  </div>
+                  <div>
+                    <Label>Sales Contract (optional)</Label>
+                    <Select value={dispatchForm.contractId || "none"} onValueChange={v => setDispatchForm({ ...dispatchForm, contractId: v === "none" ? "" : v })}>
+                      <SelectTrigger data-testid="input-dispatch-contract"><SelectValue placeholder="No contract" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">No contract</SelectItem>
+                        {(contractsForDispatch?.data ?? []).map((c: any) => (
+                          <SelectItem key={c.id} value={c.id}>{c.contractNumber}{c.buyerName ? ` — ${c.buyerName}` : ""}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div><Label>Container No.</Label><Input value={dispatchForm.containerNumber} onChange={e => setDispatchForm({ ...dispatchForm, containerNumber: e.target.value })} data-testid="input-dispatch-container" /></div>
+                    <div><Label>Truck Reg</Label><Input value={dispatchForm.truckReg} onChange={e => setDispatchForm({ ...dispatchForm, truckReg: e.target.value })} data-testid="input-dispatch-truck" /></div>
+                  </div>
+                  <div><Label>Driver</Label><Input value={dispatchForm.driverName} onChange={e => setDispatchForm({ ...dispatchForm, driverName: e.target.value })} data-testid="input-dispatch-driver" /></div>
+                  <div><Label>Notes</Label><Textarea value={dispatchForm.notes} onChange={e => setDispatchForm({ ...dispatchForm, notes: e.target.value })} rows={2} data-testid="input-dispatch-notes" /></div>
+                </div>
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setDispatchOpen(false)}>Cancel</Button>
+                  <Button onClick={submitDispatch} disabled={createDispatchMutation.isPending} data-testid="submit-dispatch">
+                    {createDispatchMutation.isPending ? "Dispatching..." : "Create Dispatch"}
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          </div>
+          <Card>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Dispatch No.</TableHead>
+                  <TableHead>Commodity</TableHead>
+                  <TableHead>Container</TableHead>
+                  <TableHead>Truck Reg</TableHead>
+                  <TableHead>Driver</TableHead>
+                  <TableHead>Weight (kg)</TableHead>
+                  <TableHead>Status</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </Card>
+              </TableHeader>
+              <TableBody>
+                {dispatchesLoading ? Array.from({ length: 4 }).map((_, i) => (
+                  <TableRow key={i}>{Array.from({ length: 7 }).map((_, j) => <TableCell key={j}><Skeleton className="h-4 w-full" /></TableCell>)}</TableRow>
+                )) : dispatches?.data?.length === 0 ? (
+                  <TableRow><TableCell colSpan={7} className="text-center py-12 text-muted-foreground">No dispatches found</TableCell></TableRow>
+                ) : dispatches?.data?.map((d: any) => (
+                  <TableRow key={d.id}>
+                    <TableCell className="font-mono font-semibold">{d.dispatchNumber}</TableCell>
+                    <TableCell>{d.commodityTypeId ? (stockById[d.commodityTypeId]?.commodityTypeName ?? "Graded stock") : "—"}</TableCell>
+                    <TableCell>{d.containerNumber ?? "—"}</TableCell>
+                    <TableCell>{d.truckReg ?? "—"}</TableCell>
+                    <TableCell>{d.driverName ?? "—"}</TableCell>
+                    <TableCell className="font-mono">{d.dispatchWeightKg ? Number(d.dispatchWeightKg).toLocaleString() : "—"}</TableCell>
+                    <TableCell><Badge variant="outline">{d.status}</Badge></TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </Card>
+        </>
       )}
 
       {tab === "invoices" && (

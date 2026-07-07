@@ -6,18 +6,16 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { CalendarDate } from "./calendarDate";
-import type { ShipmentStatus } from "./shipmentStatus";
 
-export interface Shipment {
-  id: string;
+export interface CreateShipmentBody {
   contractId: string;
-  commodityTypeId?: string | null;
+  /** Optional graded commodity type to export. When set, totalWeightKg is drawn down from the commodity stock ledger (rejected with 409 when the request exceeds available stock).
+   */
+  commodityTypeId?: string;
   containerNumber?: string;
   vesselName?: string;
   portOfLoading?: string;
   portOfDestination?: string;
   shipmentDate?: CalendarDate;
   totalWeightKg?: number;
-  status: ShipmentStatus;
-  createdAt: Date;
 }

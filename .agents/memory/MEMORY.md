@@ -1,2 +1,3 @@
 - [Replit publish = schema only](publish-data-seeding.md) — publish syncs DB *schema* to prod, never rows; seed prod data via an idempotent guarded runtime endpoint (agent prod access is read-only).
 - [Drizzle tx error unwrapping](drizzle-tx-error-unwrap.md) — pg error code/constraint move to `e.cause` when a query fails inside `db.transaction()`; unwrap both levels in 23505 handlers.
+- [Dev workflow restart quirks](dev-workflow-restart.md) — workflows are named `artifacts/<dir>: <Title>`; api-server runs a built dist with no HMR, so restart its workflow after server edits.

@@ -3,6 +3,10 @@ import { db } from "@workspace/db";
 import { buyersTable, salesContractsTable, contractAllocationsTable, dispatchesTable, invoicesTable } from "@workspace/db";
 import { lotsTable } from "@workspace/db";
 import { eq, desc, and, sql } from "drizzle-orm";
+import { drawDownCommodityStock, InsufficientStockError, UnknownCommodityTypeError } from "../lib/commodity-stock";
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const isUuid = (v: unknown): v is string => typeof v === "string" && UUID_RE.test(v);
 
 const router = Router();
 
@@ -120,11 +124,55 @@ router.get("/dispatches", async (req, res): Promise<void> => {
 });
 
 router.post("/dispatches", async (req, res): Promise<void> => {
-  const { contractId, containerNumber, sealNumber, truckReg, driverName, dispatchWeightKg, notes } = req.body;
-  const seq = await db.select({ count: sql<number>`count(*)::int` }).from(dispatchesTable);
-  const dispatchNumber = `DSP${new Date().getFullYear()}${String((seq[0]?.count ?? 0) + 1).padStart(4, "0")}`;
-  const [dispatch] = await db.insert(dispatchesTable).values({ dispatchNumber, contractId, containerNumber, sealNumber, truckReg, driverName, dispatchWeightKg: dispatchWeightKg ? String(dispatchWeightKg) : undefined, notes }).returning();
-  res.status(201).json(dispatch);
+  const { contractId, commodityTypeId, containerNumber, sealNumber, truckReg, driverName, dispatchWeightKg, notes } = req.body;
+
+  // Selling graded stock directly: when a commodity type is attached, the dispatch weight is drawn
+  // down from the commodity stock ledger, so both must be present and valid together.
+  const weight = Number(dispatchWeightKg ?? 0);
+  if (commodityTypeId != null && commodityTypeId !== "") {
+    if (!isUuid(commodityTypeId)) { res.status(400).json({ error: "commodityTypeId must be a valid id" }); return; }
+    if (!Number.isFinite(weight) || weight <= 0) { res.status(400).json({ error: "dispatchWeightKg must be a positive number when dispatching graded commodity stock" }); return; }
+  }
+
+  try {
+    const dispatch = await db.transaction(async (tx) => {
+      // Serialize dispatch-number generation: the sequential DSP<year><count> scheme races under
+      // concurrent creates (two requests read the same count → duplicate number → 23505). The
+      // advisory lock is released when the transaction ends.
+      await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext('dispatch_number_seq'))`);
+      const seq = await tx.select({ count: sql<number>`count(*)::int` }).from(dispatchesTable);
+      const dispatchNumber = `DSP${new Date().getFullYear()}${String((seq[0]?.count ?? 0) + 1).padStart(4, "0")}`;
+
+      const [created] = await tx.insert(dispatchesTable).values({
+        dispatchNumber, contractId,
+        commodityTypeId: isUuid(commodityTypeId) ? commodityTypeId : undefined,
+        containerNumber, sealNumber, truckReg, driverName,
+        dispatchWeightKg: dispatchWeightKg ? String(dispatchWeightKg) : undefined, notes,
+      }).returning();
+
+      if (isUuid(commodityTypeId)) {
+        await drawDownCommodityStock(tx, {
+          commodityTypeId,
+          weightKg: weight,
+          movementType: "sale_dispatch",
+          dispatchId: created.id,
+          notes: `Sold via dispatch ${created.dispatchNumber}`,
+        });
+      }
+      return created;
+    });
+    res.status(201).json(dispatch);
+  } catch (e) {
+    if (e instanceof InsufficientStockError) {
+      res.status(409).json({ error: e.message, availableKg: e.availableKg, requestedKg: e.requestedKg });
+      return;
+    }
+    if (e instanceof UnknownCommodityTypeError) {
+      res.status(400).json({ error: "commodityTypeId does not reference a known commodity type" });
+      return;
+    }
+    throw e;
+  }
 });
 
 // ─── Invoices ─────────────────────────────────────────────────────────────────
