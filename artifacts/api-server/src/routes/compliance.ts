@@ -1,6 +1,14 @@
 import { Router, type IRouter } from "express";
-import { eq, and, desc, sql } from "drizzle-orm";
-import { db, gapAssessmentsTable, trainingSessionsTable, certificationEnrolmentsTable, farmersTable } from "@workspace/db";
+import { eq, and, desc, sql, inArray } from "drizzle-orm";
+import {
+  db,
+  gapAssessmentsTable,
+  trainingSessionsTable,
+  certificationEnrolmentsTable,
+  certificationStreamsTable,
+  farmersTable,
+  plotsTable,
+} from "@workspace/db";
 import {
   SubmitGapAssessmentBody,
   CreateTrainingSessionBody,
@@ -9,18 +17,76 @@ import {
 
 const router: IRouter = Router();
 
+// EUDR readiness is measured against whichever certification streams are flagged
+// requiresGpsPolygon (e.g. an "EUDR" stream) rather than a hardcoded stream name,
+// so ops can toggle which streams count from the Certifications admin screen.
+//
+// NOTE ON SCOPE: this reports real polygon-evidence completeness — it does NOT yet
+// implement the other EUDR checks named in the platform spec (EU Forest Observatory
+// deforestation-risk lookup, protected-area overlap, or Due Diligence Statement
+// field-completeness). Those need an external forest-observatory data source and
+// DDS-specific fields that don't exist in the schema yet; "compliant" here means
+// "has real polygon geometry on file," which is a necessary but not sufficient
+// condition for full EUDR compliance.
 router.get("/compliance/eudr", async (req, res): Promise<void> => {
-  const enrolments = await db.select().from(certificationEnrolmentsTable);
-  const eudrEnrolments = enrolments; // In prod, filter by EUDR stream
-  const active = eudrEnrolments.filter(e => e.status === "active");
-  const total = await db.select({ count: sql<number>`count(*)::int` }).from(farmersTable);
+  const eudrStreams = await db
+    .select({ id: certificationStreamsTable.id })
+    .from(certificationStreamsTable)
+    .where(eq(certificationStreamsTable.requiresGpsPolygon, true));
+  const eudrStreamIds = eudrStreams.map(s => s.id);
+
+  if (eudrStreamIds.length === 0) {
+    res.json({
+      compliantFarmers: 0, totalEnrolled: 0, farmersWithPolygon: 0,
+      farmersWithoutPolygon: 0, expiringSoon: 0, complianceRate: 0,
+      lastUpdated: new Date().toISOString(),
+    });
+    return;
+  }
+
+  const enrolments = await db
+    .select({
+      farmerId: certificationEnrolmentsTable.farmerId,
+      status: certificationEnrolmentsTable.status,
+      expiryDate: certificationEnrolmentsTable.expiryDate,
+    })
+    .from(certificationEnrolmentsTable)
+    .where(inArray(certificationEnrolmentsTable.streamId, eudrStreamIds));
+
+  const active = enrolments.filter(e => e.status === "active");
+  const activeFarmerIds = [...new Set(active.map(e => e.farmerId))];
+
+  // A farmer only counts as having real polygon evidence if at least one of their
+  // plots is an actual GeoJSON Polygon — a single point pin (the mobile "drop a plot
+  // pin" flow) is not sufficient evidence for EUDR and must not be counted here.
+  const polygonRows = activeFarmerIds.length > 0
+    ? await db
+        .select({ farmerId: plotsTable.farmerId })
+        .from(plotsTable)
+        .where(and(
+          inArray(plotsTable.farmerId, activeFarmerIds),
+          sql`${plotsTable.polygon} ->> 'type' = 'Polygon'`,
+        ))
+        .groupBy(plotsTable.farmerId)
+    : [];
+  const farmersWithPolygon = polygonRows.length;
+  const farmersWithoutPolygon = activeFarmerIds.length - farmersWithPolygon;
+
+  const now = Date.now();
+  const in30Days = now + 30 * 24 * 60 * 60 * 1000;
+  const expiringSoon = active.filter(e => {
+    if (!e.expiryDate) return false;
+    const t = new Date(e.expiryDate).getTime();
+    return t >= now && t <= in30Days;
+  }).length;
+
   res.json({
-    compliantFarmers: active.length,
-    totalEnrolled: eudrEnrolments.length,
-    farmersWithPolygon: Math.floor(active.length * 0.8),
-    farmersWithoutPolygon: Math.ceil(active.length * 0.2),
-    expiringSoon: Math.floor(active.length * 0.05),
-    complianceRate: eudrEnrolments.length > 0 ? active.length / eudrEnrolments.length : 0,
+    compliantFarmers: farmersWithPolygon,
+    totalEnrolled: enrolments.length,
+    farmersWithPolygon,
+    farmersWithoutPolygon,
+    expiringSoon,
+    complianceRate: activeFarmerIds.length > 0 ? farmersWithPolygon / activeFarmerIds.length : 0,
     lastUpdated: new Date().toISOString(),
   });
 });

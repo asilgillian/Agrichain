@@ -4,6 +4,7 @@ import {
   db,
   silosTable,
   siloBatchesTable,
+  siloBatchProcessesTable,
   gradingRunsTable,
   auditLogsTable,
 } from "@workspace/db";
@@ -202,5 +203,160 @@ router.post("/silo-batches", requirePermission("warehouse.write"), async (req: A
   await audit("silo_batch", created.id, "silo_batch.create", req.authedUser, null, created);
   res.status(201).json({ ...created, siloName: silo.name, consumedWeightKg: "0.00", availableWeightKg: input.toFixed(2) });
 });
+
+// =============== SILO BATCH PROCESSES (parallel quality + storage signoff) ===============
+// Implements the locked decision "Parallel quality and warehouse signoffs" plus outturn
+// deviation severity. The silo_batch_processes table already modeled this — qualitySignoff /
+// warehouseSignoff columns, expectedOuturnPct / actualOuturnPct — but no route ever touched
+// it, so it could never be populated. These endpoints are that missing wiring.
+//
+// "Parallel" means the two signoffs are independent: either can be recorded first, neither
+// blocks the other, and a process is only complete once BOTH are APPROVED.
+
+const SIGNOFF_DECISIONS = new Set(["APPROVED", "REJECTED"]);
+
+// Default three-tier severity classification for outturn deviation (percentage points
+// between expected and actual). This satisfies the "three severity levels" part of the
+// locked decision; the "configurable" part still needs an admin-editable thresholds table
+// (e.g. per commodity or process type) rather than these constants — flagging as a
+// deliberate scope boundary for this pass, not an oversight.
+function classifyOutturnSeverity(
+  expectedPct: unknown,
+  actualPct: unknown,
+): "NORMAL" | "WARNING" | "CRITICAL" | null {
+  const exp = expectedPct == null ? null : Number(expectedPct);
+  const act = actualPct == null ? null : Number(actualPct);
+  if (exp == null || act == null || !Number.isFinite(exp) || !Number.isFinite(act)) return null;
+  const deviation = Math.abs(act - exp);
+  if (deviation >= 5) return "CRITICAL";
+  if (deviation >= 2) return "WARNING";
+  return "NORMAL";
+}
+
+async function recordSignoff(
+  processId: string,
+  track: "quality" | "warehouse",
+  decision: string,
+  extra: { outputWeightKg?: unknown; actualOuturnPct?: unknown },
+  user: any,
+): Promise<{ error: string; status: number } | { row: any; severity: ReturnType<typeof classifyOutturnSeverity> }> {
+  const [process] = await db.select().from(siloBatchProcessesTable).where(eq(siloBatchProcessesTable.id, processId));
+  if (!process) return { error: "Process not found", status: 404 };
+
+  const currentStatus = track === "quality" ? process.qualitySignoff : process.warehouseSignoff;
+  if (currentStatus !== "PENDING") {
+    return { error: `${track === "quality" ? "Quality" : "Storage"} signoff already ${currentStatus}`, status: 409 };
+  }
+  if (!SIGNOFF_DECISIONS.has(decision)) {
+    return { error: "decision must be APPROVED or REJECTED", status: 400 };
+  }
+
+  const patch: Record<string, unknown> = track === "quality"
+    ? { qualitySignoff: decision, qualitySignedById: user?.id ?? null, qualitySignedAt: new Date() }
+    : { warehouseSignoff: decision, warehouseSignedById: user?.id ?? null, warehouseSignedAt: new Date() };
+
+  if (extra.outputWeightKg != null && extra.outputWeightKg !== "") {
+    const o = Number(extra.outputWeightKg);
+    if (!Number.isFinite(o) || o < 0) return { error: "outputWeightKg must be a non-negative number", status: 400 };
+    patch.outputWeightKg = o.toFixed(2);
+  }
+  if (extra.actualOuturnPct != null && extra.actualOuturnPct !== "") {
+    const a = Number(extra.actualOuturnPct);
+    if (!Number.isFinite(a) || a < 0 || a > 100) return { error: "actualOuturnPct must be between 0 and 100", status: 400 };
+    patch.actualOuturnPct = a.toFixed(3);
+  }
+
+  let [updated] = await db.update(siloBatchProcessesTable).set(patch)
+    .where(eq(siloBatchProcessesTable.id, processId)).returning();
+
+  // Completion requires BOTH tracks approved — check after every signoff, from either side.
+  if (updated.qualitySignoff === "APPROVED" && updated.warehouseSignoff === "APPROVED" && !updated.completedAt) {
+    [updated] = await db.update(siloBatchProcessesTable).set({ completedAt: new Date() })
+      .where(eq(siloBatchProcessesTable.id, processId)).returning();
+  }
+
+  await audit("silo_batch_process", processId, `silo_batch_process.${track}_signoff`, user, process, updated);
+  return { row: updated, severity: classifyOutturnSeverity(updated.expectedOuturnPct, updated.actualOuturnPct) };
+}
+
+router.get("/silo-batches/:id/processes", requirePermission("warehouse.read"), async (req, res) => {
+  const { id } = req.params;
+  if (!isUuid(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+  const rows = await db.select().from(siloBatchProcessesTable)
+    .where(eq(siloBatchProcessesTable.siloBatchId, id))
+    .orderBy(desc(siloBatchProcessesTable.createdAt));
+  res.json(rows.map(r => ({
+    ...r,
+    outturnSeverity: classifyOutturnSeverity(r.expectedOuturnPct, r.actualOuturnPct),
+  })));
+});
+
+router.post("/silo-batches/:id/processes", requirePermission("warehouse.processing.write"), async (req: AuthedRequest, res) => {
+  const { id: siloBatchId } = req.params;
+  if (!isUuid(siloBatchId)) { res.status(400).json({ error: "Invalid id" }); return; }
+
+  const [batch] = await db.select().from(siloBatchesTable).where(eq(siloBatchesTable.id, siloBatchId));
+  if (!batch) { res.status(404).json({ error: "Silo batch not found" }); return; }
+  if (batch.status === "CLOSED") { res.status(409).json({ error: "Cannot start a process on a closed batch" }); return; }
+
+  const { processName, inputWeightKg, expectedOuturnPct, parameters, photoUrls } = req.body ?? {};
+  if (typeof processName !== "string" || !processName.trim()) { res.status(400).json({ error: "processName required" }); return; }
+  const input = Number(inputWeightKg);
+  if (!Number.isFinite(input) || input <= 0) { res.status(400).json({ error: "inputWeightKg must be a positive number" }); return; }
+
+  let expOuturn: string | null = null;
+  if (expectedOuturnPct != null && expectedOuturnPct !== "") {
+    const e = Number(expectedOuturnPct);
+    if (!Number.isFinite(e) || e < 0 || e > 100) { res.status(400).json({ error: "expectedOuturnPct must be between 0 and 100" }); return; }
+    expOuturn = e.toFixed(3);
+  }
+
+  const [created] = await db.insert(siloBatchProcessesTable).values({
+    siloBatchId,
+    processName: processName.trim(),
+    inputWeightKg: input.toFixed(2),
+    expectedOuturnPct: expOuturn,
+    parameters: parameters ?? null,
+    photoUrls: Array.isArray(photoUrls) ? photoUrls.filter((u: unknown) => typeof u === "string") : null,
+    startedAt: new Date(),
+  }).returning();
+
+  // A batch with its first process step in flight is no longer just sitting OPEN.
+  if (batch.status === "OPEN") {
+    await db.update(siloBatchesTable).set({ status: "PROCESSING" }).where(eq(siloBatchesTable.id, siloBatchId));
+  }
+
+  await audit("silo_batch_process", created.id, "silo_batch_process.create", req.authedUser, null, created);
+  res.status(201).json({ ...created, outturnSeverity: null });
+});
+
+router.post(
+  "/silo-batch-processes/:id/quality-signoff",
+  requirePermission("warehouse.processing.quality_signoff"),
+  async (req: AuthedRequest, res) => {
+    const { id } = req.params;
+    if (!isUuid(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+    const { decision, outputWeightKg, actualOuturnPct } = req.body ?? {};
+    const result = await recordSignoff(id, "quality", decision, { outputWeightKg, actualOuturnPct }, req.authedUser);
+    if ("error" in result) { res.status(result.status).json({ error: result.error }); return; }
+    res.json({ ...result.row, outturnSeverity: result.severity });
+  },
+);
+
+router.post(
+  "/silo-batch-processes/:id/storage-signoff",
+  requirePermission("warehouse.processing.storage_signoff"),
+  async (req: AuthedRequest, res) => {
+    const { id } = req.params;
+    if (!isUuid(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+    const { decision, outputWeightKg, actualOuturnPct } = req.body ?? {};
+    // Maps to the `warehouseSignoff` column — named "storage" in the URL to avoid
+    // colliding with the generic warehouse.read/write permissions used elsewhere in
+    // this file.
+    const result = await recordSignoff(id, "warehouse", decision, { outputWeightKg, actualOuturnPct }, req.authedUser);
+    if ("error" in result) { res.status(result.status).json({ error: result.error }); return; }
+    res.json({ ...result.row, outturnSeverity: result.severity });
+  },
+);
 
 export default router;
