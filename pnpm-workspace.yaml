@@ -4,6 +4,12 @@ packages:
   - lib/integrations/*
   - scripts
 
+allowBuilds:
+  '@clerk/shared': set this to true or false
+  browser-tabs-lock: set this to true or false
+  core-js: set this to true or false
+  esbuild: set this to true or false
+
 autoInstallPeers: false
 
 catalog:
@@ -42,6 +48,8 @@ onlyBuiltDependencies:
   - unrs-resolver
 
 overrides:
+  '@types/react': 19.2.14
+  '@types/react-dom': 19.2.0
   '@esbuild-kit/esm-loader': npm:tsx@^4.21.0
   '@expo/ngrok-bin>@expo/ngrok-bin-darwin-arm64': '-'
   '@expo/ngrok-bin>@expo/ngrok-bin-darwin-x64': '-'

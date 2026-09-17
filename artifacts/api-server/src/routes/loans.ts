@@ -437,7 +437,7 @@ router.post("/loans/:id/restructure", requirePermission("loans.restructure"), as
       const locked = await tx.execute(sql`
         SELECT * FROM loans WHERE id = ${id} FOR UPDATE
       `);
-      const loan = (locked.rows ?? locked)[0] as any;
+      const loan = ((locked as any).rows ?? locked)[0] as any;
       if (!loan) throw Object.assign(new Error("Loan not found"), { status: 404 });
       // Restructuring is a workout tool for live loans; a PENDING/APPROVED loan
       // should be cancelled or have its principal edited instead.

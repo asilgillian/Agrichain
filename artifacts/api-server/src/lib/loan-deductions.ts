@@ -87,7 +87,7 @@ export async function applyAutoDeductionsForFarmerPayment(
           AND status IN ('DISBURSED', 'REPAYING')
         FOR UPDATE
       `);
-      const locked = (lockedRows.rows ?? lockedRows)[0];
+      const locked = ((lockedRows as any).rows ?? lockedRows)[0];
       if (!locked) break; // loan closed/defaulted by a concurrent writer
       const outstanding = Number((locked as any).outstanding_balance ?? 0);
       if (outstanding <= 0) break;
