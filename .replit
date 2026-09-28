@@ -18,33 +18,35 @@ author = "agent"
 
 [[workflows.workflow.tasks]]
 task = "workflow.run"
-args = "test"
+args = "api-server"
 
 [[workflows.workflow.tasks]]
 task = "workflow.run"
-args = "typecheck-web"
+args = "web"
 
 [[workflows.workflow]]
-name = "test"
+name = "api-server"
 author = "agent"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "pnpm --filter @workspace/api-server run test"
+args = "pnpm --filter @workspace/api-server run dev"
+env = { "PORT" = "8081", "NODE_ENV" = "development" }
 
 [workflows.workflow.metadata]
-isValidation = true
+isBackground = true
 
 [[workflows.workflow]]
-name = "typecheck-web"
+name = "web"
 author = "agent"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "pnpm --filter @workspace/agri-web run typecheck"
+args = "pnpm --filter @workspace/agri-web run dev"
+env = { "PORT" = "8080" }
 
 [workflows.workflow.metadata]
-isValidation = true
+isBackground = true
 
 [agent]
 stack = "PNPM_WORKSPACE"

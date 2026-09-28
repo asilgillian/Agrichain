@@ -43,6 +43,9 @@ minimumReleaseAgeExclude:
 
 onlyBuiltDependencies:
   - '@swc/core'
+  - '@clerk/shared'
+  - browser-tabs-lock
+  - core-js
   - esbuild
   - msw
   - unrs-resolver
