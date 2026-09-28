@@ -1,12 +1,15 @@
-import express, { type Express } from "express";
+import express, { type Express, type Request, type Response, type NextFunction } from "express";
 import cors from "cors";
 import pinoHttp from "pino-http";
 import { clerkMiddleware } from "@clerk/express";
 import { CLERK_PROXY_PATH, clerkProxyMiddleware } from "./middlewares/clerkProxyMiddleware";
+import type { AuthedRequest } from "./middlewares/auth";
 import router from "./routes";
 import { logger } from "./lib/logger";
 
 const app: Express = express();
+
+const hasClerkKey = Boolean(process.env.CLERK_SECRET_KEY || process.env.VITE_CLERK_PUBLISHABLE_KEY);
 
 app.use(
   pinoHttp({
@@ -33,7 +36,22 @@ app.use(cors({ credentials: true, origin: true }));
 app.use(express.json({ limit: "75mb" }));
 app.use(express.urlencoded({ extended: true, limit: "75mb" }));
 
-app.use(clerkMiddleware());
+if (hasClerkKey) {
+  app.use(clerkMiddleware());
+} else if (process.env.NODE_ENV === "development") {
+  logger.warn("CLERK_SECRET_KEY not set — injecting mock admin user for development");
+  app.use((req: AuthedRequest, _res: Response, next: NextFunction) => {
+    req.authedUser = {
+      id: "00000000-0000-0000-0000-000000000000",
+      clerkUserId: "dev-admin",
+      email: "dev-admin@mtandeo.local",
+      role: "SystemAdministrator",
+      roles: ["SystemAdministrator"],
+      permissions: ["*"],
+    };
+    next();
+  });
+}
 
 app.use("/api", router);
 

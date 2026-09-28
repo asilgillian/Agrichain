@@ -83,6 +83,10 @@ async function loadEffectiveRolesAndPermissions(
 }
 
 export async function requireAuth(req: AuthedRequest, res: Response, next: NextFunction): Promise<void> {
+  if (req.authedUser) {
+    next();
+    return;
+  }
   const auth = getAuth(req);
   const clerkUserId = auth?.userId;
   if (!clerkUserId) {
