@@ -9,7 +9,8 @@ import { logger } from "./lib/logger";
 
 const app: Express = express();
 
-const hasClerkKey = Boolean(process.env.CLERK_SECRET_KEY || process.env.VITE_CLERK_PUBLISHABLE_KEY);
+const hasClerkKey = Boolean(process.env.CLERK_SECRET_KEY);
+const devBypass = !hasClerkKey && process.env.NODE_ENV === "development" && process.env.BOLT_DEV_AUTOLOGIN === "1";
 
 app.use(
   pinoHttp({
@@ -38,8 +39,8 @@ app.use(express.urlencoded({ extended: true, limit: "75mb" }));
 
 if (hasClerkKey) {
   app.use(clerkMiddleware());
-} else if (process.env.NODE_ENV === "development") {
-  logger.warn("CLERK_SECRET_KEY not set — injecting mock admin user for development");
+} else if (devBypass) {
+  logger.warn("BOLT_DEV_AUTOLOGIN=1 and no CLERK_SECRET_KEY — injecting mock admin user. Never use in production.");
   app.use((req: AuthedRequest, _res: Response, next: NextFunction) => {
     req.authedUser = {
       id: "00000000-0000-0000-0000-000000000000",
