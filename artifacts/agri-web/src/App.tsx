@@ -52,12 +52,11 @@ const queryClient = new QueryClient({
 const clerkPubKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
 const clerkProxyUrl = import.meta.env.VITE_CLERK_PROXY_URL;
 const basePath = import.meta.env.BASE_URL?.replace(/\/$/, "") ?? "";
+const hasClerk = Boolean(clerkPubKey);
 
 function stripBase(p: string): string {
   return basePath && p.startsWith(basePath) ? p.slice(basePath.length) || "/" : p;
 }
-
-if (!clerkPubKey) throw new Error("Missing VITE_CLERK_PUBLISHABLE_KEY");
 
 const clerkAppearance = {
   theme: shadcn,
@@ -217,6 +216,19 @@ function ClerkQueryClientCacheInvalidator() {
 
 function ClerkProviderWithRoutes() {
   const [, setLocation] = useLocation();
+  if (!hasClerk) {
+    return (
+      <QueryClientProvider client={queryClient}>
+        <TooltipProvider>
+          <Switch>
+            <Route path="/" component={Landing} />
+            <Route component={Landing} />
+          </Switch>
+          <Toaster />
+        </TooltipProvider>
+      </QueryClientProvider>
+    );
+  }
   return (
     <ClerkProvider
       publishableKey={clerkPubKey}
