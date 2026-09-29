@@ -1,0 +1,30 @@
+# Render Blueprint: one free web service that runs the API server and also
+# serves the built website, so both live at the same address.
+# Database: Supabase (use its "Session pooler" connection string — Render has
+# no IPv6, and Supabase's direct connection is IPv6-only).
+services:
+  - type: web
+    name: agrichain
+    runtime: node
+    plan: free
+    branch: bolt-compatible
+    buildCommand: >-
+      corepack enable &&
+      pnpm install --frozen-lockfile &&
+      pnpm --filter @workspace/agri-web run build &&
+      pnpm --filter @workspace/api-server run build
+    # NODE_ENV is set here rather than as an env var so the install step
+    # still installs build tools (devDependencies).
+    startCommand: NODE_ENV=production node --enable-source-maps artifacts/api-server/dist/index.mjs
+    healthCheckPath: /api/healthz
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      # Supabase → Connect → Session pooler connection string
+      - key: DATABASE_URL
+        sync: false
+      # Clerk → API keys (publishable key starts pk_, secret key starts sk_)
+      - key: VITE_CLERK_PUBLISHABLE_KEY
+        sync: false
+      - key: CLERK_SECRET_KEY
+        sync: false

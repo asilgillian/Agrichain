@@ -87,6 +87,12 @@ export async function requireAuth(req: AuthedRequest, res: Response, next: NextF
     next();
     return;
   }
+  if (!process.env.CLERK_SECRET_KEY) {
+    // Without Clerk configured, getAuth() throws and every protected route
+    // would 500. Answer with a clear message instead.
+    res.status(503).json({ error: "Sign-in is not configured on this server (CLERK_SECRET_KEY is missing)." });
+    return;
+  }
   const auth = getAuth(req);
   const clerkUserId = auth?.userId;
   if (!clerkUserId) {
