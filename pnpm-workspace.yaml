@@ -5,10 +5,10 @@ packages:
   - scripts
 
 allowBuilds:
-  '@clerk/shared': set this to true or false
-  browser-tabs-lock: set this to true or false
-  core-js: set this to true or false
-  esbuild: set this to true or false
+  '@clerk/shared': true
+  browser-tabs-lock: true
+  core-js: true
+  esbuild: true
 
 autoInstallPeers: false
 

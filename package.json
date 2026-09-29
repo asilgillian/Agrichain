@@ -3,6 +3,7 @@
   "version": "0.0.0",
   "license": "MIT",
   "scripts": {
+    "predev": "npx -y pnpm@9 install --dangerously-allow-all-builds",
     "dev:api": "pnpm --filter @workspace/api-server run dev",
     "dev:web": "pnpm --filter @workspace/agri-web run dev",
     "dev": "PORT=8081 NODE_ENV=development BOLT_DEV_AUTOLOGIN=1 pnpm --filter @workspace/api-server run dev & PORT=8080 pnpm --filter @workspace/agri-web run dev",
