@@ -13,7 +13,10 @@ if (!connectionString) {
 // Postgres host, including Supabase's connection pooler. Supersedes the prior
 // @neondatabase/serverless WebSocket driver, which only worked with Neon's
 // proxy protocol. Drizzle's full db.transaction() API is supported.
-export const client = postgres(connectionString, { max: 10 });
+// prepare: false keeps this compatible with Supabase's connection poolers
+// (the transaction pooler rejects prepared statements). Hosts without IPv6,
+// such as Render, must use a pooler URL rather than Supabase's direct URL.
+export const client = postgres(connectionString, { max: 10, prepare: false });
 export const db = drizzle(client, { schema });
 
 export * from "./schema";
