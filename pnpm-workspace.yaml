@@ -1,7 +1,12 @@
 packages:
-  - artifacts/*
-  - lib/*
-  - lib/integrations/*
+  - artifacts/agri-web
+  - artifacts/api-server
+  - lib/api-client-react
+  - lib/api-spec
+  - lib/api-zod
+  - lib/db
+  - lib/ledger-import
+  - lib/object-storage-web
   - scripts
 
 autoInstallPeers: false
